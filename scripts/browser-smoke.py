@@ -780,6 +780,7 @@ def run() -> dict[str, Any]:
     baseline_game_ids = api.list_game_ids()
     ledger = SmokeGameLedger(timestamp)
     page_reference: list[Page] = []
+    created_game_ids: list[str] = []
 
     with (
         sync_playwright() as playwright,
@@ -837,6 +838,7 @@ def run() -> dict[str, Any]:
                         "create-game response omitted its exact id or revision"
                     )
                 ledger.record(game_id, revision)
+                created_game_ids.append(game_id)
             except Exception as error:  # noqa: BLE001 - cleanup must continue in finally
                 response_record_errors.append(
                     f"created-game ledger record failed: {type(error).__name__}: {error}"
@@ -874,6 +876,50 @@ def run() -> dict[str, Any]:
         )
         page.on("response", handle_response)
         page.bring_to_front()
+
+        # The compact interface is a real, reloadable route. Opening it must
+        # not create a game, and switching layouts must use the same App state.
+        page.goto(f"{APP_URL}simple/", wait_until="networkidle")
+        root = page.get_by_test_id("app-root")
+        root.wait_for(state="visible")
+        page.locator(
+            '[data-testid="app-root"][data-layout="simple"][data-view="journey"]'
+        ).wait_for(state="visible")
+        simple_launcher = page.get_by_test_id("simple-launcher")
+        checks["simpleDirectRoute"] = (
+            urlsplit(page.url).path == "/simple/"
+            and simple_launcher.is_visible()
+            and page.locator(".app-header").count() == 0
+            and not created_game_ids
+        )
+        checks["simpleLauncherFitsViewport"] = page.evaluate(
+            """() => {
+              const root = document.documentElement;
+              return root.scrollHeight === root.clientHeight &&
+                root.scrollWidth === root.clientWidth;
+            }"""
+        )
+        page.get_by_test_id("simple-nav-chronicle").click()
+        page.get_by_test_id("chronicle").wait_for(state="visible")
+        checks["simpleHistoryAccessible"] = page.evaluate(
+            """() => {
+              const root = document.documentElement;
+              const main = document.querySelector('.app.is-simple > main');
+              if (!(main instanceof HTMLElement)) return false;
+              main.scrollTop = main.scrollHeight;
+              return root.scrollHeight === root.clientHeight &&
+                getComputedStyle(main).overflowY === 'auto';
+            }"""
+        )
+        page.get_by_test_id("simple-nav-journey").click()
+        simple_launcher.wait_for(state="visible")
+        screenshot(page, timestamp, "simple-launcher-desktop", screenshots)
+        page.get_by_test_id("ui-classic").click()
+        page.locator('[data-testid="app-root"][data-layout="classic"]').wait_for(
+            state="visible"
+        )
+        checks["simpleSwitchPreservesEmptyState"] = not created_game_ids
+
         page.goto(APP_URL, wait_until="networkidle")
         root = page.get_by_test_id("app-root")
         root.wait_for(state="visible")
@@ -1139,6 +1185,190 @@ def run() -> dict[str, Any]:
         )
         screenshot(page, timestamp, "nine-by-nine-unconfirmed-analysis", screenshots)
 
+        # The same live preview can move into /simple and through browser
+        # history without another game, another move, or a rebuilt analysis.
+        create_count_before_simple = len(created_game_ids)
+        preview_coordinate_before_simple = workspace.get_attribute(
+            "data-selected-coordinate"
+        )
+        page.get_by_test_id("ui-simple").click()
+        page.locator(
+            '[data-testid="app-root"][data-layout="simple"] '
+            '[data-testid="play-workspace"][data-layout="simple"]'
+        ).wait_for(state="visible")
+        checks["simplePreviewStatePreserved"] = (
+            urlsplit(page.url).path == "/simple"
+            and workspace.get_attribute("data-selected-coordinate")
+            == preview_coordinate_before_simple
+            and page.get_by_test_id("commit-move").is_enabled()
+            and page.locator(".timeline-track > span").count() == moves_before_preview
+            and page.get_by_test_id("candidate-ownership-after").count() == 1
+            and page.get_by_test_id("candidate-ownership-delta").count() == 1
+            and page.get_by_test_id("candidate-ghost-stone").count() == 1
+        )
+        checks["simpleDesktopFitsViewport"] = page.evaluate(
+            """() => {
+              const root = document.documentElement;
+              const selectors = [
+                '[data-testid="weiqi-board"]',
+                '[data-testid="move-controls"]',
+                '[data-testid="power-teacher"]',
+                '[data-testid="energy-lenses"]',
+                '.candidate-card',
+                '[data-testid="coach-input"]',
+              ];
+              const inside = selectors.every(selector => {
+                const element = document.querySelector(selector);
+                if (!(element instanceof HTMLElement || element instanceof SVGElement)) return false;
+                const box = element.getBoundingClientRect();
+                return box.top >= 0 && box.left >= 0 &&
+                  box.bottom <= innerHeight && box.right <= innerWidth;
+              });
+              return inside && root.scrollHeight === root.clientHeight &&
+                root.scrollWidth === root.clientWidth;
+            }"""
+        )
+        simple_second_candidate = page.locator(".candidate-card").nth(1)
+        simple_second_id = str(
+            simple_second_candidate.get_attribute("data-testid")
+        ).removeprefix("candidate-")
+        simple_second_candidate.hover()
+        page.locator(
+            f'[data-testid="candidate-field-key"][data-candidate-id="{simple_second_id}"]'
+        ).wait_for(state="attached")
+        checks["simpleCandidateHoverUpdatesBoard"] = (
+            page.get_by_test_id("candidate-ownership-after").count() == 1
+            and page.get_by_test_id("candidate-ownership-delta").count() == 1
+            and page.locator(".timeline-track > span").count() == moves_before_preview
+        )
+        page.mouse.move(5, 5)
+        screenshot(page, timestamp, "simple-preview-desktop", screenshots)
+
+        page.go_back()
+        page.locator('[data-testid="app-root"][data-layout="classic"]').wait_for(
+            state="visible"
+        )
+        simple_back_preserved = (
+            workspace.get_attribute("data-selected-coordinate")
+            == preview_coordinate_before_simple
+            and page.get_by_test_id("commit-move").is_enabled()
+        )
+        page.go_forward()
+        page.locator('[data-testid="app-root"][data-layout="simple"]').wait_for(
+            state="visible"
+        )
+        checks["simpleHistoryNavigationPreservesPreview"] = (
+            simple_back_preserved
+            and workspace.get_attribute("data-selected-coordinate")
+            == preview_coordinate_before_simple
+            and page.get_by_test_id("commit-move").is_enabled()
+            and len(created_game_ids) == create_count_before_simple
+        )
+
+        simple_cdp = context.new_cdp_session(page)
+        try:
+            simple_cdp.send(
+                "Emulation.setDeviceMetricsOverride",
+                {"width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": True},
+            )
+            page.wait_for_timeout(500)
+            simple_mobile_geometry = page.evaluate(
+                """() => {
+                  const root = document.documentElement;
+                  const board = document.querySelector('[data-testid="weiqi-board"]');
+                  const boardVisual = document.querySelector('.board-visual');
+                  const controls = document.querySelector('[data-testid="move-controls"]');
+                  const lenses = document.querySelector('[data-testid="energy-lenses"]');
+                  const coach = document.querySelector('.coach-mobile-toggle');
+                  if (!(board && boardVisual && controls && lenses && coach)) {
+                    return { fits: false, missing: true };
+                  }
+                  const boardBox = board.getBoundingClientRect();
+                  const boardVisualBox = boardVisual.getBoundingClientRect();
+                  const controlsBox = controls.getBoundingClientRect();
+                  const lensesBox = lenses.getBoundingClientRect();
+                  const coachBox = coach.getBoundingClientRect();
+                  const fits = root.scrollHeight === root.clientHeight &&
+                    root.scrollWidth === root.clientWidth &&
+                    boardBox.top >= 0 && boardBox.bottom <= innerHeight &&
+                    boardVisualBox.bottom <= controlsBox.top &&
+                    controlsBox.top >= 0 && controlsBox.bottom <= innerHeight &&
+                    lensesBox.bottom <= coachBox.top && coachBox.bottom <= innerHeight;
+                  const rect = box => ({
+                    top: Math.round(box.top * 100) / 100,
+                    bottom: Math.round(box.bottom * 100) / 100,
+                    width: Math.round(box.width * 100) / 100,
+                    height: Math.round(box.height * 100) / 100,
+                  });
+                  return {
+                    fits,
+                    root: {
+                      scrollHeight: root.scrollHeight,
+                      clientHeight: root.clientHeight,
+                      scrollWidth: root.scrollWidth,
+                      clientWidth: root.clientWidth,
+                      innerHeight,
+                    },
+                    board: rect(boardBox),
+                    boardVisual: rect(boardVisualBox),
+                    controls: rect(controlsBox),
+                    lenses: rect(lensesBox),
+                    coach: rect(coachBox),
+                  };
+                }"""
+            )
+            checks["simpleMobileGeometry"] = simple_mobile_geometry
+            checks["simpleMobileFitsViewport"] = bool(
+                simple_mobile_geometry.get("fits")
+            )
+            screenshot(page, timestamp, "simple-preview-mobile", screenshots)
+            page.locator(".coach-mobile-toggle").click()
+            page.locator(
+                '.coach-rail[data-mobile-open="true"] .candidate-card'
+            ).first.wait_for(state="visible")
+            checks["simpleMobileCandidatesAccessible"] = page.evaluate(
+                """() => {
+                  const root = document.documentElement;
+                  const sheet = document.querySelector('.coach-sheet-content');
+                  return sheet instanceof HTMLElement &&
+                    root.scrollHeight === root.clientHeight &&
+                    getComputedStyle(sheet).overflowY === 'auto';
+                }"""
+            )
+            screenshot(page, timestamp, "simple-coach-mobile", screenshots)
+            page.locator(".coach-mobile-toggle").click()
+
+            simple_cdp.send(
+                "Emulation.setDeviceMetricsOverride",
+                {"width": 720, "height": 560, "deviceScaleFactor": 1, "mobile": False},
+            )
+            page.wait_for_timeout(350)
+            page.get_by_test_id("move-controls").scroll_into_view_if_needed()
+            checks["simpleShortViewportUsesInternalScroll"] = page.evaluate(
+                """() => {
+                  const root = document.documentElement;
+                  const layout = document.querySelector('.simple-play .play-layout');
+                  const controls = document.querySelector('[data-testid="move-controls"]');
+                  if (!(layout instanceof HTMLElement) || !controls) return false;
+                  const box = controls.getBoundingClientRect();
+                  return root.scrollHeight === root.clientHeight &&
+                    root.scrollWidth === root.clientWidth &&
+                    layout.scrollHeight > layout.clientHeight &&
+                    box.top >= 0 && box.bottom <= innerHeight;
+                }"""
+            )
+        finally:
+            simple_cdp.send("Emulation.clearDeviceMetricsOverride")
+            simple_cdp.detach()
+        page.wait_for_timeout(350)
+        page.get_by_test_id("ui-classic").click()
+        page.locator('[data-testid="app-root"][data-layout="classic"]').wait_for(
+            state="visible"
+        )
+        checks["simpleRouteDoesNotDuplicateGames"] = (
+            len(created_game_ids) == create_count_before_simple
+        )
+
         # The new one-click teaching state must remain readable and actionable
         # at phone width before any stone is committed.
         preview_cdp = context.new_cdp_session(page)
@@ -1287,6 +1517,18 @@ def run() -> dict[str, Any]:
         "title": "Weiqi · Path of Influence",
         "initialView": "journey",
         "engine": "ready",
+        "simpleDirectRoute": True,
+        "simpleLauncherFitsViewport": True,
+        "simpleHistoryAccessible": True,
+        "simpleSwitchPreservesEmptyState": True,
+        "simplePreviewStatePreserved": True,
+        "simpleDesktopFitsViewport": True,
+        "simpleCandidateHoverUpdatesBoard": True,
+        "simpleHistoryNavigationPreservesPreview": True,
+        "simpleMobileFitsViewport": True,
+        "simpleMobileCandidatesAccessible": True,
+        "simpleShortViewportUsesInternalScroll": True,
+        "simpleRouteDoesNotDuplicateGames": True,
         "normalizedBoard": "9",
         "normalizedMode": "human_companion",
         "smallBoard": "5",

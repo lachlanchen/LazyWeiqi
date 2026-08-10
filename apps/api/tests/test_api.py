@@ -10,6 +10,7 @@ import anyio
 import pytest
 from starlette.requests import Request
 
+from weiqi import main as main_module
 from weiqi.config import Settings
 from weiqi.main import (
     MAX_JSON_BODY_BYTES,
@@ -50,6 +51,27 @@ def test_static_web_root_rejects_symlinks_without_touching_the_target(tmp_path: 
     with pytest.raises(RuntimeError, match="must not be a symbolic link"):
         _validated_web_dist(web_root / "dist")
     assert sentinel.read_text(encoding="utf-8") == "keep me\n"
+
+
+def test_simple_ui_route_serves_the_reviewed_spa_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    app_client_factory: Any,
+) -> None:
+    web_root = tmp_path / "apps" / "web"
+    web_dist = web_root / "dist"
+    web_dist.mkdir(parents=True)
+    entry = "<!doctype html><title>Path of Influence</title><div id='root'></div>"
+    (web_dist / "index.html").write_text(entry, encoding="utf-8")
+    monkeypatch.setattr(main_module, "_web_dist", lambda: web_dist)
+
+    with app_client_factory() as (client, _katago, _openai, _local):
+        for route in ("/simple", "/simple/"):
+            response = client.get(route)
+            assert response.status_code == 200
+            assert response.text == entry
+            assert response.headers["content-type"].startswith("text/html")
+            assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
 
 
 def test_blank_openai_key_is_unconfigured(tmp_path: Any) -> None:

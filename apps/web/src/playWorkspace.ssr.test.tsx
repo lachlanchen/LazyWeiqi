@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { PlayWorkspace } from './App'
+import { interfaceLayoutForPath, PlayWorkspace, shouldUseClientRouteSwitch } from './App'
 import { DEFAULT_PREFERENCES, DEMO_GAME } from './fallbackData'
 import type { AreaSnapshot, CandidateMove, GameState, MovePreview, Point } from './types'
 
@@ -109,6 +109,7 @@ function renderWorkspace({
   selected = null as Point | null,
   preview = null as MovePreview | null,
   selectedCandidateId = null as string | null,
+  layout = 'classic' as const,
 }: {
   game?: GameState
   operation?: 'idle' | 'previewing'
@@ -116,9 +117,11 @@ function renderWorkspace({
   selected?: Point | null
   preview?: MovePreview | null
   selectedCandidateId?: string | null
+  layout?: 'classic' | 'simple'
 } = {}) {
   return renderToStaticMarkup(
     <PlayWorkspace
+      layout={layout}
       game={game}
       preferences={DEFAULT_PREFERENCES}
       operation={operation}
@@ -151,6 +154,59 @@ function renderWorkspace({
     />,
   )
 }
+
+describe('simple interface route contract', () => {
+  it('recognizes only the dedicated simple path, including its trailing slash', () => {
+    expect(interfaceLayoutForPath('/simple')).toBe('simple')
+    expect(interfaceLayoutForPath('/simple/')).toBe('simple')
+    expect(interfaceLayoutForPath('/')).toBe('classic')
+    expect(interfaceLayoutForPath('/chronicle')).toBe('classic')
+  })
+
+  it('keeps modified and non-primary route clicks available to the browser', () => {
+    const plainClick = {
+      button: 0,
+      defaultPrevented: false,
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+    }
+
+    expect(shouldUseClientRouteSwitch(plainClick)).toBe(true)
+    expect(shouldUseClientRouteSwitch({ ...plainClick, button: 1 })).toBe(false)
+    expect(shouldUseClientRouteSwitch({ ...plainClick, ctrlKey: true })).toBe(false)
+    expect(shouldUseClientRouteSwitch({ ...plainClick, metaKey: true })).toBe(false)
+    expect(shouldUseClientRouteSwitch({ ...plainClick, shiftKey: true })).toBe(false)
+    expect(shouldUseClientRouteSwitch({ ...plainClick, altKey: true })).toBe(false)
+    expect(shouldUseClientRouteSwitch({ ...plainClick, defaultPrevented: true })).toBe(false)
+  })
+
+  it('reuses the exact interactive board and candidate controls in the compact workspace', () => {
+    const html = renderWorkspace({ layout: 'simple' })
+
+    expect(html).toContain('class="play-view simple-play"')
+    expect(html).toContain('data-testid="play-workspace" data-layout="simple"')
+    expect(html).toContain('data-testid="weiqi-board"')
+    expect(html).toContain('data-testid="candidate-list"')
+    expect(html).toContain('data-density="compact"')
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).toContain('data-testid="power-teacher"')
+    expect(html).toContain('data-testid="energy-lenses"')
+    expect(html).toContain('data-testid="move-controls"')
+    expect(html).toContain('data-testid="coach-input"')
+    expect(html).toContain('data-testid="suggested-first-stone"')
+    expect(html).not.toContain('data-testid="commit-move"')
+  })
+
+  it('keeps the classic workspace class when no compact layout is requested', () => {
+    const html = renderWorkspace()
+
+    expect(html).toContain('data-testid="play-workspace" data-layout="classic"')
+    expect(html).toContain('data-density="full"')
+    expect(html).not.toContain('simple-play')
+  })
+})
 
 describe('unconfirmed first-move analysis flow', () => {
   it('keeps the strongest passive comparison visible in agent theatre', () => {

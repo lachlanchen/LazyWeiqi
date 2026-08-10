@@ -12,6 +12,7 @@ import {
 import type { BoardSize, CandidateMove, StoneColor } from '../types'
 
 interface CandidateCardsProps {
+  compact?: boolean
   boardSize: BoardSize
   toPlay: StoneColor
   candidates: CandidateMove[]
@@ -24,6 +25,7 @@ interface CandidateCardsProps {
 }
 
 export function CandidateCards({
+  compact = false,
   boardSize,
   toPlay,
   candidates,
@@ -55,7 +57,7 @@ export function CandidateCards({
   }
 
   return (
-    <div className="candidate-list" data-testid="candidate-list" aria-label="Candidate move comparison">
+    <div className="candidate-list" data-testid="candidate-list" data-density={compact ? 'compact' : 'full'} aria-label="Candidate move comparison">
       {candidates.slice(0, 3).map((candidate) => {
         const selected = selectedCandidateId === candidate.id
         const inspecting = inspectedCandidateId === candidate.id
@@ -63,7 +65,7 @@ export function CandidateCards({
         const suggestedRank = Number.isInteger(candidate.evaluation?.order) && (candidate.evaluation?.order ?? -1) >= 0
           ? `KataGo order ${(candidate.evaluation?.order ?? 0) + 1}`
           : 'KataGo-ranked'
-        const expanded = selected || inspecting || suggested
+        const expanded = !compact && (selected || inspecting || suggested)
         const reasoning = candidateReasoning(candidate)
         const pv = variationSummary(candidate, boardSize)
         const evaluation = candidate.evaluation ? evaluationSummary(candidate.evaluation) : null

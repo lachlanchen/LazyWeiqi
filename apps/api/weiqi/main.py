@@ -11,7 +11,7 @@ from fastapi import FastAPI, Query, Request
 from fastapi import Path as ApiPath
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -436,6 +436,14 @@ def create_app(
 
     web_dist = _web_dist()
     if web_dist is not None:
+
+        @app.get("/simple", include_in_schema=False)
+        @app.get("/simple/", include_in_schema=False)
+        async def simple_ui() -> FileResponse:
+            """Serve the same reviewed SPA entry point for the compact UI route."""
+
+            return FileResponse(web_dist / "index.html", media_type="text/html")
+
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
     else:
 

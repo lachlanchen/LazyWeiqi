@@ -20,6 +20,7 @@ const INTENTS: Array<{ id: MoveIntent; label: string }> = [
 ]
 
 interface CoachRailProps {
+  compact?: boolean
   boardSize: BoardSize
   toPlay: StoneColor
   mode: GameMode
@@ -48,6 +49,7 @@ interface CoachRailProps {
 }
 
 export function CoachRail({
+  compact = false,
   boardSize,
   toPlay,
   mode,
@@ -252,6 +254,7 @@ export function CoachRail({
           <div className="preview-illegal" role="alert"><X size={15} /> {preview.reason ?? 'That point is not legal now.'}</div>
         )}
         <CandidateCards
+          compact={compact}
           boardSize={boardSize}
           toPlay={toPlay}
           candidates={candidates}

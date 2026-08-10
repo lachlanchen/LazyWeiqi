@@ -117,8 +117,10 @@ cp .env.example .env
 scripts/run.sh start
 ```
 
-Open <http://127.0.0.1:8010/>. Stop only this repository's owned API process
-with:
+Open <http://127.0.0.1:8010/> for the complete learning interface or
+<http://127.0.0.1:8010/simple> for the compact, full-screen board. The header
+switch changes between them without reloading or losing the active game. Stop
+only this repository's owned API process with:
 
 ```bash
 scripts/run.sh stop

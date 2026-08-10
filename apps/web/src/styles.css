@@ -255,6 +255,30 @@ blockquote {
   cursor: pointer;
 }
 
+.interface-route-link {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: #496873;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 760;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.interface-route-link:hover {
+  border-color: #a8cfc2;
+  background: #f1f8f5;
+  color: var(--jade-dark);
+}
+
 .nav-menu {
   display: none;
 }
@@ -2793,6 +2817,571 @@ blockquote {
 
 .empty-note { padding: 30px; border: 1px dashed var(--line-strong); border-radius: 16px; color: var(--muted); text-align: center; }
 
+/* Simple route -----------------------------------------------------------
+   The classic interface above intentionally keeps its original layout.
+   /simple reuses the same board and teaching controls inside one viewport. */
+.app.is-simple {
+  display: flex;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 15%, rgba(100, 202, 171, 0.11), transparent 27rem),
+    #f5f8f7;
+}
+
+.app.is-simple > main {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.app.is-simple[data-view='chronicle'] > main {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.simple-header {
+  position: relative;
+  z-index: 50;
+  display: grid;
+  min-height: 56px;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(190px, 1fr) auto minmax(260px, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 7px clamp(12px, 2vw, 28px);
+  border-bottom: 1px solid rgba(199, 219, 212, 0.9);
+  background: rgba(252, 254, 253, 0.94);
+  backdrop-filter: blur(16px) saturate(1.1);
+}
+
+.simple-brand {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.simple-brand .brand-mark {
+  width: 35px;
+  height: 35px;
+  border-radius: 11px;
+}
+
+.simple-brand > span:last-child {
+  display: grid;
+}
+
+.simple-brand strong { font-size: 0.83rem; }
+.simple-brand small { color: var(--muted); font-size: 0.59rem; }
+
+.simple-header nav {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #dce8e4;
+  border-radius: 12px;
+  background: #f4f8f7;
+}
+
+.simple-header nav button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #647b84;
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 760;
+}
+
+.simple-header nav button.active {
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(36, 76, 67, 0.08);
+  color: var(--jade-dark);
+}
+
+.simple-header nav button:disabled { cursor: not-allowed; opacity: 0.34; }
+
+.simple-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.simple-engine {
+  display: inline-flex;
+  min-height: 31px;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.61rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.simple-engine.ready { background: #e4f4ee; color: #0a705f; }
+.simple-engine.fallback { background: #fff3d9; color: #846226; }
+
+.simple-icon-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.simple-header .interface-route-link { min-height: 34px; border-radius: 10px; }
+
+.simple-start {
+  display: grid;
+  width: min(1120px, calc(100% - 40px));
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 0.92fr) minmax(480px, 1.08fr);
+  align-items: center;
+  gap: clamp(30px, 6vw, 76px);
+  padding: clamp(22px, 4vh, 46px) 0;
+}
+
+.simple-start-copy,
+.simple-start-setup { min-width: 0; }
+
+.simple-start-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.simple-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 15px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #e6f4ef;
+  color: var(--jade-dark);
+  font-size: 0.67rem;
+  font-weight: 780;
+}
+
+.simple-start-copy h1 {
+  max-width: 600px;
+  margin-bottom: 10px;
+  color: var(--ink);
+  font-size: clamp(2.2rem, 5vw, 4.2rem);
+  letter-spacing: -0.062em;
+  line-height: 0.98;
+}
+
+.simple-start-copy > p {
+  max-width: 530px;
+  margin-bottom: 22px;
+  color: #59717c;
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.simple-size-choice {
+  display: grid;
+  width: min(100%, 470px);
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin-bottom: 13px;
+}
+
+.simple-size-choice button {
+  display: grid;
+  min-height: 58px;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #59727d;
+  cursor: pointer;
+  text-align: left;
+}
+
+.simple-size-choice button.selected {
+  border-color: #61b59e;
+  background: #e9f7f2;
+  color: var(--jade-dark);
+  box-shadow: inset 0 0 0 1px rgba(8, 126, 105, 0.08);
+}
+
+.simple-size-choice strong { font-size: 0.85rem; }
+.simple-size-choice small { font-size: 0.58rem; }
+
+.simple-begin {
+  display: flex;
+  width: min(100%, 470px);
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 10px 15px;
+  border: 1px solid #076a59;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #0d8d77, #08705e);
+  box-shadow: 0 13px 27px rgba(8, 126, 105, 0.18);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.81rem;
+  font-weight: 800;
+}
+
+.simple-begin:disabled { cursor: wait; opacity: 0.58; }
+.simple-begin span { flex: 1; text-align: left; }
+
+.simple-lesson-facts {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  color: #6a7f87;
+  font-size: 0.62rem;
+  font-weight: 680;
+  flex-wrap: wrap;
+}
+
+.simple-lesson-facts span { display: inline-flex; align-items: center; gap: 4px; }
+.simple-lesson-facts .fallback { color: #896527; }
+
+.simple-start-copy blockquote {
+  display: flex;
+  max-width: 470px;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 22px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid #72bba7;
+  border-radius: 0 12px 12px 0;
+  background: rgba(255, 255, 255, 0.68);
+  color: #3e6168;
+  font-family: Georgia, serif;
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.simple-start-copy blockquote svg { flex: 0 0 auto; margin-top: 2px; color: var(--jade); }
+
+.simple-start-setup {
+  max-height: 100%;
+  overflow: auto;
+  padding: clamp(17px, 3vh, 28px);
+  border: 1px solid #d5e4df;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-md);
+  scrollbar-width: thin;
+}
+
+.simple-start-setup > header h2 { margin-bottom: 5px; font-size: 1.25rem; letter-spacing: -0.035em; }
+.simple-start-setup > header p { margin-bottom: 14px; color: var(--muted); font-size: 0.68rem; }
+.simple-start-setup .mode-picker.compact { padding: 0; border: 0; }
+.simple-start-setup .mode-grid { gap: 7px; }
+.simple-start-setup .mode-card,
+.simple-start-setup .mode-card:last-child {
+  min-height: 78px;
+  padding: 11px;
+}
+.simple-start-setup .mode-icon { width: 34px; height: 34px; }
+.simple-start-setup .cast-config { margin-top: 8px; padding: 10px; }
+.simple-start-setup .cast-title { display: none; }
+.simple-start-setup .field-select { min-width: 150px; }
+
+.simple-safety {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #edf7f3;
+  color: #4e6c72;
+  font-size: 0.62rem;
+  line-height: 1.45;
+}
+
+.simple-safety svg { flex: 0 0 auto; color: var(--jade); }
+
+.simple-play.play-view {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  padding: 8px 12px 10px;
+  overflow: hidden;
+}
+
+.simple-play .training-banner {
+  min-height: 30px;
+  flex: 0 0 auto;
+  margin: -8px -12px 7px;
+  padding: 5px 12px;
+  font-size: 0.64rem;
+}
+
+.simple-play .completion-banner { min-height: 42px; flex: 0 0 auto; margin: 0 0 7px; padding-block: 6px; }
+
+.simple-play .play-titlebar {
+  min-height: 42px;
+  flex: 0 0 auto;
+  grid-template-columns: 120px 1fr 200px;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.simple-play .back-button { min-height: 34px; padding: 5px 8px; }
+.simple-play .play-title .eyebrow { margin: 0; font-size: 0.55rem; }
+.simple-play .play-title h1 { margin: 0; font-size: 1.08rem; }
+.simple-play .play-title p { display: none; }
+.simple-play .turn-card { min-height: 40px; padding: 5px 9px; border-radius: 11px; box-shadow: none; }
+.simple-play .turn-stone { width: 23px; height: 23px; }
+
+.simple-play .objective-strip {
+  min-height: 38px;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin-bottom: 7px;
+  padding: 6px 10px;
+  border-radius: 11px;
+}
+
+.simple-play .objective-strip > svg { width: 15px; }
+.simple-play .rules-compact span { padding: 2px 6px; }
+
+.simple-play .play-layout {
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(720px, 1fr) minmax(300px, 340px);
+  align-items: stretch;
+  gap: 8px;
+}
+
+.simple-play .board-column {
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(440px, 1fr) minmax(240px, 300px);
+  grid-template-rows: minmax(0, 56fr) minmax(0, 44fr) auto;
+  gap: 8px;
+}
+
+.simple-play .board-stage {
+  min-width: 0;
+  min-height: 0;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  padding: 7px;
+  border-radius: 18px;
+}
+
+.simple-play .board-visual {
+  width: min(100%, 610px, calc(100dvh - 235px));
+  max-height: 100%;
+  align-content: center;
+  gap: 4px;
+}
+
+/* The SVG remains identical. Only its verbose below-board keys are folded
+   into compact status lines; labeled reasoning lives in the decision pane. */
+.simple-play .candidate-field-key { display: none; }
+.simple-play .power-cloud-key { gap: 3px; padding: 5px 8px; border-radius: 10px; }
+.simple-play .power-cloud-title .evidence-badge,
+.simple-play .power-cloud-key > p { display: none; }
+.simple-play .power-cloud-title strong { font-size: 0.62rem; }
+.simple-play .power-cloud-items { display: flex; justify-content: center; gap: 9px; }
+.simple-play .power-cloud-items > span { width: auto; font-size: 0.56rem; }
+.simple-play .power-cloud-items > span:not(:first-child) { display: flex; }
+
+.simple-play .unconfirmed-analysis { gap: 0; padding: 5px 8px; border-radius: 9px; }
+.simple-play .unconfirmed-analysis > span,
+.simple-play .unconfirmed-analysis .position-bookkeeping-comparison { display: none; }
+.simple-play .unconfirmed-analysis strong { font-size: 0.6rem; }
+
+.simple-play .move-controls {
+  min-height: 48px;
+  grid-column: 1;
+  grid-row: 3;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 12px;
+}
+
+.simple-play .secondary-control,
+.simple-play .primary-control { min-height: 36px; padding: 6px 9px; font-size: 0.64rem; }
+.simple-play .selection-summary { min-width: 180px; }
+.simple-play .move-instruction { font-size: 0.65rem; }
+.simple-play .analysis-before-confirmation { min-height: 36px; padding: 5px 8px; }
+
+.simple-play .power-teacher {
+  min-height: 0;
+  grid-column: 2;
+  grid-row: 1;
+  overflow: auto;
+  padding: 9px;
+  border-radius: 14px;
+  scrollbar-width: thin;
+}
+
+.simple-play .power-teacher > header { align-items: flex-start; gap: 6px; margin-bottom: 6px; }
+.simple-play .power-teacher-icon { width: 26px; height: 26px; border-radius: 8px; }
+.simple-play .power-teacher .eyebrow { display: none; }
+.simple-play .power-teacher h3 { font-size: 0.7rem; }
+.simple-play .power-teacher-source { max-width: 110px; font-size: 0.52rem; text-align: right; white-space: normal; }
+.simple-play .power-teacher-steps { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.simple-play .power-teacher-steps li { min-height: 0; padding: 6px; }
+.simple-play .power-teacher-steps li:nth-child(4),
+.simple-play .power-teacher-steps li:nth-child(6) { display: none; }
+.simple-play .power-teacher-steps strong { font-size: 0.68rem; }
+.simple-play .power-teacher-steps p {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+.simple-play .power-teacher .step-arrow,
+.simple-play .power-memory { display: none; }
+.simple-play .teaching-source { font-size: 0.42rem; }
+
+.simple-play .energy-panel {
+  min-height: 0;
+  grid-column: 2;
+  grid-row: 2;
+  overflow: auto;
+  padding: 9px;
+  border-radius: 14px;
+  scrollbar-width: thin;
+}
+
+.simple-play .energy-heading { margin-bottom: 6px; }
+.simple-play .energy-heading .eyebrow,
+.simple-play .energy-heading .no-score { display: none; }
+.simple-play .energy-heading h3 { font-size: 0.7rem; }
+.simple-play .lens-chips { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.simple-play .lens-chip {
+  min-height: 35px;
+  grid-template-columns: 14px 1fr;
+  grid-template-rows: 1fr;
+  gap: 4px;
+  padding: 4px 5px;
+  border-radius: 8px;
+}
+.simple-play .lens-chip > svg { grid-row: auto; width: 13px; }
+.simple-play .lens-chip span { font-size: 0.55rem; }
+.simple-play .lens-chip small { display: none; }
+.simple-play .facet-readings { grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 5px; }
+.simple-play .facet-reading { min-height: 0; padding: 5px 6px; border-radius: 8px; }
+.simple-play .facet-reading:nth-child(n + 3) { display: none; }
+.simple-play .facet-scope,
+.simple-play .facet-reading p,
+.simple-play .facet-reading .evidence-badge { display: none; }
+.simple-play .facet-reading strong { font-size: 0.56rem; }
+.simple-play .facet-value { margin-top: 3px; font-size: 0.63rem; }
+
+.simple-play .move-timeline { display: none; }
+
+.simple-play .coach-rail {
+  position: relative;
+  top: auto;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 18px;
+  scrollbar-width: thin;
+}
+
+.simple-play .coach-rail-handle,
+.simple-play .coach-doctrine,
+.simple-play .coach-history-controls { display: none; }
+.simple-play .coach-header { gap: 7px; padding-bottom: 7px; }
+.simple-play .coach-avatar { width: 32px; height: 32px; border-radius: 10px; }
+.simple-play .coach-header h2 { font-size: 0.82rem; }
+.simple-play .coach-header .coach-state { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.simple-play .intent-section { margin-top: 7px; }
+.simple-play .rail-section-title { margin-bottom: 4px; }
+.simple-play .intent-row { gap: 3px; padding-bottom: 2px; }
+.simple-play .intent-row button { min-height: 26px; padding: 3px 6px; font-size: 0.52rem; }
+.simple-play .coach-conversation { max-height: 92px; margin-top: 7px; overflow: hidden; }
+.simple-play .coach-exchange:not(:last-child) { display: none; }
+.simple-play .coach-message.learner { display: none; }
+.simple-play .coach-message { width: 100%; max-width: 100%; padding: 7px 8px; border-radius: 10px; }
+.simple-play .message-meta { margin-bottom: 3px; }
+.simple-play .coach-message p {
+  display: -webkit-box;
+  margin-bottom: 2px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.66rem;
+  line-height: 1.38;
+}
+.simple-play .coach-message blockquote,
+.simple-play .message-evidence,
+.simple-play .coach-message .companion-prompt { display: none; }
+.simple-play .consequence-section { margin-top: 7px; }
+.simple-play .candidate-list { gap: 4px; }
+.simple-play .candidate-card {
+  min-height: 54px;
+  grid-template-columns: 35px 1fr;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 9px;
+}
+.simple-play .candidate-coordinate { width: 33px; height: 33px; border-radius: 8px; font-size: 0.61rem; }
+.simple-play .candidate-title-row strong {
+  overflow: hidden;
+  font-size: 0.66rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simple-play .candidate-summary {
+  overflow: hidden;
+  font-size: 0.66rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.simple-play .candidate-suggestion-badge { padding: 2px 5px; font-size: 0.44rem; }
+.simple-play .candidate-detail,
+.simple-play .intent-provenance,
+.simple-play .candidate-analysis,
+.simple-play .candidate-interaction-hint { display: none !important; }
+.simple-play .coach-quick-actions { gap: 4px; margin-top: 6px; }
+.simple-play .coach-quick-actions button,
+.simple-play .delegate-button { min-height: 31px; font-size: 0.53rem; }
+.simple-play .coach-form { grid-template-columns: 1fr 34px; gap: 4px; margin-top: 5px; }
+.simple-play .coach-form input { min-height: 34px; padding: 6px 8px; font-size: 0.59rem; }
+.simple-play .coach-form button { width: 34px; height: 34px; border-radius: 9px; }
+.simple-play .delegation-zone { margin-top: 5px; padding-top: 5px; }
+
 @media (max-width: 1120px) {
   .hero-inner { grid-template-columns: minmax(0, 1fr) 430px; gap: 32px; }
   .hero h1 { font-size: clamp(2.7rem, 5.5vw, 4rem); }
@@ -2805,6 +3394,14 @@ blockquote {
   .facet-readings { grid-template-columns: 1fr 1fr; }
   .power-teacher-steps { grid-template-columns: 1fr 1fr; }
   .power-teacher-steps li:nth-child(2) .step-arrow { display: none; }
+  .simple-header { grid-template-columns: minmax(170px, 1fr) auto minmax(215px, 1fr); }
+  .simple-header nav button { padding-inline: 8px; }
+  .simple-engine span,
+  .simple-header .interface-route-link span { display: none; }
+  .simple-header .interface-route-link { width: 34px; padding: 5px; }
+  .simple-start { grid-template-columns: minmax(0, 0.85fr) minmax(410px, 1.15fr); gap: 24px; }
+  .simple-play .play-layout { grid-template-columns: minmax(0, 1fr) 270px; }
+  .simple-play .board-column { grid-template-columns: minmax(0, 1fr) 215px; }
 }
 
 @media (max-width: 900px) {
@@ -2861,6 +3458,57 @@ blockquote {
   }
   .chronicle-layout { grid-template-columns: 1fr; }
   .review-panel { position: relative; top: auto; }
+  .app.is-simple {
+    display: flex;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .app.is-simple > main { min-height: 0; overflow: hidden; }
+  .simple-header {
+    position: sticky;
+    top: 0;
+    grid-template-columns: 1fr auto;
+    padding-inline: 12px;
+  }
+  .simple-brand { display: none; }
+  .simple-header nav { grid-column: 1; grid-row: 1; justify-self: center; }
+  .simple-header-actions { grid-column: 2; grid-row: 1; }
+  .simple-engine,
+  .simple-icon-button { display: none; }
+  .simple-start {
+    width: min(100% - 28px, 680px);
+    height: 100%;
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 28px;
+    padding: 38px 0 48px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .simple-start-copy { align-items: stretch; }
+  .simple-start-copy h1 { font-size: clamp(2.3rem, 9vw, 3.7rem); }
+  .simple-size-choice,
+  .simple-begin { width: 100%; }
+  .simple-start-setup { max-height: none; overflow: visible; }
+  .simple-play.play-view { width: min(100% - 16px, 760px); height: 100%; min-height: 0; margin-inline: auto; overflow: hidden; }
+  .simple-play .play-layout { grid-template-columns: 1fr; overflow-y: auto; scrollbar-width: thin; }
+  .simple-play .board-column {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  .simple-play .board-stage,
+  .simple-play .move-controls,
+  .simple-play .power-teacher,
+  .simple-play .energy-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .simple-play .board-visual { width: min(100%, 610px); max-height: none; }
+  .simple-play .power-teacher,
+  .simple-play .energy-panel { max-height: none; overflow: visible; }
+  .simple-play .coach-rail { position: relative; top: auto; height: auto; max-height: none; overflow: visible; }
+  .simple-play .coach-conversation { max-height: 110px; }
 }
 
 @media (max-width: 680px) {
@@ -2981,6 +3629,107 @@ blockquote {
   .history-board { width: 50px; height: 50px; }
   .history-resume { min-height: 42px; border-top: 1px solid var(--line); border-left: 0; }
   .history-pagination button { width: 100%; min-height: 44px; }
+  .app.is-simple { min-width: 320px; }
+  .simple-header { min-height: 52px; gap: 6px; padding: 5px 8px; }
+  .simple-header nav { justify-self: start; }
+  .simple-header nav button { width: 34px; min-height: 32px; justify-content: center; padding: 4px; }
+  .simple-header nav button span { display: none; }
+  .simple-header-actions { gap: 4px; }
+  .simple-header .interface-route-link { width: 34px; min-height: 32px; }
+  .simple-start { width: min(100% - 22px, 680px); padding-top: 28px; }
+  .simple-start-copy h1 { font-size: clamp(2.15rem, 12vw, 3.2rem); }
+  .simple-start-copy blockquote { margin-top: 16px; }
+  .simple-start-setup { padding: 14px; border-radius: 18px; }
+  .simple-start-setup .mode-grid { grid-template-columns: 1fr; }
+  .simple-start-setup .mode-card,
+  .simple-start-setup .mode-card:last-child { min-height: 68px; grid-column: auto; }
+  .simple-start-setup .cast-config { display: grid; }
+  .simple-play.play-view { width: 100%; padding: 6px 8px calc(86px + env(safe-area-inset-bottom, 0px)); }
+  .simple-play .training-banner { margin: -6px -8px 4px; }
+  .simple-play .play-titlebar { min-height: 38px; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 6px; margin-bottom: 4px; }
+  .simple-play .play-title { min-width: 0; }
+  .simple-play .play-title .eyebrow { display: none; }
+  .simple-play .play-title h1 { overflow: hidden; font-size: 0.86rem; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+  .simple-play .turn-card { width: auto; min-height: 34px; grid-column: 3; padding: 4px 6px; }
+  .simple-play .turn-card small { display: none; }
+  .simple-play .turn-card strong { max-width: 94px; overflow: hidden; font-size: 0.6rem; text-overflow: ellipsis; white-space: nowrap; }
+  .simple-play .turn-stone { width: 20px; height: 20px; }
+  .simple-play .objective-strip { min-height: 44px; }
+  .simple-play .objective-strip strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.7rem; }
+  .simple-play .play-layout { overflow: hidden; }
+  .simple-play .board-column {
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr) auto 84px 42px;
+    gap: 5px;
+  }
+  .simple-play .board-stage { min-height: 0; padding: 3px; }
+  .simple-play .board-visual { width: min(calc(100% - 8px), calc(100dvh - 405px)); min-width: min(calc(100% - 8px), 285px); }
+  .simple-play .unconfirmed-analysis {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+  .simple-play .move-controls { min-height: 54px; }
+  .simple-play .power-teacher { height: 84px; overflow: hidden; padding: 6px 7px; }
+  .simple-play .power-teacher > header { margin-bottom: 3px; }
+  .simple-play .power-teacher-source,
+  .simple-play .power-teacher-steps li:nth-child(1),
+  .simple-play .power-teacher-steps li:nth-child(3),
+  .simple-play .power-teacher-steps li:nth-child(4),
+  .simple-play .power-teacher-steps li:nth-child(6) { display: none; }
+  .simple-play .power-teacher-steps { grid-template-columns: 1fr 1fr; }
+  .simple-play .power-teacher-steps li { padding: 4px; }
+  .simple-play .power-teacher-steps p { -webkit-line-clamp: 1; }
+  .simple-play .energy-panel { height: 42px; overflow: hidden; padding: 4px 5px; }
+  .simple-play .energy-heading,
+  .simple-play .facet-readings { display: none; }
+  .simple-play .lens-chips { display: flex; gap: 3px; overflow-x: auto; scrollbar-width: none; }
+  .simple-play .lens-chip { min-width: 78px; min-height: 32px; }
+  .simple-play .power-cloud-items { gap: 5px; }
+  .simple-play .power-cloud-items > span { font-size: 0.5rem; }
+  .simple-play .power-teacher-steps li:nth-child(4),
+  .simple-play .power-teacher-steps li:nth-child(6) { display: none; }
+  .simple-play .coach-rail {
+    position: fixed;
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    height: auto;
+    max-height: calc(100dvh - 70px);
+    overflow: hidden;
+  }
+  .simple-play .coach-rail-handle { display: block; }
+}
+
+@media (max-width: 420px) {
+  .app:not(.is-simple) .interface-route-link {
+    width: 38px;
+    padding: 5px;
+  }
+
+  .app:not(.is-simple) .interface-route-link span { display: none; }
+}
+
+@media (max-height: 640px) {
+  .simple-play .play-layout {
+    align-items: start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .simple-play .board-column { min-height: 500px; }
+}
+
+@media (max-height: 640px) and (min-width: 681px) {
+  .simple-play .coach-rail { height: min(500px, calc(100dvh - 120px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

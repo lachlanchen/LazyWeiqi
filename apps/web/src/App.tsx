@@ -14,6 +14,7 @@ import {
   History,
   LoaderCircle,
   Menu,
+  PanelsTopLeft,
   Pause,
   Play,
   RotateCcw,
@@ -61,10 +62,32 @@ import type {
 
 type AppView = 'journey' | 'play' | 'chronicle'
 type Operation = 'idle' | 'creating' | 'previewing' | 'moving' | 'agent' | 'coach' | 'rewinding' | 'loading-game'
+type InterfaceLayout = 'classic' | 'simple'
 
 const PREFERENCES_KEY = 'weiqi.path.preferences.v1'
 const HISTORY_PAGE_SIZE = 20
 const COACH_HISTORY_PAGE_SIZE = 80
+
+export function interfaceLayoutForPath(pathname: string): InterfaceLayout {
+  const normalized = pathname.replace(/\/+$/, '') || '/'
+  return normalized === '/simple' ? 'simple' : 'classic'
+}
+
+export function shouldUseClientRouteSwitch(event: {
+  button: number
+  defaultPrevented: boolean
+  metaKey: boolean
+  ctrlKey: boolean
+  shiftKey: boolean
+  altKey: boolean
+}): boolean {
+  return event.button === 0 &&
+    !event.defaultPrevented &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+}
 
 function readPreferences(): AppPreferences {
   if (typeof window === 'undefined') return DEFAULT_PREFERENCES
@@ -232,6 +255,10 @@ function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent): Mo
 }
 
 export function App() {
+  const [interfaceLayout, setInterfaceLayout] = useState<InterfaceLayout>(
+    () => interfaceLayoutForPath(typeof window === 'undefined' ? '/' : window.location.pathname),
+  )
+  const simpleInterface = interfaceLayout === 'simple'
   const [view, setView] = useState<AppView>('journey')
   const [preferences, setPreferences] = useState<AppPreferences>(readPreferences)
   const [curriculum, setCurriculum] = useState<CurriculumResponse>(FALLBACK_CURRICULUM)
@@ -283,6 +310,19 @@ export function App() {
       // Preferences remain active for this tab if browser storage is unavailable.
     }
   }, [preferences])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const syncLayoutFromHistory = () => setInterfaceLayout(interfaceLayoutForPath(window.location.pathname))
+    window.addEventListener('popstate', syncLayoutFromHistory)
+    return () => window.removeEventListener('popstate', syncLayoutFromHistory)
+  }, [])
+
+  const switchInterface = useCallback((next: InterfaceLayout) => {
+    if (typeof window === 'undefined' || next === interfaceLayout) return
+    window.history.pushState(null, '', next === 'simple' ? '/simple' : '/')
+    setInterfaceLayout(next)
+  }, [interfaceLayout])
 
   const invalidatePreview = useCallback(() => {
     previewAbort.current?.abort()
@@ -843,14 +883,50 @@ export function App() {
 
   return (
     <div
-      className="app"
+      className={simpleInterface ? 'app is-simple' : 'app'}
       data-testid="app-root"
       data-status={bootstrap}
       data-view={view}
+      data-layout={interfaceLayout}
       data-engine={serviceStatus.engine.status}
       data-operation={operation}
     >
-      <header className="app-header">
+      {simpleInterface && (
+        <header className="simple-header" data-testid="simple-header">
+          <button type="button" className="simple-brand" onClick={() => setCurrentView('journey')} aria-label="Path of Influence simple home">
+            <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
+            <span><strong>Path of Influence</strong><small>Simple board</small></span>
+          </button>
+          <nav aria-label="Simple navigation">
+            <button type="button" className={view === 'journey' ? 'active' : ''} aria-current={view === 'journey' ? 'page' : undefined} onClick={() => setCurrentView('journey')} data-testid="simple-nav-journey" aria-label="New lesson"><Compass size={16} /><span>Start</span></button>
+            <button type="button" className={view === 'play' ? 'active' : ''} aria-current={view === 'play' ? 'page' : undefined} onClick={() => activeGame && setCurrentView('play')} disabled={!activeGame} data-testid="simple-nav-play" aria-label="Current board"><CircleDot size={16} /><span>Board</span></button>
+            <button type="button" className={view === 'chronicle' ? 'active' : ''} aria-current={view === 'chronicle' ? 'page' : undefined} onClick={() => setCurrentView('chronicle')} data-testid="simple-nav-chronicle" aria-label="Game history"><History size={16} /><span>History</span></button>
+          </nav>
+          <div className="simple-header-actions">
+            <span
+              className={`simple-engine ${engineAvailable ? 'ready' : 'fallback'}`}
+              role="status"
+              aria-label={bootstrap === 'loading' ? 'Local analysis engine starting' : engineAvailable ? 'KataGo analysis engine ready' : 'Using authored lesson fallback'}
+              data-testid="simple-engine-status"
+            >
+              {bootstrap === 'loading' ? <LoaderCircle size={14} className="spin" /> : engineAvailable ? <Gauge size={14} /> : <WifiOff size={14} />}
+              <span>{bootstrap === 'loading' ? 'Starting' : engineAvailable ? 'Engine ready' : 'Fallback'}</span>
+            </span>
+            <button type="button" className="simple-icon-button" aria-label="Toggle board coordinates" aria-pressed={preferences.coordinates} title="Toggle board coordinates" onClick={() => updatePreferences({ coordinates: !preferences.coordinates })}>
+              <Settings2 size={17} />
+            </button>
+            <a href="/" className="interface-route-link" data-testid="ui-classic" title="Open the full learning view" onClick={(event) => {
+              if (!shouldUseClientRouteSwitch(event)) return
+              event.preventDefault()
+              switchInterface('classic')
+            }}>
+              <PanelsTopLeft size={16} /><span>Full guide</span>
+            </a>
+          </div>
+        </header>
+      )}
+
+      {!simpleInterface && <header className="app-header">
         <button type="button" className="brand" onClick={() => setCurrentView('journey')} aria-label="Path of Influence home">
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <span><strong>Path of Influence</strong><small>Weiqi, taught as a living story</small></span>
@@ -881,11 +957,18 @@ export function App() {
           <button type="button" className="settings-button" aria-label="Toggle board coordinates" aria-pressed={preferences.coordinates} title="Toggle board coordinates" onClick={() => updatePreferences({ coordinates: !preferences.coordinates })}>
             <Settings2 size={18} />
           </button>
+          <a href="/simple" className="interface-route-link" data-testid="ui-simple" title="Open the simple full-screen view" onClick={(event) => {
+            if (!shouldUseClientRouteSwitch(event)) return
+            event.preventDefault()
+            switchInterface('simple')
+          }}>
+            <PanelsTopLeft size={16} /><span>Simple view</span>
+          </a>
           <button type="button" className="nav-menu" aria-label="Toggle navigation" aria-expanded={navOpen} onClick={() => setNavOpen((open) => !open)}>
             {navOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
-      </header>
+      </header>}
 
       {notice && (
         <div className="notice-bar" role="status" data-testid="app-notice">
@@ -898,7 +981,20 @@ export function App() {
 
       <main>
         {view === 'journey' && (
-          <div className="journey-view">
+          simpleInterface ? (
+            <SimpleStart
+              lesson={currentLesson}
+              preferences={preferences}
+              loading={operation === 'creating'}
+              fallback={bootstrap === 'fallback'}
+              onBegin={() => currentLesson && void startLesson(currentLesson)}
+              onBoardChange={(board_size) => updatePreferences({ board_size })}
+              onModeChange={(mode) => updatePreferences({ mode })}
+              onBlackAgentChange={(black_agent) => updatePreferences({ black_agent })}
+              onWhiteAgentChange={(white_agent) => updatePreferences({ white_agent })}
+              onCompanionChange={(companion) => updatePreferences({ companion })}
+            />
+          ) : <div className="journey-view">
             <OnboardingHero
               lesson={currentLesson}
               mode={preferences.mode}
@@ -931,6 +1027,7 @@ export function App() {
 
         {view === 'play' && activeGame && (
           <PlayWorkspace
+            layout={interfaceLayout}
             game={activeGame}
             preferences={preferences}
             operation={operation}
@@ -1005,6 +1102,7 @@ export function App() {
 }
 
 interface PlayWorkspaceProps {
+  layout?: InterfaceLayout
   game: GameState
   preferences: AppPreferences
   operation: Operation
@@ -1037,6 +1135,7 @@ interface PlayWorkspaceProps {
 }
 
 export function PlayWorkspace({
+  layout = 'classic',
   game,
   preferences,
   operation,
@@ -1175,8 +1274,9 @@ export function PlayWorkspace({
 
   return (
     <div
-      className="play-view"
+      className={layout === 'simple' ? 'play-view simple-play' : 'play-view'}
       data-testid="play-workspace"
+      data-layout={layout}
       data-mode={game.mode}
       data-turn={game.to_play}
       data-phase={game.phase}
@@ -1359,6 +1459,7 @@ export function PlayWorkspace({
         </section>
 
         <CoachRail
+          compact={layout === 'simple'}
           boardSize={game.board_size}
           toPlay={game.to_play}
           mode={game.mode}
@@ -1393,6 +1494,93 @@ export function PlayWorkspace({
         />
       </div>
     </div>
+  )
+}
+
+function SimpleStart({
+  lesson,
+  preferences,
+  loading,
+  fallback,
+  onBegin,
+  onBoardChange,
+  onModeChange,
+  onBlackAgentChange,
+  onWhiteAgentChange,
+  onCompanionChange,
+}: {
+  lesson?: LessonSummary
+  preferences: AppPreferences
+  loading: boolean
+  fallback: boolean
+  onBegin: () => void
+  onBoardChange: (size: BoardSize) => void
+  onModeChange: (mode: GameMode) => void
+  onBlackAgentChange: (agent: AppPreferences['black_agent']) => void
+  onWhiteAgentChange: (agent: AppPreferences['white_agent']) => void
+  onCompanionChange: (companion: AppPreferences['companion']) => void
+}) {
+  return (
+    <section className="simple-start" data-testid="simple-launcher">
+      <div className="simple-start-copy">
+        <span className="simple-kicker"><Sparkles size={14} /> Clear board · focused teaching</span>
+        <h1>{lesson?.title ?? 'Choose a first lesson'}</h1>
+        <p>{lesson?.subtitle ?? 'Begin on a small board and learn one relationship at a time.'}</p>
+
+        <div className="simple-size-choice" role="radiogroup" aria-label="Board size">
+          {([5, 7, 9] as BoardSize[]).map((size) => (
+            <button
+              key={size}
+              type="button"
+              role="radio"
+              aria-checked={preferences.board_size === size}
+              className={preferences.board_size === size ? 'selected' : ''}
+              onClick={() => onBoardChange(size)}
+              data-testid={`simple-board-size-${size}`}
+            >
+              <strong>{size}×{size}</strong>
+              <small>{size === 5 ? 'First breath' : size === 7 ? 'Shape' : 'Full game'}</small>
+            </button>
+          ))}
+        </div>
+
+        <button type="button" className="simple-begin" onClick={onBegin} disabled={!lesson || loading} data-testid="simple-begin">
+          {loading ? <LoaderCircle size={18} className="spin" /> : <Play size={17} />}
+          <span>{loading ? 'Opening…' : 'Open the board'}</span>
+          <ArrowRight size={17} />
+        </button>
+
+        <div className="simple-lesson-facts" aria-label="Lesson facts">
+          <span><Target size={14} /> {lesson?.duration_minutes ?? '—'} min</span>
+          <span><CircleDot size={14} /> {lesson?.training_variant ? 'Training position' : 'Chinese area rules'}</span>
+          <span className={fallback ? 'fallback' : ''}>{fallback ? <WifiOff size={14} /> : <Check size={14} />}{fallback ? 'Safe preview available' : 'Local service connected'}</span>
+        </div>
+
+        {lesson?.memory_line && (
+          <blockquote><Sparkles size={14} aria-hidden="true" /> <span>{lesson.memory_line}</span></blockquote>
+        )}
+      </div>
+
+      <div className="simple-start-setup">
+        <header>
+          <span className="eyebrow">How this game moves</span>
+          <h2>Choose your teaching style</h2>
+          <p>Your choice is remembered. You can return here without losing the game.</p>
+        </header>
+        <ModePicker
+          compact
+          mode={preferences.mode}
+          onModeChange={onModeChange}
+          blackAgent={preferences.black_agent}
+          whiteAgent={preferences.white_agent}
+          companion={preferences.companion}
+          onBlackAgentChange={onBlackAgentChange}
+          onWhiteAgentChange={onWhiteAgentChange}
+          onCompanionChange={onCompanionChange}
+        />
+        <p className="simple-safety"><GraduationCap size={15} /> You inspect first. A stone is placed only after the rules preview and your confirmation.</p>
+      </div>
+    </section>
   )
 }
 
