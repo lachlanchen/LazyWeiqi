@@ -202,7 +202,7 @@ export function CandidateCards({
           </button>
         )
       })}
-      <p className="candidate-interaction-hint">Hover or focus to inspect. Tap, click, or press Enter to keep a non-committing preview.</p>
+      <p className="candidate-interaction-hint">Hover or focus to inspect. Tap, click, or press Enter to keep a non-committing preview. Right-click the board or press Esc to return to agent suggestions.</p>
     </div>
   )
 }

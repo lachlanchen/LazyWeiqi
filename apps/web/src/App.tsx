@@ -1105,13 +1105,13 @@ export function PlayWorkspace({
     ? 'candidate-comparison'
     : selected && visualCandidate
       ? 'if-played'
-      : openingSuggestion && visualCandidate?.id === openingSuggestion.id
-        ? 'suggested-first-stone'
-        : passiveTheatreCandidate && visualCandidate?.id === passiveTheatreCandidate.id
-          ? 'candidate-comparison'
-        : selectedCandidate
-          ? 'pinned-candidate'
-          : null
+      : selectedCandidate
+        ? 'pinned-candidate'
+        : openingSuggestion && visualCandidate?.id === openingSuggestion.id
+          ? 'suggested-first-stone'
+          : passiveTheatreCandidate && visualCandidate?.id === passiveTheatreCandidate.id
+            ? 'candidate-comparison'
+            : null
   const currentFacets = preview?.position_facets ?? game.analysis?.facets ?? []
   const hypotheticalFacets = preview?.candidate_facets ?? preview?.facets ?? []
   const ifPlayedPositionFacets = preview?.if_played_facets ?? []
@@ -1139,6 +1139,7 @@ export function PlayWorkspace({
       preview.revision === game.revision &&
       samePoint(preview.point, selected),
   )
+  const selectionClearable = Boolean(selected || selectedCandidateId)
 
   useEffect(() => {
     setInspectedCandidateId(null)
@@ -1148,6 +1149,30 @@ export function PlayWorkspace({
     setInspectedCandidateId(candidate?.id ?? null)
   }, [])
 
+  const clearBoardSelection = useCallback(() => {
+    if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+      if (document.activeElement.closest('.candidate-card')) document.activeElement.blur()
+    }
+    setInspectedCandidateId(null)
+    onCancelSelection()
+  }, [onCancelSelection])
+
+  useEffect(() => {
+    if (!selectionClearable || typeof window === 'undefined') return
+    const handleEscape = (event: KeyboardEvent) => {
+      const target = event.target
+      const editing = target instanceof Element && (
+        target.matches('input, textarea, select, [contenteditable="true"]') ||
+        target.closest('[role="dialog"]') !== null
+      )
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || editing) return
+      event.preventDefault()
+      clearBoardSelection()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [clearBoardSelection, selectionClearable])
+
   return (
     <div
       className="play-view"
@@ -1156,6 +1181,7 @@ export function PlayWorkspace({
       data-turn={game.to_play}
       data-phase={game.phase}
       data-analysis-state={selected ? (operation === 'previewing' && !preview ? 'analyzing' : preview?.legal ? 'if-played-ready' : preview ? 'illegal' : 'analyzing') : openingSuggestion ? 'suggested-first-stone' : analysisLoading ? 'finding-suggestion' : 'current-position'}
+      data-selection-state={selected ? 'move-preview' : selectedCandidateId ? 'pinned-candidate' : 'agent-suggestions'}
       data-selected-coordinate={selected ? pointToCoordinate(selected, game.board_size) : undefined}
     >
       {game.rules.training_variant && (
@@ -1212,6 +1238,8 @@ export function PlayWorkspace({
               toPlay={game.to_play}
               selected={selected}
               onSelect={onSelect}
+              selectionClearable={selectionClearable}
+              onClearSelection={clearBoardSelection}
               preview={preview}
               candidatePreview={visualCandidate}
               candidatePreviewMode={candidatePreviewMode}
@@ -1245,7 +1273,15 @@ export function PlayWorkspace({
           <div className="move-controls" data-testid="move-controls">
             {game.mode === 'agent_vs_agent' ? (
               <>
-                <button type="button" className="secondary-control" onClick={onRewind} disabled={busy || game.move_count === 0}><RotateCcw size={16} /> Rewind</button>
+                <button
+                  type="button"
+                  className="secondary-control"
+                  onClick={selectedCandidateId ? clearBoardSelection : onRewind}
+                  disabled={selectedCandidateId ? busy : busy || game.move_count === 0}
+                  data-testid={selectedCandidateId ? 'back-to-suggestions' : undefined}
+                >
+                  {selectedCandidateId ? <><ArrowLeft size={16} /> Back to suggestions</> : <><RotateCcw size={16} /> Rewind</>}
+                </button>
                 <button type="button" className={`secondary-control ${theatreAutoPlay ? 'active' : ''}`} onClick={() => onTheatreAutoPlay(!theatreAutoPlay)} disabled={game.phase !== 'playing' || (busy && !theatreAutoPlay)} data-testid="theatre-autoplay">
                   {theatreAutoPlay ? <Pause size={16} /> : <Play size={16} />}{theatreAutoPlay ? 'Pause theatre' : 'Watch continuously'}
                 </button>
@@ -1255,10 +1291,10 @@ export function PlayWorkspace({
               </>
             ) : selected ? (
               <>
-                <button type="button" className="secondary-control" onClick={onCancelSelection} disabled={busy}>Cancel</button>
+                <button type="button" className="secondary-control" onClick={clearBoardSelection} disabled={busy}>Cancel</button>
                 <div className="selection-summary">
                   <span className={`selection-dot ${game.to_play}`} />
-                  <div><small>Previewing</small><strong>{pointToCoordinate(selected, game.board_size)} · {intent}</strong></div>
+                  <div><small>Previewing · right-click board or Esc to unselect</small><strong>{pointToCoordinate(selected, game.board_size)} · {intent}</strong></div>
                   <span className={`legality ${preview ? (preview.legal ? 'legal' : 'blocked') : 'checking'}`}>
                     {preview ? (preview.legal ? <><Check size={13} /> Verified</> : 'Not legal') : 'Checking…'}
                   </span>
@@ -1275,8 +1311,20 @@ export function PlayWorkspace({
               </>
             ) : (
               <>
-                <button type="button" className="secondary-control" onClick={onRewind} disabled={busy || game.move_count === 0}><RotateCcw size={16} /> Rewind</button>
-                <p className="move-instruction"><Eye size={16} /> Select an empty intersection to preview its consequences.</p>
+                <button
+                  type="button"
+                  className="secondary-control"
+                  onClick={selectedCandidateId ? clearBoardSelection : onRewind}
+                  disabled={selectedCandidateId ? busy : busy || game.move_count === 0}
+                  data-testid={selectedCandidateId ? 'back-to-suggestions' : undefined}
+                >
+                  {selectedCandidateId ? <><ArrowLeft size={16} /> Back to suggestions</> : <><RotateCcw size={16} /> Rewind</>}
+                </button>
+                <p className="move-instruction" data-testid={selectedCandidateId ? 'selection-dismiss-hint' : undefined}>
+                  <Eye size={16} /> {selectedCandidateId
+                    ? 'Candidate pinned · right-click board or press Esc to return to agent suggestions.'
+                    : 'Select an empty intersection to preview its consequences.'}
+                </p>
                 <button type="button" className="secondary-control" onClick={onPass} disabled={game.phase !== 'playing' || busy || !humanTurn}>Pass</button>
               </>
             )}

@@ -23,6 +23,8 @@ interface WeiqiBoardProps {
   toPlay: StoneColor
   selected: Point | null
   onSelect: (point: Point) => void
+  selectionClearable?: boolean
+  onClearSelection?: () => void
   preview?: MovePreview | null
   candidatePreview?: CandidateMove | null
   candidatePreviewMode?: CandidatePreviewMode | null
@@ -56,6 +58,8 @@ export function WeiqiBoard({
   toPlay,
   selected,
   onSelect,
+  selectionClearable = false,
+  onClearSelection,
   preview,
   candidatePreview,
   candidatePreviewMode,
@@ -172,12 +176,20 @@ export function WeiqiBoard({
         data-board-size={size}
         data-operation={operationStatus}
         data-candidate-mode={candidatePreviewMode ?? 'none'}
+        data-selection-clearable={selectionClearable}
+        data-context-action={selectionClearable ? 'clear-selection' : 'browser-default'}
+        onContextMenu={(event) => {
+          if (!selectionClearable || !onClearSelection) return
+          event.preventDefault()
+          onClearSelection()
+        }}
       >
       <svg
         className="weiqi-board"
         viewBox={`0 0 ${BOARD_EDGE} ${BOARD_EDGE}`}
         role="grid"
         aria-label={`${size} by ${size} Weiqi board. ${toPlay} to play.`}
+        aria-keyshortcuts={selectionClearable ? 'Escape' : undefined}
         data-testid="weiqi-board"
       >
         <title>{`${size} by ${size} Weiqi board, ${toPlay} to play`}</title>

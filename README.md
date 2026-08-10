@@ -36,7 +36,8 @@ high-variation boundary. Hover or keyboard-focus another candidate to compare
 its field. Click any legal intersection—even one outside the shortlist—to
 analyze that exact if-played position without placing a stone. **Place stone**
 appears only after the matching legal preview is ready and remains the sole
-commit action.
+commit action. Right-click the board or press **Esc** to return to the current
+agent suggestions; touch users have the same **Back to suggestions** action.
 
 The companion beside the board stays concrete:
 

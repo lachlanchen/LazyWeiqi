@@ -108,12 +108,14 @@ function renderWorkspace({
   analysisLoading = false,
   selected = null as Point | null,
   preview = null as MovePreview | null,
+  selectedCandidateId = null as string | null,
 }: {
   game?: GameState
   operation?: 'idle' | 'previewing'
   analysisLoading?: boolean
   selected?: Point | null
   preview?: MovePreview | null
+  selectedCandidateId?: string | null
 } = {}) {
   return renderToStaticMarkup(
     <PlayWorkspace
@@ -125,7 +127,7 @@ function renderWorkspace({
       preview={preview}
       intent="unsure"
       activeLenses={new Set(['cloud', 'area'])}
-      selectedCandidateId={null}
+      selectedCandidateId={selectedCandidateId}
       engineAvailable
       coachStatus={{ status: 'ready', provider: 'Local teacher' }}
       coachHistoryLoading={false}
@@ -218,10 +220,55 @@ describe('unconfirmed first-move analysis flow', () => {
     expect(html).toContain('data-testid="unconfirmed-analysis"')
     expect(html).toContain('data-analysis-state="analyzing"')
     expect(html).toContain('data-selected-coordinate="E4"')
+    expect(html).toContain('data-selection-state="move-preview"')
+    expect(html).toContain('data-selection-clearable="true"')
+    expect(html).toContain('data-context-action="clear-selection"')
+    expect(html).toContain('aria-keyshortcuts="Escape"')
+    expect(html).toContain('right-click board or Esc to unselect')
     expect(html).toContain('Analyzing if black plays E4')
     expect(html).toContain('No stone has been placed')
     expect(html).toContain('data-testid="analysis-before-confirmation"')
     expect(html).not.toContain('data-testid="commit-move"')
+  })
+
+  it('marks a pinned candidate as dismissible back to agent suggestions', () => {
+    const html = renderWorkspace({ selectedCandidateId: suggestion.id })
+
+    expect(html).toContain('data-selection-state="pinned-candidate"')
+    expect(html).toContain('data-candidate-mode="pinned-candidate"')
+    expect(html).toContain('data-selection-clearable="true"')
+    expect(html).toContain('data-context-action="clear-selection"')
+    expect(html).toContain('data-testid="selection-dismiss-hint"')
+    expect(html).toContain('data-testid="back-to-suggestions"')
+    expect(html).toContain('right-click board or press Esc to return to agent suggestions')
+  })
+
+  it('gives a pinned theatre candidate a touch-accessible return action', () => {
+    const html = renderWorkspace({
+      game: {
+        ...freshGame,
+        mode: 'agent_vs_agent',
+        actors: [
+          { id: 'black-agent', name: 'River', role: 'player_agent', color: 'black', doctrine: 'balanced' },
+          { id: 'white-agent', name: 'Stone', role: 'player_agent', color: 'white', doctrine: 'balanced' },
+        ],
+      },
+      selectedCandidateId: suggestion.id,
+    })
+
+    expect(html).toContain('data-selection-state="pinned-candidate"')
+    expect(html).toContain('data-candidate-mode="pinned-candidate"')
+    expect(html).toContain('data-testid="back-to-suggestions"')
+    expect(html).toContain('Back to suggestions')
+  })
+
+  it('leaves the browser context action alone when showing passive agent suggestions', () => {
+    const html = renderWorkspace()
+
+    expect(html).toContain('data-selection-state="agent-suggestions"')
+    expect(html).toContain('data-selection-clearable="false"')
+    expect(html).toContain('data-context-action="browser-default"')
+    expect(html).not.toContain('aria-keyshortcuts="Escape"')
   })
 
   it('shows the clicked point’s if-played map, score, and teacher before separate confirmation', () => {

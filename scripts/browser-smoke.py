@@ -1026,12 +1026,28 @@ def run() -> dict[str, Any]:
             second.get_attribute("data-selected") == "true"
             and page.get_by_test_id("commit-move").count() == 0
         )
+        checks["touchBackToSuggestionsAvailable"] = page.get_by_test_id(
+            "back-to-suggestions"
+        ).is_visible()
         checks["candidateFieldProvenance"] = (
             "Engine estimate" in field_text
             and "Black perspective" in field_text
             and "not territory already secured" in field_text
         )
         screenshot(page, timestamp, "nine-by-nine-candidate-decision", screenshots)
+        page.get_by_test_id("weiqi-board").click(button="right")
+        page.locator(
+            '[data-testid="play-workspace"][data-selection-state="agent-suggestions"]'
+        ).wait_for(state="visible")
+        page.locator(
+            f'[data-testid="candidate-field-key"][data-candidate-id="{first_field_id}"]'
+            '[data-preview-mode="candidate-comparison"]'
+        ).wait_for(state="visible")
+        checks["theatreRightClickUnselect"] = (
+            second.get_attribute("data-selected") == "false"
+            and page.get_by_test_id("back-to-suggestions").count() == 0
+            and page.locator(".timeline-track > span").count() == 0
+        )
         page.get_by_test_id("agent-next-turn").click()
         wait_for_move_count(page, 1)
         checks["theatreMove"] = page.locator(".timeline-track > span").count()
@@ -1152,10 +1168,33 @@ def run() -> dict[str, Any]:
         page.wait_for_timeout(500)
         page.get_by_test_id("play-workspace").wait_for(state="visible")
 
-        page.get_by_test_id("move-controls").get_by_role(
-            "button", name="Cancel"
-        ).click()
+        page.get_by_test_id("weiqi-board").click(button="right")
+        page.locator(
+            '[data-testid="play-workspace"][data-selection-state="agent-suggestions"]'
+        ).wait_for(state="visible")
         wait_turn_choices(page)
+        suggestion_field.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+        checks["rightClickReturnsAgentSuggestions"] = (
+            page.get_by_test_id("unconfirmed-analysis").count() == 0
+            and page.get_by_test_id("commit-move").count() == 0
+            and page.locator(".timeline-track > span").count() == moves_before_preview
+            and page.get_by_test_id("weiqi-board-frame").get_attribute(
+                "data-context-action"
+            )
+            == "browser-default"
+        )
+        passive_context_prevented = page.get_by_test_id("weiqi-board").evaluate(
+            """board => {
+              const event = new MouseEvent('contextmenu', {
+                bubbles: true,
+                cancelable: true,
+                button: 2,
+              });
+              board.dispatchEvent(event);
+              return event.defaultPrevented;
+            }"""
+        )
+        checks["passiveContextMenuPreserved"] = not passive_context_prevented
 
         focused_candidate = page.locator(".candidate-card").first
         focused_candidate_id = str(
@@ -1177,10 +1216,16 @@ def run() -> dict[str, Any]:
             and page.get_by_test_id("commit-move").is_enabled()
             and page.locator(".timeline-track > span").count() == 0
         )
-        page.get_by_test_id("move-controls").get_by_role(
-            "button", name="Cancel"
-        ).click()
+        page.keyboard.press("Escape")
+        page.locator(
+            '[data-testid="play-workspace"][data-selection-state="agent-suggestions"]'
+        ).wait_for(state="visible")
         wait_turn_choices(page)
+        checks["escapeReturnsAgentSuggestions"] = (
+            page.get_by_test_id("unconfirmed-analysis").count() == 0
+            and page.get_by_test_id("commit-move").count() == 0
+            and page.locator(".timeline-track > span").count() == 0
+        )
 
         page.get_by_test_id("delegation-zone").locator("button").click()
         checks["delegationConfirmedFirst"] = (
@@ -1253,12 +1298,17 @@ def run() -> dict[str, Any]:
         "candidateFocusOverridesHover": True,
         "candidateFocusRestoredAfterLeave": True,
         "candidatePinnedPreview": True,
+        "touchBackToSuggestionsAvailable": True,
         "candidateFieldProvenance": True,
+        "theatreRightClickUnselect": True,
         "openingSuggestionVisible": True,
         "unconfirmedClickAnalysis": True,
         "previewDoesNotPlaceStone": True,
         "mobileUnconfirmedAnalysis": True,
+        "rightClickReturnsAgentSuggestions": True,
+        "passiveContextMenuPreserved": True,
         "focusedCandidateUsesChildPreview": True,
+        "escapeReturnsAgentSuggestions": True,
         "coachAnswered": True,
         "learnerRightCoachLeft": True,
         "safeCoachProvenance": True,
