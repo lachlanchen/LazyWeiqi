@@ -1,0 +1,1 @@
+"""KataGo analysis process adapter."""

@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use Path of Influence, please cite this software."
+type: software
+title: "Path of Influence: A Local-First Weiqi Teaching Journey"
+version: 0.1.0
+date-released: 2026-08-10
+authors:
+  - family-names: Chen
+    given-names: Lachlan
+repository-code: "https://github.com/lachlanchen/Weiqi"
+url: "https://github.com/lachlanchen/Weiqi"
+license: MIT
+keywords:
+  - Weiqi
+  - Go
+  - KataGo
+  - AI tutor
+  - local LLM

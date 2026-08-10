@@ -1,0 +1,23 @@
+{
+  "name": "weiqi-path-of-influence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "dev": "npm --workspace apps/web run dev",
+    "lint": "npm --workspace apps/web run lint",
+    "test": "npm --workspace apps/web run test",
+    "build": "npm --workspace apps/web run build",
+    "preview": "npm --workspace apps/web run preview",
+    "api:test": "uv run --locked --project apps/api pytest -q",
+    "check": "npm run lint && npm test && npm run build && uv run --locked --project apps/api ruff check apps/api && uv run --locked --project apps/api ruff format --check apps/api && uv run --locked --project apps/api pytest -q",
+    "app:start": "scripts/run.sh start",
+    "app:stop": "scripts/run.sh stop",
+    "novnc:start": "scripts/launch-novnc.sh start",
+    "novnc:stop": "scripts/launch-novnc.sh stop"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

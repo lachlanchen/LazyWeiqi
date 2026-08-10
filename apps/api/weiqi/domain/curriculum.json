@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "id": "first-journey",
+  "title": "The First Journey Across the Board",
+  "summary": "A complete 9x9 game taught as a calm journey from the first liberty to a readable final score.",
+  "default_board_size": 9,
+  "lessons": [
+    {
+      "id": "open-ground",
+      "chapter": 1,
+      "title": "Step onto open ground",
+      "story_hook": "Your first stone is a traveler. It needs roads before it needs territory.",
+      "objective": "See liberties and choose a first move with room to grow.",
+      "concepts": ["intersection", "liberty", "edge and center"],
+      "remember": ["Stones live on intersections, not squares.", "A liberty is an empty neighboring intersection."],
+      "reflection": "After you place a stone, point to every road it can still breathe through."
+    },
+    {
+      "id": "stand-together",
+      "chapter": 2,
+      "title": "Stand together without crowding",
+      "story_hook": "Two travelers can share strength, but walking shoulder to shoulder is not always the fastest path.",
+      "objective": "Connect groups when danger is real and extend when space matters more.",
+      "concepts": ["group", "connection", "extension"],
+      "remember": ["Connected stones share liberties.", "Strength gives you permission to play elsewhere."],
+      "reflection": "Did your move add safety, add reach, or merely repeat work already done?"
+    },
+    {
+      "id": "pressure-and-escape",
+      "chapter": 3,
+      "title": "Feel pressure and find the door",
+      "story_hook": "When only one road remains, the board is warning you before the capture arrives.",
+      "objective": "Recognize atari, escape it, and make an atari without trapping yourself.",
+      "concepts": ["atari", "escape", "self-atari"],
+      "remember": ["One liberty means atari.", "Before attacking, count your own liberties too."],
+      "reflection": "Which group is most urgent, and how many liberties will it have after your move?"
+    },
+    {
+      "id": "fight-with-a-purpose",
+      "chapter": 4,
+      "title": "Fight with a purpose",
+      "story_hook": "A good fight is not anger. It is a clear exchange: pressure here creates value somewhere.",
+      "objective": "Compare capture, connection, escape, and playing elsewhere before choosing a fight.",
+      "concepts": ["capture race", "cut", "forcing move", "tenuki"],
+      "remember": ["Urgent moves protect life; big moves build the future.", "A threat matters only when ignoring it has a real cost."],
+      "reflection": "If the opponent ignores you, what concrete result does your move earn?"
+    },
+    {
+      "id": "influence-and-home",
+      "chapter": 5,
+      "title": "Turn presence into a home",
+      "story_hook": "Influence is weather, not property. It helps your next action but does not belong to you yet.",
+      "objective": "Distinguish strong presence, potential territory, and secure territory.",
+      "concepts": ["influence", "territory", "reduction", "invasion"],
+      "remember": ["Influence can attack, defend, or become territory.", "Do not count open space as secure too early."],
+      "reflection": "Which area is settled, which is only promising, and where can either player still enter?"
+    },
+    {
+      "id": "finish-the-story",
+      "chapter": 6,
+      "title": "Finish the story and count",
+      "story_hook": "A game ends when both travelers agree there is no valuable road left to take.",
+      "objective": "Close the borders, pass responsibly, and read Chinese area scoring.",
+      "concepts": ["endgame", "pass", "area scoring", "neutral point"],
+      "remember": ["Under Chinese area scoring, stones and surrounded empty points count.", "Two consecutive passes end the game."],
+      "reflection": "Can you name the black area, white area, neutral points, komi, and final margin?"
+    }
+  ]
+}
