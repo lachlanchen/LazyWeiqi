@@ -12,7 +12,7 @@ from conftest import create_game
 from fastapi.testclient import TestClient
 
 from weiqi.adapters.store.sqlite import IdempotencyConflict, RevisionConflict
-from weiqi.schemas import CoachDraft, CoachQuestion, MoveRequest
+from weiqi.schemas import CoachDraft, CoachQuestion, MoveRequest, PreviewRequest
 from weiqi.services.game_service import (
     COACH_CONTEXT_MAX_ANSWER_BYTES,
     COACH_CONTEXT_MAX_BYTES,
@@ -347,12 +347,31 @@ def test_small_board_candidate_teaching_uses_exact_connection_facts_without_engi
 def test_pinned_katago_teaching_network_is_used_only_for_nine_by_nine(
     app_client_factory: Any,
 ) -> None:
-    engine = {
+    root_engine = {
         "moveInfos": [{"move": "E5", "order": 0, "pv": ["E5", "D5"]}],
         "ownership": [0.0] * 81,
         "ownershipStdev": [0.1] * 81,
         "rootInfo": {"currentPlayer": "B", "scoreLead": 0.5, "visits": 4},
     }
+
+    def engine(query: dict[str, Any]) -> dict[str, Any]:
+        if not query["moves"]:
+            return root_engine
+        assert query["moves"] == [["B", "E5"]]
+        return {
+            "rootInfo": {
+                "currentPlayer": "W",
+                "scoreLead": 2.0,
+                "scoreStdev": 6.0,
+                "winrate": 0.6,
+                "visits": 20,
+                "utility": 0.2,
+            },
+            "ownership": [0.1] * 81,
+            "ownershipStdev": [0.25] * 81,
+            "moveInfos": [{"move": "pass", "order": 0, "pv": ["pass", "D5"]}],
+        }
+
     with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
         game = create_game(client, lesson_id="opening-compass", board_size=9)
         preview = client.post(
@@ -511,7 +530,7 @@ def test_order_zero_second_pass_candidate_says_it_ends_play_without_scoring(
             }
         ],
     }
-    with app_client_factory(katago_analysis=engine) as (client, _katago, _openai, _local):
+    with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
         game = create_game(client)
         first_pass = client.post(
             f"/api/games/{game['id']}/moves",
@@ -618,12 +637,44 @@ def test_preview_separates_teacher_intent_move_facets_and_current_position_facts
         assert analysis["area_snapshot"]["adjudicated"] is False
 
 
+def test_live_board_count_never_presents_flood_fill_as_territory(
+    app_client_factory: Any,
+) -> None:
+    with app_client_factory() as (client, _katago, _openai, _local):
+        game = create_game(client)
+        moved = client.post(
+            f"/api/games/{game['id']}/moves",
+            json={
+                "actor_id": "human",
+                "expected_revision": 1,
+                "kind": "play",
+                "point": {"x": 0, "y": 8},
+            },
+        )
+
+        assert moved.status_code == 200, moved.text
+        area = next(item for item in moved.json()["analysis"]["facets"] if item["id"] == "area")
+        assert area == {
+            "id": "area",
+            "label": "Board count",
+            "canonical_term": "Stones and empty intersections",
+            "value": "Black 1 stone · White 0 stones",
+            "change": None,
+            "evidence": "exact",
+            "explanation": (
+                "80 intersections are empty. Territory and dead stones are not settled "
+                "during live play; engine ownership is a separate forecast."
+            ),
+        }
+        assert "Black 81" not in json.dumps(moved.json())
+
+
 def test_candidate_engine_evidence_is_black_perspective_complete_and_cached(
     app_client_factory: Any,
 ) -> None:
     root_ownership = [0.0] * 81
     after_ownership = [0.1] * 81
-    engine = {
+    root_engine = {
         "rootInfo": {
             "currentPlayer": "B",
             "scoreLead": 1.0,
@@ -671,6 +722,25 @@ def test_candidate_engine_evidence_is_black_perspective_complete_and_cached(
             },
         ],
     }
+
+    def engine(query: dict[str, Any]) -> dict[str, Any]:
+        if not query["moves"]:
+            return root_engine
+        assert query["moves"] == [["B", "E5"]]
+        return {
+            "rootInfo": {
+                "currentPlayer": "W",
+                "scoreLead": 2.0,
+                "scoreStdev": 6.0,
+                "winrate": 0.6,
+                "visits": 20,
+                "utility": 0.2,
+            },
+            "ownership": after_ownership,
+            "ownershipStdev": [0.25] * 81,
+            "moveInfos": [{"move": "pass", "order": 0, "pv": ["pass", "D5"]}],
+        }
+
     with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
         game = create_game(client)
         first = client.post(
@@ -723,6 +793,7 @@ def test_candidate_engine_evidence_is_black_perspective_complete_and_cached(
             "variation": 0.25,
         }
         assert candidate["ownership_perspective"] == "black"
+        assert candidate["analysis_source"] == "child_root"
         assert candidate["variation"][1] == {
             "color": "white",
             "kind": "pass",
@@ -733,38 +804,53 @@ def test_candidate_engine_evidence_is_black_perspective_complete_and_cached(
 
         repeated = client.post(
             f"/api/games/{game['id']}/preview",
-            json={"x": 3, "y": 4, "actor_id": "human", "expected_revision": 1},
+            json={"x": 4, "y": 4, "actor_id": "human", "expected_revision": 1},
         )
         assert repeated.status_code == 200
-        assert len(katago.queries) == 1
+        assert len(katago.queries) == 2
 
 
 def test_white_mover_keeps_engine_values_black_normalized_and_gets_mover_delta(
     app_client_factory: Any,
 ) -> None:
-    engine = {
-        "rootInfo": {
-            "currentPlayer": "W",
-            "scoreLead": 2.0,
-            "winrate": 0.6,
-            "visits": 12,
-        },
-        "ownership": [0.2] * 81,
-        "moveInfos": [
-            {
-                "move": "D5",
-                "order": 0,
-                "visits": 10,
+    def engine(query: dict[str, Any]) -> dict[str, Any]:
+        if len(query["moves"]) == 1:
+            return {
+                "rootInfo": {
+                    "currentPlayer": "W",
+                    "scoreLead": 2.0,
+                    "winrate": 0.6,
+                    "visits": 12,
+                },
+                "ownership": [0.2] * 81,
+                "moveInfos": [
+                    {
+                        "move": "D5",
+                        "order": 0,
+                        "visits": 10,
+                        "scoreLead": 3.0,
+                        "winrate": 0.7,
+                        "prior": 0.4,
+                        "utility": 0.3,
+                        "pv": ["D5", "E4"],
+                        "ownership": [0.3] * 81,
+                    }
+                ],
+            }
+        assert query["moves"][-1] == ["W", "D5"]
+        return {
+            "rootInfo": {
+                "currentPlayer": "B",
                 "scoreLead": 3.0,
                 "winrate": 0.7,
-                "prior": 0.4,
+                "visits": 10,
                 "utility": 0.3,
-                "pv": ["D5", "E4"],
-                "ownership": [0.3] * 81,
-            }
-        ],
-    }
-    with app_client_factory(katago_analysis=engine) as (client, _katago, _openai, _local):
+            },
+            "ownership": [0.3] * 81,
+            "moveInfos": [{"move": "E4", "order": 0, "pv": ["E4"]}],
+        }
+
+    with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
         game = create_game(client)
         moved = _move(
             client,
@@ -793,6 +879,160 @@ def test_white_mover_keeps_engine_values_black_normalized_and_gets_mover_delta(
         assert candidate["evaluation"]["winrate_delta"] == 0.1
         assert candidate["evaluation"]["winrate_mover_delta"] == -0.1
         assert candidate["ownership_delta"][0]["value"] == 0.1
+        assert katago.queries[0]["moves"] == [["B", "E5"]]
+        assert katago.queries[0]["initial_player"] == "B"
+        assert katago.queries[1]["moves"] == [["B", "E5"], ["W", "D5"]]
+        assert katago.queries[1]["initial_player"] == "B"
+
+
+def test_arbitrary_legal_preview_uses_child_root_evidence_without_mutating_game(
+    app_client_factory: Any,
+) -> None:
+    before_ownership = [0.0] * 81
+    before_ownership[0] = -0.2
+    before_ownership[-1] = 0.2
+    after_ownership = [0.1] * 81
+    after_ownership[0] = 0.7
+    after_ownership[-1] = -0.7
+
+    def engine(query: dict[str, Any]) -> dict[str, Any]:
+        if not query["moves"]:
+            return {
+                "rootInfo": {
+                    "currentPlayer": "B",
+                    "scoreLead": 1.0,
+                    "scoreStdev": 4.0,
+                    "winrate": 0.5,
+                    "visits": 50,
+                },
+                "ownership": before_ownership,
+                "ownershipStdev": [0.2] * 81,
+                "moveInfos": [
+                    {
+                        "move": "E5",
+                        "order": 0,
+                        "scoreLead": 2.0,
+                        "pv": ["E5", "D5"],
+                    }
+                ],
+            }
+        assert query["moves"] == [["B", "A9"]]
+        return {
+            "rootInfo": {
+                "currentPlayer": "W",
+                "scoreLead": 2.5,
+                "scoreStdev": 4.5,
+                "winrate": 0.61,
+                "visits": 40,
+                "utility": 0.25,
+            },
+            "ownership": after_ownership,
+            "ownershipStdev": [0.3] * 81,
+            # These values are after White's possible reply. They must never
+            # be substituted for the selected Black move's child-root fields.
+            "moveInfos": [
+                {
+                    "move": "E5",
+                    "order": 0,
+                    "scoreLead": 999.0,
+                    "ownership": [-1.0] * 81,
+                    "pv": ["E5", "E4", "E5"],
+                }
+            ],
+        }
+
+    with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
+        game = create_game(client)
+        response = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 0, "y": 0, "actor_id": "human", "expected_revision": 1},
+        )
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        teaching = payload["teaching"]
+
+        assert teaching["coordinate"] == "A9"
+        assert teaching["analysis_source"] == "child_root"
+        assert teaching["legal_verified"] is True
+        assert teaching["engine_analyzed"] is True
+        assert teaching["score"] == {
+            "before": 1.0,
+            "after": 2.5,
+            "delta": 1.5,
+            "mover_delta": 1.5,
+            "perspective": "black",
+            "evidence": "engine",
+            "outcome_spread_before": 4.0,
+            "outcome_spread_after": 4.5,
+        }
+        assert teaching["evaluation"] == {
+            "perspective": "black",
+            "evidence": "engine",
+            "winrate_before": 0.5,
+            "winrate_after": 0.61,
+            "winrate_delta": 0.11,
+            "winrate_mover_delta": 0.11,
+            "visits": 40,
+            "utility": 0.25,
+        }
+        assert len(teaching["ownership_before"]) == 81
+        assert len(teaching["ownership_after"]) == 81
+        assert len(teaching["ownership_delta"]) == 81
+        assert teaching["ownership_perspective"] == "black"
+        assert teaching["ownership_before"][0] == {
+            "x": 0,
+            "y": 0,
+            "value": -0.2,
+            "variation": 0.2,
+        }
+        assert teaching["ownership_after"][0] == {
+            "x": 0,
+            "y": 0,
+            "value": 0.7,
+            "variation": 0.3,
+        }
+        assert teaching["ownership_after"][-1]["value"] == -0.7
+        assert teaching["ownership_delta"][0]["value"] == 0.9
+        assert teaching["variation"] == [
+            {"color": "black", "kind": "play", "point": {"x": 0, "y": 0}},
+            {"color": "white", "kind": "play", "point": {"x": 4, "y": 4}},
+            {"color": "black", "kind": "play", "point": {"x": 4, "y": 5}},
+        ]
+        assert teaching["main_line_reply"] == "White E5"
+
+        assert payload["current_area_snapshot"]["black_stones"] == 0
+        assert payload["if_played_area_snapshot"]["black_stones"] == 1
+        assert payload["if_played_side_to_move"] == "white"
+        assert (
+            next(item for item in payload["position_facets"] if item["id"] == "beat")["value"]
+            == "Black to move"
+        )
+        assert (
+            next(item for item in payload["if_played_facets"] if item["id"] == "beat")["value"]
+            == "White to move"
+        )
+        assert (
+            next(item for item in payload["if_played_facets"] if item["id"] == "reach")["evidence"]
+            == "engine"
+        )
+
+        assert katago.queries[0]["moves"] == []
+        assert katago.queries[0]["initial_player"] == "B"
+        assert katago.queries[1]["moves"] == [["B", "A9"]]
+        assert katago.queries[1]["initial_player"] == "B"
+        assert all(query["board_size"] == 9 for query in katago.queries)
+
+        repeated = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 0, "y": 0, "actor_id": "human", "expected_revision": 1},
+        )
+        assert repeated.status_code == 200
+        assert len(katago.queries) == 2
+
+        unchanged = client.get(f"/api/games/{game['id']}").json()
+        assert unchanged["revision"] == 1
+        assert unchanged["moves"] == []
+        assert unchanged["stones"] == []
 
 
 def test_engine_response_for_the_wrong_side_to_move_is_not_attached_to_candidates(
@@ -857,10 +1097,62 @@ def test_engine_response_without_current_player_is_not_attached_to_candidates(
         assert len(katago.queries) == 1
 
 
+@pytest.mark.parametrize(
+    "invalid_child_identity",
+    [
+        {"currentPlayer": "B", "turnNumber": 1},
+        {"currentPlayer": "W", "turnNumber": None},
+        {"currentPlayer": "W", "turnNumber": 99},
+    ],
+)
+def test_preview_rejects_child_analysis_not_bound_to_the_exact_after_position(
+    app_client_factory: Any,
+    invalid_child_identity: dict[str, Any],
+) -> None:
+    def engine(query: dict[str, Any]) -> dict[str, Any]:
+        if not query["moves"]:
+            return {
+                "rootInfo": {
+                    "currentPlayer": "B",
+                    "scoreLead": 0.0,
+                    "visits": 10,
+                },
+                "ownership": [0.0] * 81,
+                "moveInfos": [{"move": "A9", "order": 0, "pv": ["A9", "B9"]}],
+            }
+        return {
+            "turnNumber": invalid_child_identity["turnNumber"],
+            "rootInfo": {
+                "currentPlayer": invalid_child_identity["currentPlayer"],
+                "scoreLead": 5.0,
+                "visits": 10,
+            },
+            "ownership": [0.8] * 81,
+            "moveInfos": [],
+        }
+
+    with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
+        game = create_game(client)
+        preview = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 0, "y": 0, "actor_id": "human", "expected_revision": 1},
+        )
+        assert preview.status_code == 200, preview.text
+        teaching = preview.json()["teaching"]
+        assert teaching["legal_verified"] is True
+        assert teaching["engine_analyzed"] is False
+        assert "analysis_source" not in teaching
+        assert "score" not in teaching
+        assert "ownership_after" not in teaching
+        assert teaching["variation"] == []
+        assert teaching["main_line_reply"] is None
+        assert len(katago.queries) == 2
+
+
 def test_malformed_candidate_evidence_is_omitted_and_payloads_stay_bounded(
     app_client_factory: Any,
 ) -> None:
-    engine = {
+    root_engine = {
         "rootInfo": {
             "currentPlayer": "B",
             "scoreLead": "unknown",
@@ -883,6 +1175,17 @@ def test_malformed_candidate_evidence_is_omitted_and_payloads_stay_bounded(
             }
         ],
     }
+
+    def engine(query: dict[str, Any]) -> dict[str, Any]:
+        if not query["moves"]:
+            return root_engine
+        child = dict(root_engine)
+        child["rootInfo"] = {
+            **root_engine["rootInfo"],
+            "currentPlayer": "W",
+        }
+        return child
+
     with app_client_factory(katago_analysis=engine) as (client, _katago, _openai, _local):
         game = create_game(client)
         preview = client.post(
@@ -946,6 +1249,214 @@ def test_stable_candidate_id_cannot_remap_when_engine_ranking_changes(
         )
         assert turn.status_code == 200, turn.text
         assert turn.json()["moves"][0]["point"] == {"x": 4, "y": 4}
+
+
+@pytest.mark.asyncio
+async def test_identical_child_previews_share_search_when_one_waiter_disconnects(
+    app_client_factory: Any,
+    monkeypatch: Any,
+) -> None:
+    with app_client_factory(katago_analysis={"unused": True}) as (
+        client,
+        katago,
+        _openai,
+        _local,
+    ):
+        game = create_game(client)
+        child_entered = asyncio.Event()
+        child_release = asyncio.Event()
+        child_cancelled = False
+        query_count = 0
+
+        async def query(**request: Any) -> dict[str, Any]:
+            nonlocal child_cancelled, query_count
+            query_count += 1
+            if not request["moves"]:
+                return {
+                    "turnNumber": 0,
+                    "rootInfo": {"currentPlayer": "B", "scoreLead": 0.0, "visits": 10},
+                    "ownership": [0.0] * 81,
+                    "moveInfos": [{"move": "E5", "order": 0, "pv": ["E5"]}],
+                }
+            child_entered.set()
+            try:
+                await child_release.wait()
+            except asyncio.CancelledError:
+                child_cancelled = True
+                raise
+            return {
+                "turnNumber": 1,
+                "rootInfo": {"currentPlayer": "W", "scoreLead": 1.0, "visits": 10},
+                "ownership": [0.1] * 81,
+                "moveInfos": [],
+            }
+
+        monkeypatch.setattr(katago, "query", query)
+        service = client.app.state.game_service
+        request = PreviewRequest(
+            x=0,
+            y=0,
+            actor_id="human",
+            expected_revision=1,
+        )
+        disconnected = asyncio.create_task(service.preview(game["id"], request))
+        await asyncio.wait_for(child_entered.wait(), timeout=1.0)
+        retry = asyncio.create_task(service.preview(game["id"], request))
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+        assert query_count == 2
+        disconnected.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await disconnected
+        assert child_cancelled is False
+        assert not retry.done()
+
+        child_release.set()
+        response = await asyncio.wait_for(retry, timeout=1.0)
+        assert response["teaching"]["analysis_source"] == "child_root"
+        assert response["teaching"]["ownership_after"][0]["value"] == 0.1
+        assert query_count == 2
+
+
+@pytest.mark.asyncio
+async def test_rapid_distinct_preview_supersedes_abandoned_child_before_next_search(
+    app_client_factory: Any,
+    monkeypatch: Any,
+) -> None:
+    with app_client_factory(katago_analysis={"unused": True}) as (
+        client,
+        katago,
+        _openai,
+        _local,
+    ):
+        game = create_game(client)
+        entered = {"A9": asyncio.Event(), "B9": asyncio.Event()}
+        release_b = asyncio.Event()
+        cancelled: list[str] = []
+        calls: list[str] = []
+        active_children = 0
+        maximum_active_children = 0
+
+        async def query(**request: Any) -> dict[str, Any]:
+            nonlocal active_children, maximum_active_children
+            if not request["moves"]:
+                calls.append("root")
+                return {
+                    "turnNumber": 0,
+                    "rootInfo": {"currentPlayer": "B", "scoreLead": 0.0, "visits": 10},
+                    "ownership": [0.0] * 81,
+                    "moveInfos": [{"move": "E5", "order": 0, "pv": ["E5"]}],
+                }
+            coordinate = request["moves"][-1][1]
+            calls.append(coordinate)
+            active_children += 1
+            maximum_active_children = max(maximum_active_children, active_children)
+            entered[coordinate].set()
+            try:
+                if coordinate == "A9":
+                    await asyncio.Event().wait()
+                else:
+                    await release_b.wait()
+            except asyncio.CancelledError:
+                cancelled.append(coordinate)
+                raise
+            finally:
+                active_children -= 1
+            return {
+                "turnNumber": 1,
+                "rootInfo": {"currentPlayer": "W", "scoreLead": 1.0, "visits": 10},
+                "ownership": [0.1] * 81,
+                "moveInfos": [],
+            }
+
+        monkeypatch.setattr(katago, "query", query)
+        service = client.app.state.game_service
+        first = asyncio.create_task(
+            service.preview(
+                game["id"],
+                PreviewRequest(x=0, y=0, actor_id="human", expected_revision=1),
+            )
+        )
+        await asyncio.wait_for(entered["A9"].wait(), timeout=1.0)
+        second = asyncio.create_task(
+            service.preview(
+                game["id"],
+                PreviewRequest(x=1, y=0, actor_id="human", expected_revision=1),
+            )
+        )
+        with pytest.raises(asyncio.CancelledError):
+            await first
+        await asyncio.wait_for(entered["B9"].wait(), timeout=1.0)
+        release_b.set()
+        response = await asyncio.wait_for(second, timeout=1.0)
+
+        assert response["coordinate"] == "B9"
+        assert response["teaching"]["analysis_source"] == "child_root"
+        assert cancelled == ["A9"]
+        assert calls == ["root", "A9", "B9"]
+        assert maximum_active_children == 1
+
+
+@pytest.mark.asyncio
+async def test_preview_rechecks_revision_after_child_engine_await(
+    app_client_factory: Any,
+    monkeypatch: Any,
+) -> None:
+    with app_client_factory(katago_analysis={"unused": True}) as (
+        client,
+        katago,
+        _openai,
+        _local,
+    ):
+        game = create_game(client)
+        child_entered = asyncio.Event()
+        child_release = asyncio.Event()
+
+        async def query(**request: Any) -> dict[str, Any]:
+            if not request["moves"]:
+                return {
+                    "turnNumber": 0,
+                    "rootInfo": {"currentPlayer": "B", "scoreLead": 0.0, "visits": 10},
+                    "ownership": [0.0] * 81,
+                    "moveInfos": [{"move": "E5", "order": 0, "pv": ["E5"]}],
+                }
+            child_entered.set()
+            await child_release.wait()
+            return {
+                "turnNumber": 1,
+                "rootInfo": {"currentPlayer": "W", "scoreLead": 1.0, "visits": 10},
+                "ownership": [0.1] * 81,
+                "moveInfos": [],
+            }
+
+        monkeypatch.setattr(katago, "query", query)
+        service = client.app.state.game_service
+        pending = asyncio.create_task(
+            service.preview(
+                game["id"],
+                PreviewRequest(x=0, y=0, actor_id="human", expected_revision=1),
+            )
+        )
+        await asyncio.wait_for(child_entered.wait(), timeout=1.0)
+        service.submit_move(
+            game["id"],
+            MoveRequest(
+                actor_id="human",
+                expected_revision=1,
+                kind="play",
+                point={"x": 4, "y": 4},
+                client_request_id="preview-race-move-request-0001",
+            ),
+        )
+        child_release.set()
+        with pytest.raises(RevisionConflict):
+            await pending
+
+        stored = client.app.state.game_store.get_game(game["id"])
+        assert stored is not None
+        assert stored["revision"] == 2
+        assert len(stored["current_node"]["state"]["history"]) == 1
 
 
 def test_move_is_idempotent_and_revision_compare_and_swap_is_enforced(

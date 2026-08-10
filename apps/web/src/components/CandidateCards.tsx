@@ -17,6 +17,7 @@ interface CandidateCardsProps {
   candidates: CandidateMove[]
   selectedCandidateId?: string | null
   inspectedCandidateId?: string | null
+  suggestedCandidateId?: string | null
   onInspect: (candidate: CandidateMove | null) => void
   onSelect: (candidate: CandidateMove) => void
   disabled?: boolean
@@ -28,6 +29,7 @@ export function CandidateCards({
   candidates,
   selectedCandidateId,
   inspectedCandidateId,
+  suggestedCandidateId,
   onInspect,
   onSelect,
   disabled = false,
@@ -57,7 +59,11 @@ export function CandidateCards({
       {candidates.slice(0, 3).map((candidate) => {
         const selected = selectedCandidateId === candidate.id
         const inspecting = inspectedCandidateId === candidate.id
-        const expanded = selected || inspecting
+        const suggested = suggestedCandidateId === candidate.id
+        const suggestedRank = Number.isInteger(candidate.evaluation?.order) && (candidate.evaluation?.order ?? -1) >= 0
+          ? `KataGo order ${(candidate.evaluation?.order ?? 0) + 1}`
+          : 'KataGo-ranked'
+        const expanded = selected || inspecting || suggested
         const reasoning = candidateReasoning(candidate)
         const pv = variationSummary(candidate, boardSize)
         const evaluation = candidate.evaluation ? evaluationSummary(candidate.evaluation) : null
@@ -74,7 +80,7 @@ export function CandidateCards({
           <button
             key={candidate.id}
             type="button"
-            className={`candidate-card ${selected ? 'selected' : ''} ${inspecting ? 'inspecting' : ''}`}
+            className={`candidate-card ${selected ? 'selected' : ''} ${inspecting ? 'inspecting' : ''} ${suggested ? 'suggested' : ''}`}
             onPointerEnter={(event) => {
               if (event.pointerType !== 'touch') {
                 setHoveredId(candidate.id)
@@ -96,11 +102,13 @@ export function CandidateCards({
             aria-pressed={selected}
             aria-expanded={expanded}
             aria-controls={analysisId}
-            aria-label={`${candidate.coordinate}, ${candidate.title}. Inspect this candidate; click or press Enter to select its non-committing move preview.`}
+            aria-label={`${suggested ? 'Suggested first stone. ' : ''}${candidate.coordinate}, ${candidate.title}. Inspect this candidate; click or press Enter to select its non-committing move preview.`}
             data-testid={`candidate-${candidate.id}`}
             data-verified={candidate.verified}
             data-inspecting={inspecting}
             data-selected={selected}
+            data-suggested={suggested}
+            data-suggestion-source={suggested ? (candidate.engine_analyzed ? 'engine' : 'teacher') : undefined}
           >
             <span className="candidate-coordinate">{candidate.coordinate}</span>
             <span className="candidate-body">
@@ -109,6 +117,11 @@ export function CandidateCards({
                 <span className="intent-tag">{candidate.intent}</span>
                 {candidate.legal_verified === true && <CheckCircle2 size={14} aria-label="Rules-legal server candidate" />}
               </span>
+              {suggested && (
+                <span className="candidate-suggestion-badge" data-testid="suggested-first-stone-card">
+                  Suggested first stone · {candidate.engine_analyzed ? suggestedRank : 'teacher fallback'}
+                </span>
+              )}
               <span className="intent-provenance">Teacher hypothesis · possible job</span>
               <span className="candidate-summary">{candidate.summary}</span>
               {candidate.main_line_reply && (

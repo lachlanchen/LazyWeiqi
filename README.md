@@ -33,7 +33,10 @@ is already visible. Its field is not a stone-distance halo: it compares KataGo's
 ownership forecast after that move with the current position. Blue means more
 Black tendency, orange more White tendency, and violet a near-balanced or
 high-variation boundary. Hover or keyboard-focus another candidate to compare
-its field; click or tap to keep a non-committing preview.
+its field. Click any legal intersection—even one outside the shortlist—to
+analyze that exact if-played position without placing a stone. **Place stone**
+appears only after the matching legal preview is ready and remains the sole
+commit action.
 
 The companion beside the board stays concrete:
 

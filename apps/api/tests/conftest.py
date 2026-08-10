@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,7 +16,10 @@ from weiqi.main import create_app
 
 
 class FakeKataGo:
-    def __init__(self, analysis: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        analysis: dict[str, Any] | Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    ) -> None:
         self.analysis = analysis
         self.queries: list[dict[str, Any]] = []
         self.closed = False
@@ -37,7 +40,10 @@ class FakeKataGo:
         self.queries.append(query)
         if self.analysis is None:
             raise KataGoUnavailable("disabled in deterministic tests")
-        return self.analysis
+        response = self.analysis(query) if callable(self.analysis) else self.analysis
+        normalized = dict(response)
+        normalized.setdefault("turnNumber", len(query.get("moves", [])))
+        return normalized
 
     async def close(self) -> None:
         self.closed = True
@@ -102,7 +108,9 @@ def app_client_factory(tmp_path: Path):
     @contextmanager
     def factory(
         *,
-        katago_analysis: dict[str, Any] | None = None,
+        katago_analysis: (
+            dict[str, Any] | Callable[[dict[str, Any]], dict[str, Any]] | None
+        ) = None,
         openai_choice: str | None = None,
         openai_draft: Any = None,
         local_choice: str | None = None,

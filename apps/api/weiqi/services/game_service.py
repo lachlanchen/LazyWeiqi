@@ -77,6 +77,7 @@ GAME_LIST_CURSOR_MAX_BYTES = 160
 ENGINE_ANALYSIS_CACHE_ENTRIES = 24
 CANDIDATE_LIMIT = 3
 PV_MOVE_LIMIT = 4
+EngineAnalysisCacheKey = tuple[str, int, float, str, str, str, str, str]
 GAME_ID_RE = re.compile(r"^game_[0-9a-f]{32}$")
 NODE_ID_RE = re.compile(r"^node_[0-9a-f]{32}$")
 COACH_EVENT_CURSOR_ID_RE = re.compile(r"^[nm]:(?:node|coach)_[0-9a-f]{32}$")
@@ -93,6 +94,18 @@ class ShortlistedCandidate:
 class _InflightCoachExchange:
     request_hash: str
     task: asyncio.Task[dict[str, Any]]
+
+
+@dataclass(slots=True)
+class _InflightEngineAnalysis:
+    task: asyncio.Task[dict[str, Any] | None]
+    waiters: int = 0
+
+
+@dataclass(slots=True)
+class _PreviewLane:
+    point: tuple[int, int]
+    tasks: set[asyncio.Task[Any]]
 
 
 def _now_iso(timestamp: float) -> str:
@@ -441,7 +454,9 @@ def _global_facets(state: GameState, engine: dict[str, Any] | None = None) -> li
     atari_groups = [group for group in energy.groups if group.liberty_count == 1]
     black_groups = sum(group.color is Color.BLACK for group in energy.groups)
     white_groups = sum(group.color is Color.WHITE for group in energy.groups)
-    score = chinese_area_score(state)
+    black_stones = len(state.stones(Color.BLACK))
+    white_stones = len(state.stones(Color.WHITE))
+    empty_intersections = state.size * state.size - black_stones - white_stones
     engine_ready = bool(
         _ownership_cells(
             engine.get("ownership") if engine else None,
@@ -501,15 +516,17 @@ def _global_facets(state: GameState, engine: dict[str, Any] | None = None) -> li
         },
         {
             "id": "area",
-            "label": "Area snapshot",
-            "canonical_term": "Mechanical Chinese area count",
-            "value": f"Black {score.black_total:g} · White {score.white_total:g} (komi included)",
+            "label": "Board count",
+            "canonical_term": "Stones and empty intersections",
+            "value": (
+                f"Black {black_stones} stone{'s' if black_stones != 1 else ''} · "
+                f"White {white_stones} stone{'s' if white_stones != 1 else ''}"
+            ),
             "change": None,
             "evidence": "exact",
             "explanation": (
-                f"Black: {score.black_stones} stones + {score.black_territory} enclosed empty; "
-                f"White: {score.white_stones} stones + {score.white_territory} enclosed empty + "
-                f"{score.komi:g} komi. Every stone is treated alive, so this is not an adjudicated result."
+                f"{empty_intersections} intersections are empty. Territory and dead stones are "
+                "not settled during live play; engine ownership is a separate forecast."
             ),
         },
         {
@@ -636,6 +653,26 @@ def _public_candidate_id(candidate: LegalCandidate) -> str:
     """
 
     return f"m_{candidate.id.removeprefix('cand_')}"
+
+
+def _engine_history_digest(state: GameState) -> str:
+    """Bind HumanSL cache entries to the exact ordered query history."""
+
+    payload = {
+        "initial_black": [
+            vertex_to_gtp(vertex, state.size) for vertex in state.initial_stones(Color.BLACK)
+        ],
+        "initial_white": [
+            vertex_to_gtp(vertex, state.size) for vertex in state.initial_stones(Color.WHITE)
+        ],
+        "moves": [
+            [move.color.gtp, vertex_to_gtp(move.vertex, state.size)]
+            for move in state.history
+            if move.kind in {MoveKind.PLAY, MoveKind.PASS}
+        ],
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _finite_float(
@@ -848,6 +885,8 @@ def _candidate_engine_fields(
     state: GameState,
     engine: dict[str, Any] | None,
     info: dict[str, Any] | None,
+    *,
+    compare_score_to_top: bool = True,
 ) -> dict[str, Any]:
     if engine is None or info is None:
         return {}
@@ -874,7 +913,7 @@ def _candidate_engine_fields(
         if after_outcome_spread is not None:
             score["outcome_spread_after"] = after_outcome_spread
 
-        move_infos = engine.get("moveInfos")
+        move_infos = engine.get("moveInfos") if compare_score_to_top else None
         top_score = None
         if isinstance(move_infos, list):
             for top_info in move_infos:
@@ -962,6 +1001,101 @@ def _candidate_engine_fields(
     if before_ownership or after_ownership:
         fields["ownership_perspective"] = "black"
     return fields
+
+
+def _engine_info_for_candidate(
+    engine: dict[str, Any], candidate: LegalCandidate, size: int
+) -> dict[str, Any] | None:
+    move_infos = engine.get("moveInfos")
+    for info in move_infos if isinstance(move_infos, list) else []:
+        if not isinstance(info, dict) or not isinstance(info.get("move"), str):
+            continue
+        try:
+            vertex = gtp_to_vertex(info["move"], size)
+        except ValueError:
+            continue
+        if vertex == candidate.vertex:
+            return info
+    return None
+
+
+def _candidate_child_engine_fields(
+    state: GameState,
+    candidate: LegalCandidate,
+    current_engine: dict[str, Any],
+    child_engine: dict[str, Any],
+) -> dict[str, Any]:
+    """Build preview evidence from the analyzed deterministic child root.
+
+    The normal root query may never search an arbitrary clicked move. Appending
+    the rules-verified move to the real history and analyzing that child gives
+    an honest after-position root ownership and score for every legal point.
+    """
+
+    child_root = child_engine.get("rootInfo")
+    if not isinstance(child_root, dict):
+        return {}
+    child_info: dict[str, Any] = {
+        "move": vertex_to_gtp(candidate.vertex, state.size),
+        "ownership": child_engine.get("ownership"),
+        "ownershipStdev": child_engine.get("ownershipStdev"),
+    }
+    for key in ("scoreLead", "scoreStdev", "winrate", "utility", "visits"):
+        child_info[key] = child_root.get(key)
+
+    root_candidate_info = _engine_info_for_candidate(current_engine, candidate, state.size)
+    if root_candidate_info is not None:
+        # Preserve only parent-root choice metadata. After-position evaluation
+        # and maps below always come from the child root.
+        child_info["order"] = root_candidate_info.get("order")
+        child_info["prior"] = root_candidate_info.get("prior")
+
+    fields = _candidate_engine_fields(
+        state,
+        current_engine,
+        child_info,
+        compare_score_to_top=False,
+    )
+    if root_candidate_info is not None:
+        ranked_fields = _candidate_engine_fields(state, current_engine, root_candidate_info)
+        ranked_score = ranked_fields.get("score")
+        child_score = fields.get("score")
+        if isinstance(ranked_score, dict) and isinstance(child_score, dict):
+            for key in ("difference_from_top", "loss_vs_top"):
+                if key in ranked_score:
+                    child_score[key] = ranked_score[key]
+    if fields:
+        fields["analysis_source"] = "child_root"
+    return fields
+
+
+def _child_root_variation(
+    state: GameState,
+    candidate: LegalCandidate,
+    child_engine: dict[str, Any],
+) -> list[dict[str, Any]]:
+    move_infos = child_engine.get("moveInfos")
+    top: dict[str, Any] | None = None
+    for info in move_infos if isinstance(move_infos, list) else []:
+        if not isinstance(info, dict) or info.get("order") != 0:
+            continue
+        top = info
+        break
+    line: list[object] = [vertex_to_gtp(candidate.vertex, state.size)]
+    if top is not None and isinstance(top.get("pv"), list):
+        line.extend(top["pv"][: PV_MOVE_LIMIT - 1])
+    return _variation_for_candidate(state, candidate, {"pv": line})
+
+
+def _main_line_reply(variation: list[dict[str, Any]], size: int) -> str | None:
+    if len(variation) <= 1:
+        return None
+    reply_move = variation[1]
+    point = reply_move["point"]
+    reply_color = str(reply_move["color"]).title()
+    if point is None:
+        return f"{reply_color} pass"
+    return f"{reply_color} {vertex_to_gtp(Vertex(point['x'], point['y']), size)}"
 
 
 def _active_nodes(game: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1118,9 +1252,32 @@ class GameService:
         self.katago = katago
         self.providers = providers
         self._coach_inflight: dict[tuple[str, str], _InflightCoachExchange] = {}
-        self._engine_analysis_cache: OrderedDict[
-            tuple[str, int, float, str, str, str], dict[str, Any]
-        ] = OrderedDict()
+        self._engine_analysis_cache: OrderedDict[EngineAnalysisCacheKey, dict[str, Any]] = (
+            OrderedDict()
+        )
+        self._engine_analysis_inflight: dict[EngineAnalysisCacheKey, _InflightEngineAnalysis] = {}
+        self._preview_lanes: dict[tuple[str, int], _PreviewLane] = {}
+        # One bounded engine search at a time keeps rapid board exploration
+        # from multiplying GPU work. Distinct cancelled previews leave this
+        # queue immediately; identical previews share one task above.
+        self._engine_query_slot = asyncio.Semaphore(1)
+
+    async def close(self) -> None:
+        """Cancel abandoned engine searches before the process is closed."""
+
+        preview_tasks = {task for lane in self._preview_lanes.values() for task in lane.tasks}
+        for task in preview_tasks:
+            task.cancel()
+        if preview_tasks:
+            await asyncio.gather(*preview_tasks, return_exceptions=True)
+        self._preview_lanes.clear()
+
+        tasks = {entry.task for entry in self._engine_analysis_inflight.values()}
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._engine_analysis_inflight.clear()
 
     def curriculum(self) -> dict[str, Any]:
         lessons = []
@@ -1340,32 +1497,86 @@ class GameService:
             "chinese-area-positional-superko",
             str(network_name),
             rank_profile,
+            _engine_history_digest(state),
+            "full-evidence-v1",
         )
         if cache_key in self._engine_analysis_cache:
             cached = self._engine_analysis_cache.pop(cache_key)
             self._engine_analysis_cache[cache_key] = cached
             return cached
-        try:
-            analysis = await self.katago.query(
-                moves=[
-                    [move.color.gtp, vertex_to_gtp(move.vertex, state.size)]
-                    for move in state.history
-                    if move.kind in {MoveKind.PLAY, MoveKind.PASS}
-                ],
-                initial_stones=[
-                    *[
-                        ["B", vertex_to_gtp(vertex, state.size)]
-                        for vertex in state.initial_stones(Color.BLACK)
-                    ],
-                    *[
-                        ["W", vertex_to_gtp(vertex, state.size)]
-                        for vertex in state.initial_stones(Color.WHITE)
-                    ],
-                ],
-                board_size=state.size,
-                komi=state.komi,
-                rank_profile=rank_profile,
+
+        inflight = self._engine_analysis_inflight.get(cache_key)
+        if inflight is None:
+            task = asyncio.create_task(
+                self._query_compatible_engine_analysis(
+                    state,
+                    rank_profile=rank_profile,
+                    cache_key=cache_key,
+                )
             )
+            inflight = _InflightEngineAnalysis(task=task)
+            self._engine_analysis_inflight[cache_key] = inflight
+
+            def discard_finished(_task: asyncio.Task[dict[str, Any] | None]) -> None:
+                current = self._engine_analysis_inflight.get(cache_key)
+                if current is inflight and current.waiters == 0:
+                    self._engine_analysis_inflight.pop(cache_key, None)
+
+            task.add_done_callback(discard_finished)
+
+        inflight.waiters += 1
+        cancelled = False
+        try:
+            # One disconnected waiter must not cancel a query still needed by
+            # another identical preview. A unique abandoned child query is
+            # cancelled below so rapid A -> B clicks do not queue stale work.
+            return await asyncio.shield(inflight.task)
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
+        finally:
+            inflight.waiters -= 1
+            if inflight.waiters == 0:
+                if cancelled and not inflight.task.done():
+                    if self._engine_analysis_inflight.get(cache_key) is inflight:
+                        self._engine_analysis_inflight.pop(cache_key, None)
+                    inflight.task.cancel()
+                elif inflight.task.done():
+                    self._engine_analysis_inflight.pop(cache_key, None)
+
+    async def _query_compatible_engine_analysis(
+        self,
+        state: GameState,
+        *,
+        rank_profile: str,
+        cache_key: EngineAnalysisCacheKey,
+    ) -> dict[str, Any] | None:
+        moves = [
+            [move.color.gtp, vertex_to_gtp(move.vertex, state.size)]
+            for move in state.history
+            if move.kind in {MoveKind.PLAY, MoveKind.PASS}
+        ]
+        initial_stones = [
+            *[
+                ["B", vertex_to_gtp(vertex, state.size)]
+                for vertex in state.initial_stones(Color.BLACK)
+            ],
+            *[
+                ["W", vertex_to_gtp(vertex, state.size)]
+                for vertex in state.initial_stones(Color.WHITE)
+            ],
+        ]
+        initial_player = moves[0][0] if moves else state.to_move.gtp
+        try:
+            async with self._engine_query_slot:
+                analysis = await self.katago.query(
+                    moves=moves,
+                    initial_stones=initial_stones,
+                    initial_player=initial_player,
+                    board_size=state.size,
+                    komi=state.komi,
+                    rank_profile=rank_profile,
+                )
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1377,6 +1588,9 @@ class GameService:
         # Missing or mismatched turn identity makes the whole response
         # unsuitable for attachment to this position.
         if not isinstance(root, dict) or root.get("currentPlayer") != state.to_move.gtp:
+            return None
+        turn_number = analysis.get("turnNumber")
+        if type(turn_number) is not int or turn_number != len(moves):
             return None
         self._engine_analysis_cache[cache_key] = analysis
         while len(self._engine_analysis_cache) > ENGINE_ANALYSIS_CACHE_ENTRIES:
@@ -1645,7 +1859,37 @@ class GameService:
         }
 
     async def preview(self, game_id: str, request: PreviewRequest) -> dict[str, Any]:
-        game, state, _lesson = self._load_current(game_id, request.expected_revision)
+        """Run one revision's latest distinct point preview.
+
+        Uvicorn does not cancel a handler merely because the browser aborted its
+        fetch. A later A -> B click therefore supersedes A here, at the service
+        boundary. Identical retries share the same engine work and may both
+        finish; a different point cancels every older waiter in this lane.
+        """
+
+        current_task = asyncio.current_task()
+        if current_task is None:
+            return await self._preview_once(game_id, request)
+        lane_key = (game_id, request.expected_revision)
+        point = (request.x, request.y)
+        lane = self._preview_lanes.get(lane_key)
+        if lane is None or lane.point != point:
+            if lane is not None:
+                for task in tuple(lane.tasks):
+                    if task is not current_task and not task.done():
+                        task.cancel()
+            lane = _PreviewLane(point=point, tasks=set())
+            self._preview_lanes[lane_key] = lane
+        lane.tasks.add(current_task)
+        try:
+            return await self._preview_once(game_id, request)
+        finally:
+            lane.tasks.discard(current_task)
+            if self._preview_lanes.get(lane_key) is lane and not lane.tasks:
+                self._preview_lanes.pop(lane_key, None)
+
+    async def _preview_once(self, game_id: str, request: PreviewRequest) -> dict[str, Any]:
+        game, state, lesson = self._load_current(game_id, request.expected_revision)
         state.actors.require_turn_actor(request.actor_id, state.to_move)
         vertex = Vertex(request.x, request.y)
         try:
@@ -1663,6 +1907,9 @@ class GameService:
                 "facets": [],
                 "candidate_facets": [],
                 "position_facets": _global_facets(state),
+                "if_played_facets": [],
+                "current_area_snapshot": _area_snapshot(state),
+                "if_played_area_snapshot": None,
                 "candidates": [],
                 "coach_prompt": "Choose an intersection inside the board lines.",
             }
@@ -1686,13 +1933,29 @@ class GameService:
                 "facets": [],
                 "candidate_facets": [],
                 "position_facets": _global_facets(state),
+                "if_played_facets": [],
+                "current_area_snapshot": _area_snapshot(state),
+                "if_played_area_snapshot": None,
                 "candidates": [],
                 "coach_prompt": "Try another intersection and compare its liberties.",
             }
-        analysis, _ = await self.analyze(game_id, request.expected_revision)
+        shortlist, current_engine = await self._shortlist(
+            state,
+            lesson=lesson,
+            rank_profile=game["rank_profile"],
+        )
+        analysis = self._analysis_payload(
+            state,
+            shortlist,
+            current_engine,
+            self.katago._settings.katago_model.name,
+        )
+        # Do not spend a child search after this request's revision has already
+        # become stale while the current-position query was in flight.
+        self._load_current(game_id, request.expected_revision)
         selected_teaching = next(
             (
-                item
+                _candidate_copy(item)
                 for item in analysis["candidates"]
                 if item.get("point") == {"x": request.x, "y": request.y}
             ),
@@ -1725,6 +1988,58 @@ class GameService:
                 "what_changes": self._candidate_change_text(impact, tactics),
                 "next_calculation": risk,
             }
+
+        # Preview evidence has one uniform meaning: the `after` values are from
+        # a bounded analysis of the rules-verified child position, never an
+        # invented estimate for an unsearched root move. The cached current
+        # analysis supplies the before map and avoids duplicate root searches.
+        child_engine = None
+        if current_engine is not None:
+            child_engine = await self._compatible_engine_analysis(
+                after,
+                rank_profile=game["rank_profile"],
+            )
+            # KataGo runs outside the SQLite transaction. Reject the entire
+            # preview if a move or rewind changed the position during either
+            # await; never attach an old child field to a new revision.
+            self._load_current(game_id, request.expected_revision)
+            for key in (
+                "score",
+                "evaluation",
+                "ownership_before",
+                "ownership_after",
+                "ownership_delta",
+                "ownership_perspective",
+                "analysis_source",
+            ):
+                selected_teaching.pop(key, None)
+            # A parent-root continuation describes a different search. Never
+            # retain it when the child root is missing or rejected.
+            selected_teaching["variation"] = []
+            selected_teaching["main_line_reply"] = None
+            if child_engine is not None:
+                child_fields = _candidate_child_engine_fields(
+                    state,
+                    candidate,
+                    current_engine,
+                    child_engine,
+                )
+                selected_teaching.update(child_fields)
+                selected_teaching["engine_analyzed"] = bool(child_fields)
+                selected_teaching["verified"] = bool(child_fields)
+                child_variation = _child_root_variation(state, candidate, child_engine)
+                selected_teaching["variation"] = child_variation
+                selected_teaching["main_line_reply"] = _main_line_reply(
+                    child_variation,
+                    state.size,
+                )
+            else:
+                selected_teaching["engine_analyzed"] = False
+                selected_teaching["verified"] = False
+
+        # The root query may be unavailable, but a no-engine preview still
+        # needs a final CAS check after all awaited work.
+        self._load_current(game_id, request.expected_revision)
         candidate_facets = _impact_facets(impact)
         return {
             "game_id": game_id,
@@ -1738,6 +2053,10 @@ class GameService:
             "facets": candidate_facets,
             "candidate_facets": candidate_facets,
             "position_facets": analysis["facets"],
+            "if_played_facets": _global_facets(after, child_engine),
+            "current_area_snapshot": _area_snapshot(state),
+            "if_played_area_snapshot": _area_snapshot(after),
+            "if_played_side_to_move": after.to_move.value,
             "candidates": analysis["candidates"],
             "teaching": selected_teaching,
             "coach_prompt": "Name the intention before committing: build, fight, escape, or connect?",
@@ -2023,10 +2342,11 @@ class GameService:
             },
             "candidates": [_candidate_model_copy(item.public) for item in shortlist],
             "teaching_contract": (
-                "Liberties, captures, groups, side to move, and the area snapshot are exact "
-                "mechanical facts. Engine values and lines are estimates. Candidate intent, title, "
-                "summary, and risk marked intent_evidence=teacher are authored hypotheses, not "
-                "KataGo reasons. Energy language is metaphor."
+                "Liberties, captures, groups, side to move, and stone counts are exact facts. "
+                "Live territory is not settled. Engine ownership, score forecasts, and lines are "
+                "estimates. Candidate intent, title, summary, and risk marked "
+                "intent_evidence=teacher are authored hypotheses, not KataGo reasons. Energy "
+                "language is metaphor."
             ),
         }
         draft, source, warning = await self.providers.coach(

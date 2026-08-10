@@ -89,6 +89,7 @@ async def test_query_requests_after_move_ownership_in_the_single_root_analysis(
     task = asyncio.create_task(
         manager.query(
             moves=[],
+            initial_player="B",
             board_size=9,
             komi=7.5,
             rank_profile="rank_20k",
@@ -100,8 +101,53 @@ async def test_query_requests_after_move_ownership_in_the_single_root_analysis(
     assert request["includeOwnershipStdev"] is True
     assert request["includeMovesOwnership"] is True
     assert request["includeMovesOwnershipStdev"] is True
+    assert request["initialPlayer"] == "B"
+    assert request["rules"] == {
+        "hasButton": False,
+        "ko": "POSITIONAL",
+        "scoring": "AREA",
+        "suicide": False,
+        "tax": "NONE",
+        "whiteHandicapBonus": "0",
+        "friendlyPassOk": True,
+    }
+    assert "currentPlayer" not in request
+    assert "perspective" not in request
+    assert "analyzeTurns" not in request
     manager._pending[request["id"]].set_result({"id": request["id"], "moveInfos": []})
     await task
+
+
+@pytest.mark.asyncio
+async def test_warning_record_does_not_resolve_query_before_final_analysis(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path / "data", openai_api_key=None)
+    manager = KataGoProcess(settings)
+    process = QueryProcess()
+    process.stdout = asyncio.StreamReader()  # type: ignore[attr-defined]
+    manager._process = process  # type: ignore[assignment]
+    future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
+    manager._pending["analysis-warning-test"] = future
+
+    reader = asyncio.create_task(manager._read_stdout())
+    process.stdout.feed_data(  # type: ignore[attr-defined]
+        b'{"id":"analysis-warning-test","warning":"advisory only"}\n'
+    )
+    await asyncio.sleep(0)
+    assert not future.done()
+
+    final = {
+        "id": "analysis-warning-test",
+        "turnNumber": 0,
+        "rootInfo": {"currentPlayer": "B"},
+        "moveInfos": [],
+    }
+    process.stdout.feed_data(  # type: ignore[attr-defined]
+        json.dumps(final, separators=(",", ":")).encode() + b"\n"
+    )
+    assert await asyncio.wait_for(future, timeout=1.0) == final
+    reader.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await reader
 
 
 @pytest.mark.asyncio

@@ -349,6 +349,11 @@ export interface MovePreview {
   candidate_facets?: EnergyFacet[]
   /** Current-position readings that remain true while inspecting. */
   position_facets?: EnergyFacet[]
+  /** Whole-board readings computed from the deterministic child position. */
+  if_played_facets?: EnergyFacet[]
+  current_area_snapshot?: AreaSnapshot
+  if_played_area_snapshot?: AreaSnapshot | null
+  if_played_side_to_move?: StoneColor
   candidates: CandidateMove[]
   teaching?: MoveTeachingEvidence
   coach_prompt?: string | null

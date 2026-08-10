@@ -6,10 +6,17 @@ import runpy
 from pathlib import Path
 from typing import Any
 
+import anyio
 import pytest
+from starlette.requests import Request
 
 from weiqi.config import Settings
-from weiqi.main import MAX_JSON_BODY_BYTES, RequestBodyLimitMiddleware, _validated_web_dist
+from weiqi.main import (
+    MAX_JSON_BODY_BYTES,
+    RequestBodyLimitMiddleware,
+    _preview_while_connected,
+    _validated_web_dist,
+)
 from weiqi.services import providers as providers_module
 
 
@@ -48,6 +55,52 @@ def test_static_web_root_rejects_symlinks_without_touching_the_target(tmp_path: 
 def test_blank_openai_key_is_unconfigured(tmp_path: Any) -> None:
     configured = Settings(data_dir=tmp_path / "data", openai_api_key="   ")
     assert configured.openai_api_key is None
+
+
+@pytest.mark.asyncio
+async def test_disconnected_preview_cancels_its_expensive_operation() -> None:
+    cancelled = asyncio.Event()
+    operation_started = asyncio.Event()
+    disconnect = asyncio.Event()
+    response_sent = anyio.Event()
+
+    async def raw_receive() -> dict[str, Any]:
+        await disconnect.wait()
+        return {"type": "http.disconnect"}
+
+    async def receive_or_disconnect() -> dict[str, Any]:
+        """Match the receive race installed by Starlette BaseHTTPMiddleware."""
+
+        if response_sent.is_set():
+            return {"type": "http.disconnect"}
+        async with anyio.create_task_group() as task_group:
+
+            async def race(awaitable: Any) -> Any:
+                result = await awaitable()
+                task_group.cancel_scope.cancel()
+                return result
+
+            task_group.start_soon(race, response_sent.wait)
+            message = await race(raw_receive)
+        return {"type": "http.disconnect"} if response_sent.is_set() else message
+
+    request = Request({"type": "http"}, receive=receive_or_disconnect)
+
+    async def operation() -> dict[str, Any]:
+        operation_started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    waiting = asyncio.create_task(_preview_while_connected(request, operation()))
+    await operation_started.wait()
+    disconnect.set()
+    result = await waiting
+
+    assert result is None
+    assert cancelled.is_set()
 
 
 def test_data_directory_rejects_broad_or_root_level_targets(tmp_path: Path) -> None:

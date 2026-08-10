@@ -34,7 +34,7 @@ import { CoachRail } from './components/CoachRail'
 import { EnergyLenses } from './components/EnergyLenses'
 import { ModePicker } from './components/ModePicker'
 import { PowerTeacher } from './components/PowerTeacher'
-import { WeiqiBoard, type EnergyLensId } from './components/WeiqiBoard'
+import { WeiqiBoard, type CandidatePreviewMode, type EnergyLensId } from './components/WeiqiBoard'
 import {
   DEFAULT_PREFERENCES,
   DEMO_GAME,
@@ -408,7 +408,13 @@ export function App() {
         }
       })
 
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      // A board preview may intentionally supersede this request. Leave the
+      // revision eligible for a fresh comparison when previewing ends; the
+      // aborted response was never attached to activeGame.
+      if (requestedAnalysisKey.current === key) requestedAnalysisKey.current = null
+    }
   }, [
     activeGame?.analysis?.candidates?.length,
     activeGame?.id,
@@ -1062,12 +1068,13 @@ export function PlayWorkspace({
   onOpenReview,
 }: PlayWorkspaceProps) {
   const [inspectedCandidateId, setInspectedCandidateId] = useState<string | null>(null)
-  const busy = analysisLoading || (operation !== 'idle' && operation !== 'previewing')
+  const boardBusy = operation !== 'idle' && operation !== 'previewing'
+  const busy = analysisLoading || boardBusy
   const currentActor = game.actors.find((actor) => actor.color === game.to_play && (actor.role === 'human' || actor.role === 'player_agent'))
   const humanTurn = currentActor?.role === 'human'
   const unsettledAreaLabel = game.area_snapshot
-    ? `Mechanical area snapshot: Black ${game.area_snapshot.black_total.toFixed(1)} · White ${game.area_snapshot.white_total.toFixed(1)} including komi. Dead stones are not settled.`
-    : 'Area snapshot only—dead stones are not settled.'
+    ? `Stones: Black ${game.area_snapshot.black_stones} · White ${game.area_snapshot.white_stones}. Territory and dead stones are not settled, so no final score is declared.`
+    : 'Territory and dead stones are not settled, so no final score is declared.'
   const candidates = preview?.candidates ?? game.analysis?.candidates ?? []
   const inspectedCandidate = candidates.find((candidate) => candidate.id === inspectedCandidateId) ?? null
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null
@@ -1077,21 +1084,49 @@ export function PlayWorkspace({
         summary: preview.teaching.summary ?? preview.teaching.why_here,
       }
     : null
-  // Keep the strongest supplied decision field visible before the learner
-  // touches the board. Hover/focus remains ephemeral, while a clicked card or
-  // point preview stays pinned until it is cancelled or committed.
-  const visualCandidate = inspectedCandidate ?? selectedCandidate ?? previewTeachingCandidate ?? candidates[0] ?? null
+  const comparisonCandidate = inspectedCandidate && (
+    !previewTeachingCandidate || inspectedCandidate.id !== previewTeachingCandidate.id
+  ) ? inspectedCandidate : null
+  const openingSuggestion = game.board_size === 9 && game.move_count === 0 && game.stones.length === 0 &&
+    !selected && !preview && humanTurn && game.mode !== 'agent_vs_agent'
+    ? game.analysis?.candidates?.find((candidate) =>
+        candidate.kind !== 'pass' && candidate.point != null && candidate.evaluation?.order === 0,
+      ) ?? game.analysis?.candidates?.find((candidate) => candidate.kind !== 'pass' && candidate.point != null) ?? null
+    : null
+  const passiveTheatreCandidate = game.mode === 'agent_vs_agent' ? candidates[0] ?? null : null
+  // Hover/focus may temporarily replace the pinned preview. A fresh 9×9 board
+  // shows the supplied first-stone suggestion, but never requests or plays it.
+  const visualCandidate = comparisonCandidate ?? (
+    selected
+      ? previewTeachingCandidate ?? selectedCandidate
+      : selectedCandidate ?? openingSuggestion ?? passiveTheatreCandidate
+  )
+  const candidatePreviewMode: CandidatePreviewMode | null = comparisonCandidate
+    ? 'candidate-comparison'
+    : selected && visualCandidate
+      ? 'if-played'
+      : openingSuggestion && visualCandidate?.id === openingSuggestion.id
+        ? 'suggested-first-stone'
+        : passiveTheatreCandidate && visualCandidate?.id === passiveTheatreCandidate.id
+          ? 'candidate-comparison'
+        : selectedCandidate
+          ? 'pinned-candidate'
+          : null
   const currentFacets = preview?.position_facets ?? game.analysis?.facets ?? []
   const hypotheticalFacets = preview?.candidate_facets ?? preview?.facets ?? []
+  const ifPlayedPositionFacets = preview?.if_played_facets ?? []
   // A preview may replace consequence readings such as liberties, but it must
-  // never hide exact current-position facts such as the turn or area snapshot.
+  // never hide exact current-position facts such as the side to move.
   const facets = preview
     ? [
         ...hypotheticalFacets
           .filter((facet) => facet.id !== 'area' && facet.id !== 'beat')
           .map((facet) => ({ ...facet, scope: 'if_played' as const })),
+        ...ifPlayedPositionFacets
+          .filter((facet) => facet.id === 'beat' || facet.id === 'reach')
+          .map((facet) => ({ ...facet, scope: 'if_played' as const })),
         ...currentFacets
-          .filter((facet) => facet.id === 'area' || facet.id === 'beat')
+          .filter((facet) => facet.id === 'beat' || facet.id === 'reach')
           .map((facet) => ({ ...facet, scope: 'current' as const })),
       ]
     : currentFacets.map((facet) => ({ ...facet, scope: 'current' as const }))
@@ -1114,7 +1149,15 @@ export function PlayWorkspace({
   }, [])
 
   return (
-    <div className="play-view" data-testid="play-workspace" data-mode={game.mode} data-turn={game.to_play} data-phase={game.phase}>
+    <div
+      className="play-view"
+      data-testid="play-workspace"
+      data-mode={game.mode}
+      data-turn={game.to_play}
+      data-phase={game.phase}
+      data-analysis-state={selected ? (operation === 'previewing' && !preview ? 'analyzing' : preview?.legal ? 'if-played-ready' : preview ? 'illegal' : 'analyzing') : openingSuggestion ? 'suggested-first-stone' : analysisLoading ? 'finding-suggestion' : 'current-position'}
+      data-selected-coordinate={selected ? pointToCoordinate(selected, game.board_size) : undefined}
+    >
       {game.rules.training_variant && (
         <div className="training-banner" data-testid="training-rules-banner">
           <GraduationCap size={16} />
@@ -1171,19 +1214,30 @@ export function PlayWorkspace({
               onSelect={onSelect}
               preview={preview}
               candidatePreview={visualCandidate}
+              candidatePreviewMode={candidatePreviewMode}
               lastMove={game.moves.at(-1) ?? null}
               ownership={game.analysis?.ownership}
               activeLenses={activeLenses}
               showCoordinates={preferences.coordinates}
-              disabled={busy || !humanTurn || game.mode === 'agent_vs_agent' || game.phase !== 'playing'}
+              disabled={boardBusy || !humanTurn || game.mode === 'agent_vs_agent' || game.phase !== 'playing'}
               reducedMotion={preferences.reduced_motion}
               operationStatus={operation}
             />
 
             {(operation !== 'idle' || analysisLoading) && (
-              <div className="board-operation" role="status">
+              <div
+                className="board-operation"
+                role="status"
+                data-testid={operation === 'previewing' ? 'unconfirmed-analysis-loading' : analysisLoading && game.move_count === 0 ? 'suggested-first-stone-loading' : 'board-operation'}
+              >
                 <LoaderCircle size={18} className="spin" />
-                <span>{analysisLoading ? 'Comparing the next choices…' : operationLabel(operation)}</span>
+                <span>{operation === 'previewing'
+                  ? `Analyzing if ${game.to_play} plays ${selected ? pointToCoordinate(selected, game.board_size) : 'here'}…`
+                  : analysisLoading && game.move_count === 0
+                    ? 'Finding a suggested first stone…'
+                    : analysisLoading
+                      ? 'Comparing the next choices…'
+                      : operationLabel(operation)}</span>
               </div>
             )}
           </div>
@@ -1209,9 +1263,15 @@ export function PlayWorkspace({
                     {preview ? (preview.legal ? <><Check size={13} /> Verified</> : 'Not legal') : 'Checking…'}
                   </span>
                 </div>
-                <button type="button" className="primary-control" onClick={onCommit} disabled={operation !== 'idle' || !previewBound} data-testid="commit-move">
-                  Place stone <ArrowRight size={17} />
-                </button>
+                {previewBound ? (
+                  <button type="button" className="primary-control" onClick={onCommit} disabled={operation !== 'idle'} data-testid="commit-move">
+                    Place stone <ArrowRight size={17} />
+                  </button>
+                ) : (
+                  <span className="analysis-before-confirmation" data-testid="analysis-before-confirmation">
+                    {preview && !preview.legal ? 'Choose another point' : 'Analysis first · placement remains locked'}
+                  </span>
+                )}
               </>
             ) : (
               <>
@@ -1259,6 +1319,7 @@ export function PlayWorkspace({
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           inspectedCandidateId={inspectedCandidateId}
+          suggestedCandidateId={openingSuggestion?.id ?? null}
           intent={intent}
           onIntentChange={onIntentChange}
           onCandidateSelect={onCandidateSelect}

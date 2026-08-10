@@ -721,9 +721,22 @@ def screenshot(page: Page, timestamp: str, name: str, paths: list[str]) -> None:
     # Playwright auto-scrolls controls into view. Reset before a full-page
     # capture so sticky navigation is composed at the actual page top instead
     # of appearing to bisect the board in the stitched evidence image.
-    page.evaluate("window.scrollTo(0, 0)")
-    page.wait_for_timeout(100)
-    page.screenshot(path=str(target), full_page=True)
+    previous_scroll_behavior = page.evaluate(
+        """() => {
+          const previous = document.documentElement.style.scrollBehavior;
+          document.documentElement.style.scrollBehavior = 'auto';
+          window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+          return previous;
+        }"""
+    )
+    page.wait_for_function("() => window.scrollY === 0")
+    try:
+        page.screenshot(path=str(target), full_page=True)
+    finally:
+        page.evaluate(
+            "previous => { document.documentElement.style.scrollBehavior = previous; }",
+            previous_scroll_behavior,
+        )
     paths.append(report_path(target))
 
 
@@ -877,7 +890,11 @@ def run() -> dict[str, Any]:
         checks["normalizedBoard"] = page.get_by_test_id("campaign").get_attribute(
             "data-board-filter"
         )
-        checks["defaultMode"] = page.get_by_test_id("mode-picker").get_attribute(
+        checks["initialModePreference"] = page.get_by_test_id(
+            "mode-picker"
+        ).get_attribute("data-mode")
+        page.get_by_test_id("mode-human_companion").click()
+        checks["normalizedMode"] = page.get_by_test_id("mode-picker").get_attribute(
             "data-mode"
         )
         screenshot(page, timestamp, "journey-desktop", screenshots)
@@ -1021,10 +1038,150 @@ def run() -> dict[str, Any]:
         screenshot(page, timestamp, "agent-theatre", screenshots)
 
         # Companion delegation remains explicit and revision-bound. The server
-        # records a one-turn chooser, then the ordinary opponent answers.
+        # records a one-turn chooser, then the ordinary opponent answers. Before
+        # delegating, prove that a fresh board already teaches one opening and
+        # that any other legal click reveals its child-position field without
+        # committing a move.
         page.get_by_test_id("nav-journey").click()
         page.get_by_test_id("mode-human_companion").click()
         start_first_visible_lesson(page, 9)
+        opening_suggestion = page.get_by_test_id("suggested-first-stone")
+        opening_suggestion.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+        suggested_coordinate = opening_suggestion.get_attribute("data-coordinate")
+        suggested_card = page.get_by_test_id("suggested-first-stone-card")
+        suggested_card_button = suggested_card.locator("xpath=ancestor::button[1]")
+        suggestion_field = page.locator(
+            '[data-testid="candidate-field-key"]'
+            '[data-preview-mode="suggested-first-stone"]'
+            '[data-engine-field="true"]'
+        )
+        suggestion_field.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+        checks["openingSuggestionVisible"] = bool(
+            suggested_coordinate
+            and suggested_card.is_visible()
+            and suggested_coordinate in suggested_card_button.inner_text()
+            and page.locator(".timeline-track > span").count() == 0
+        )
+        screenshot(page, timestamp, "nine-by-nine-opening-suggestion", screenshots)
+
+        offered_coordinates = {
+            coordinate.strip()
+            for coordinate in page.locator(".candidate-coordinate").all_inner_texts()
+            if coordinate.strip()
+        }
+        empty_points = page.locator(
+            '[data-testid="weiqi-board"] [role="gridcell"][data-occupied="empty"]'
+        )
+        arbitrary_point = None
+        arbitrary_coordinate = None
+        for index in range(empty_points.count() - 1, -1, -1):
+            point = empty_points.nth(index)
+            coordinate = point.get_attribute("data-coordinate")
+            if coordinate and coordinate not in offered_coordinates:
+                arbitrary_point = point
+                arbitrary_coordinate = coordinate
+                break
+        if arbitrary_point is None or arbitrary_coordinate is None:
+            raise RuntimeError("could not find a legal non-suggested point to inspect")
+
+        moves_before_preview = page.locator(".timeline-track > span").count()
+        arbitrary_point.click()
+        unconfirmed = page.locator(
+            '[data-testid="unconfirmed-analysis"]'
+            f'[data-coordinate="{arbitrary_coordinate}"]'
+            '[data-analysis-state="ready"]'
+        )
+        unconfirmed.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+        if_played_field = page.locator(
+            '[data-testid="candidate-field-key"]'
+            '[data-preview-mode="if-played"]'
+            '[data-engine-field="true"]'
+        )
+        if_played_field.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+        commit_after_analysis = page.get_by_test_id("commit-move")
+        commit_after_analysis.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+        checks["unconfirmedClickAnalysis"] = (
+            unconfirmed.get_attribute("data-coordinate") == arbitrary_coordinate
+            and page.get_by_test_id("candidate-ownership-after").count() == 1
+            and page.get_by_test_id("candidate-ownership-delta").count() == 1
+            and page.get_by_test_id("if-played-score-forecast").count() == 1
+            and page.get_by_test_id("if-played-position-comparison").count() == 1
+            and page.get_by_test_id("current-position-bookkeeping").count() == 1
+            and page.get_by_test_id("if-played-position-bookkeeping").count() == 1
+            and page.locator(
+                '[data-testid="energy-lenses"] [data-scope="if_played"]'
+                '[data-facet-id="area"]'
+            ).count()
+            == 0
+            and commit_after_analysis.is_enabled()
+            and page.locator(".timeline-track > span").count() == moves_before_preview
+        )
+        checks["previewDoesNotPlaceStone"] = (
+            moves_before_preview == 0
+            and page.locator(".timeline-track > span").count() == 0
+            and "Nothing changes until" in unconfirmed.inner_text()
+        )
+        screenshot(page, timestamp, "nine-by-nine-unconfirmed-analysis", screenshots)
+
+        # The new one-click teaching state must remain readable and actionable
+        # at phone width before any stone is committed.
+        preview_cdp = context.new_cdp_session(page)
+        try:
+            preview_cdp.send(
+                "Emulation.setDeviceMetricsOverride",
+                {"width": 390, "height": 844, "deviceScaleFactor": 1, "mobile": True},
+            )
+            page.wait_for_timeout(500)
+            unconfirmed.scroll_into_view_if_needed()
+            checks["mobileUnconfirmedAnalysis"] = (
+                unconfirmed.is_visible()
+                and if_played_field.is_visible()
+                and commit_after_analysis.is_enabled()
+                and page.locator(".timeline-track > span").count() == 0
+            )
+            checks["mobilePreviewScrollWidth"] = page.evaluate(
+                "document.documentElement.scrollWidth"
+            )
+            checks["mobilePreviewClientWidth"] = page.evaluate(
+                "document.documentElement.clientWidth"
+            )
+            screenshot(page, timestamp, "mobile-unconfirmed-analysis", screenshots)
+        finally:
+            preview_cdp.send("Emulation.clearDeviceMetricsOverride")
+            preview_cdp.detach()
+        page.wait_for_timeout(500)
+        page.get_by_test_id("play-workspace").wait_for(state="visible")
+
+        page.get_by_test_id("move-controls").get_by_role(
+            "button", name="Cancel"
+        ).click()
+        wait_turn_choices(page)
+
+        focused_candidate = page.locator(".candidate-card").first
+        focused_candidate_id = str(
+            focused_candidate.get_attribute("data-testid")
+        ).removeprefix("candidate-")
+        focused_candidate.click()
+        page.locator(
+            '[data-testid="unconfirmed-analysis"][data-analysis-state="ready"]'
+        ).wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+        focused_child_field = page.locator(
+            '[data-testid="candidate-field-key"]'
+            f'[data-candidate-id="{focused_candidate_id}"]'
+            '[data-preview-mode="if-played"]'
+            '[data-engine-field="true"]'
+        )
+        focused_child_field.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+        checks["focusedCandidateUsesChildPreview"] = (
+            focused_candidate.evaluate("element => document.activeElement === element")
+            and page.get_by_test_id("commit-move").is_enabled()
+            and page.locator(".timeline-track > span").count() == 0
+        )
+        page.get_by_test_id("move-controls").get_by_role(
+            "button", name="Cancel"
+        ).click()
+        wait_turn_choices(page)
+
         page.get_by_test_id("delegation-zone").locator("button").click()
         checks["delegationConfirmedFirst"] = (
             page.get_by_test_id("delegation-zone").get_attribute("data-confirming")
@@ -1086,7 +1243,7 @@ def run() -> dict[str, Any]:
         "initialView": "journey",
         "engine": "ready",
         "normalizedBoard": "9",
-        "defaultMode": "human_companion",
+        "normalizedMode": "human_companion",
         "smallBoard": "5",
         "previewVerified": True,
         "smallBoardNoEngineField": True,
@@ -1097,6 +1254,11 @@ def run() -> dict[str, Any]:
         "candidateFocusRestoredAfterLeave": True,
         "candidatePinnedPreview": True,
         "candidateFieldProvenance": True,
+        "openingSuggestionVisible": True,
+        "unconfirmedClickAnalysis": True,
+        "previewDoesNotPlaceStone": True,
+        "mobileUnconfirmedAnalysis": True,
+        "focusedCandidateUsesChildPreview": True,
         "coachAnswered": True,
         "learnerRightCoachLeft": True,
         "safeCoachProvenance": True,
@@ -1135,6 +1297,12 @@ def run() -> dict[str, Any]:
         failures.append(
             "mobile viewport overflows horizontally: "
             f"{checks.get('mobileScrollWidth')} > {checks.get('mobileClientWidth')}"
+        )
+    if checks.get("mobilePreviewScrollWidth") != checks.get("mobilePreviewClientWidth"):
+        failures.append(
+            "mobile unconfirmed preview overflows horizontally: "
+            f"{checks.get('mobilePreviewScrollWidth')} > "
+            f"{checks.get('mobilePreviewClientWidth')}"
         )
     if checks.get("mobileBoardCellWidth", 0) < 28:
         failures.append(

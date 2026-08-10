@@ -69,6 +69,15 @@ engine await, so a concurrent move or rewind rejects the stale field. Automatic
 analysis runs only on learner turns (or a deliberately paused Agent Theatre),
 avoiding duplicate searches while a Player Agent is already choosing.
 
+A legal board click is also read-only. The deterministic rules engine first
+constructs the exact child position; on supported 9×9 boards KataGo then
+analyzes that child as the new root. The response compares current and
+if-played ownership, score forecasts, exact stone/empty-intersection counts,
+and labeled facts while the stored game remains unchanged. Only the separate,
+revision-bound move command behind **Place stone** mutates the game. Abandoned
+point searches are cancelled when their final waiter leaves, so rapid
+comparisons do not queue obsolete GPU work.
+
 The optional Presence sketch is a transparent distance-decay analogy computed
 from canonical stone coordinates. On an empty board it shows authored
 corner/side/center efficiency; after play it shows separate Black, White, and

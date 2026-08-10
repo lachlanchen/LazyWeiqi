@@ -15,6 +15,7 @@ import {
 import type { BoardSize, CandidateMove, MovePreview, MoveRecord, OwnershipCell, Point, Stone, StoneColor } from '../types'
 
 export type EnergyLensId = 'cloud' | 'breath' | 'bonds' | 'shelter' | 'reach' | 'ground' | 'area' | 'beat' | 'pressure'
+export type CandidatePreviewMode = 'suggested-first-stone' | 'if-played' | 'candidate-comparison' | 'pinned-candidate'
 
 interface WeiqiBoardProps {
   size: BoardSize
@@ -24,6 +25,7 @@ interface WeiqiBoardProps {
   onSelect: (point: Point) => void
   preview?: MovePreview | null
   candidatePreview?: CandidateMove | null
+  candidatePreviewMode?: CandidatePreviewMode | null
   lastMove?: MoveRecord | null
   ownership?: OwnershipCell[]
   activeLenses: Set<EnergyLensId>
@@ -56,6 +58,7 @@ export function WeiqiBoard({
   onSelect,
   preview,
   candidatePreview,
+  candidatePreviewMode,
   lastMove,
   ownership,
   activeLenses,
@@ -168,6 +171,7 @@ export function WeiqiBoard({
         data-testid="weiqi-board-frame"
         data-board-size={size}
         data-operation={operationStatus}
+        data-candidate-mode={candidatePreviewMode ?? 'none'}
       >
       <svg
         className="weiqi-board"
@@ -560,9 +564,9 @@ export function WeiqiBoard({
           const { x, y } = position(displayPoint)
           return (
             <g
-              className={`selected-stone ${toPlay} ${candidateStone ? 'candidate-inspection-stone' : ''}`}
+              className={`selected-stone ${toPlay} ${candidateStone ? 'candidate-inspection-stone' : ''} ${candidatePreviewMode === 'suggested-first-stone' ? 'opening-suggestion-stone' : ''}`}
               data-testid={candidateStone ? 'candidate-ghost-stone' : undefined}
-              data-preview-kind={candidateStone ? 'candidate-inspection' : legalSelectedPreview ? 'rules-preview' : 'pending-selection'}
+              data-preview-kind={candidatePreviewMode ?? (candidateStone ? 'candidate-inspection' : legalSelectedPreview ? 'rules-preview' : 'pending-selection')}
               aria-hidden="true"
             >
               <circle cx={x} cy={y} r={step * 0.43} className="selected-ghost" />
@@ -573,6 +577,25 @@ export function WeiqiBoard({
                   <text x={x} y={y + 3.2} textAnchor="middle">L{candidateLiberties}</text>
                 </g>
               )}
+            </g>
+          )
+        })()}
+
+        {candidatePreviewMode === 'suggested-first-stone' && candidatePoint && (() => {
+          const at = position(candidatePoint)
+          const labelWidth = 138
+          const labelX = Math.max(18, Math.min(BOARD_EDGE - labelWidth - 18, at.x - labelWidth / 2))
+          const labelY = at.y < 105 ? at.y + step * 0.58 : at.y - step * 0.86
+          return (
+            <g
+              className="opening-suggestion-callout"
+              data-testid="suggested-first-stone"
+              data-coordinate={candidatePreview?.coordinate}
+              aria-hidden="true"
+            >
+              <circle cx={at.x} cy={at.y} r={step * 0.62} className="opening-suggestion-pulse" />
+              <rect x={labelX} y={labelY} width={labelWidth} height="28" rx="14" />
+              <text x={labelX + labelWidth / 2} y={labelY + 18} textAnchor="middle">Suggested first: {candidatePreview?.coordinate}</text>
             </g>
           )
         })()}
@@ -657,7 +680,11 @@ export function WeiqiBoard({
       </svg>
       <div className="board-live-status sr-only" aria-live="polite">
         {candidatePreview
-          ? candidateEngineField
+          ? candidatePreviewMode === 'suggested-first-stone'
+            ? `Suggested first stone: ${candidatePreview.coordinate}. Nothing has been placed. Click this point or any legal empty intersection to analyze what would happen before deciding.`
+            : candidatePreviewMode === 'if-played'
+              ? `If ${toPlay} played ${candidatePreview.coordinate}, this non-committing analysis would apply. No stone has been placed.`
+              : candidateEngineField
             ? `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing engine candidate forecast.`
             : candidateIsPass
               ? `Inspecting pass, ${candidatePreview.title}. This is a non-committing pass preview; no stone is placed and no engine ownership map is supplied.`
@@ -672,7 +699,11 @@ export function WeiqiBoard({
         <section
           className="candidate-field-key"
           aria-label={candidateEngineField
-            ? `Engine forecast after candidate ${candidatePreview.coordinate}`
+            ? candidatePreviewMode === 'suggested-first-stone'
+              ? `Suggested first stone ${candidatePreview.coordinate} with if-played engine forecast`
+              : candidatePreviewMode === 'if-played'
+                ? `Unconfirmed analysis if ${toPlay} plays ${candidatePreview.coordinate}`
+                : `Engine forecast after candidate ${candidatePreview.coordinate}`
             : candidateIsPass
               ? 'Pass preview with no stone placement and no ownership map'
               : `Location and exact-shape preview for candidate ${candidatePreview.coordinate}`}
@@ -680,12 +711,21 @@ export function WeiqiBoard({
           data-testid="candidate-field-key"
           data-candidate-id={candidatePreview.id}
           data-engine-field={candidateEngineField}
+          data-preview-mode={candidatePreviewMode ?? 'inspection'}
         >
           <div className="candidate-field-title">
             <div>
-              <small>Inspecting without placing</small>
+              <small>{candidatePreviewMode === 'suggested-first-stone'
+                ? 'Suggested first stone · nothing placed'
+                : candidatePreviewMode === 'if-played'
+                  ? 'If played · still unconfirmed'
+                  : 'Inspecting without placing'}</small>
               <strong>{candidateEngineField
-                ? `${candidatePreview.coordinate} · engine forecast after this candidate`
+                ? candidatePreviewMode === 'suggested-first-stone'
+                  ? `${candidatePreview.coordinate} · suggested opening with if-played forecast`
+                  : candidatePreviewMode === 'if-played'
+                    ? `${candidatePreview.coordinate} · board if ${toPlay} played here`
+                    : `${candidatePreview.coordinate} · engine forecast after this candidate`
                 : candidateIsPass
                   ? 'Pass · no stone is placed'
                   : `${candidatePreview.coordinate} · location and exact-shape preview`}</strong>
@@ -752,6 +792,13 @@ export function WeiqiBoard({
             {candidatePreview.variation?.length ? (
               <span><b>Engine main line</b>Numbered stones show one searched line, not a forced reply.</span>
             ) : null}
+            {candidatePreview.score && candidatePreview.engine_analyzed && (
+              <span data-testid="if-played-score-forecast">
+                <b>Score forecast · Black perspective</b>
+                Before {candidatePreview.score.before.toFixed(1)} → if played {candidatePreview.score.after.toFixed(1)} · search difference {candidatePreview.score.delta >= 0 ? '+' : ''}{candidatePreview.score.delta.toFixed(1)}
+                {candidatePreview.score.mover_delta != null ? ` · for ${toPlay === 'black' ? 'Black' : 'White'} ${candidatePreview.score.mover_delta >= 0 ? '+' : ''}${candidatePreview.score.mover_delta.toFixed(1)}` : ''}
+              </span>
+            )}
           </div>
           <p className="candidate-field-disclaimer">
             {candidateEngineField
@@ -760,6 +807,64 @@ export function WeiqiBoard({
                 ? 'This pass preview shows exact turn consequences but no stone location. It invents no ownership shape or territory map; any separate rank or score evidence remains separately labeled.'
                 : 'This board overlay shows only the proposed location and exact rules facts. It invents no ownership shape or territory map; any separate rank or score evidence remains separately labeled.'}
           </p>
+        </section>
+      )}
+
+      {selected && (
+        <section
+          className="unconfirmed-analysis"
+          data-testid="unconfirmed-analysis"
+          data-coordinate={pointToCoordinate(selected, size)}
+          data-analysis-state={
+            operationStatus === 'previewing' && !preview
+              ? 'analyzing'
+              : preview?.legal
+                ? candidateEngineField
+                  ? 'ready'
+                  : 'no-map'
+                : preview
+                  ? 'illegal'
+                  : 'analyzing'
+          }
+          role="status"
+          aria-live="polite"
+        >
+          <strong>
+            {operationStatus === 'previewing' && !preview
+              ? `Analyzing if ${toPlay} plays ${pointToCoordinate(selected, size)}…`
+              : preview?.legal
+                ? `If ${toPlay} plays ${pointToCoordinate(selected, size)} · analysis ready`
+                : preview
+                  ? `${pointToCoordinate(selected, size)} cannot be played now`
+                  : `Analyzing ${pointToCoordinate(selected, size)}…`}
+          </strong>
+          <span>
+            {operationStatus === 'previewing' && !preview
+              ? 'No stone has been placed. Waiting for exact consequences and any after-move ownership and score forecast.'
+              : preview?.legal && candidateEngineField
+                ? 'The if-played field and explanation are visible above. Nothing changes until you separately choose Place stone.'
+                : preview?.legal
+                  ? 'The move is legal and exact consequences are shown, but no after-move ownership map was supplied. Nothing has been placed.'
+                  : preview
+                    ? `${preview.reason ?? 'The rules service rejected this move.'} Nothing has been placed.`
+                    : 'No stone has been placed.'}
+          </span>
+          {preview?.legal && preview.current_area_snapshot && preview.if_played_area_snapshot && (
+            <div className="position-bookkeeping-comparison" data-testid="if-played-position-comparison">
+              <article data-testid="current-position-bookkeeping">
+                <small>Current board</small>
+                <strong>Stones · Black {preview.current_area_snapshot.black_stones} · White {preview.current_area_snapshot.white_stones}</strong>
+                <span>{size * size - preview.current_area_snapshot.black_stones - preview.current_area_snapshot.white_stones} empty intersections · {toPlay} to move</span>
+              </article>
+              <span className="position-comparison-arrow" aria-hidden="true">→</span>
+              <article data-testid="if-played-position-bookkeeping">
+                <small>If {toPlay} plays {preview.coordinate}</small>
+                <strong>Stones · Black {preview.if_played_area_snapshot.black_stones} · White {preview.if_played_area_snapshot.white_stones}</strong>
+                <span>{size * size - preview.if_played_area_snapshot.black_stones - preview.if_played_area_snapshot.white_stones} empty intersections · {preview.if_played_side_to_move ?? (toPlay === 'black' ? 'white' : 'black')} to move</span>
+              </article>
+              <p>No territory is settled during live play. Use the labeled ownership cloud and score forecast above to compare likely future control.</p>
+            </div>
+          )}
         </section>
       )}
 

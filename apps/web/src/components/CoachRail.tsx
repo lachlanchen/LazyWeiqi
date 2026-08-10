@@ -28,6 +28,7 @@ interface CoachRailProps {
   candidates: CandidateMove[]
   selectedCandidateId?: string | null
   inspectedCandidateId?: string | null
+  suggestedCandidateId?: string | null
   intent: MoveIntent
   onIntentChange: (intent: MoveIntent) => void
   onCandidateSelect: (candidate: CandidateMove) => void
@@ -55,6 +56,7 @@ export function CoachRail({
   candidates,
   selectedCandidateId,
   inspectedCandidateId,
+  suggestedCandidateId,
   intent,
   onIntentChange,
   onCandidateSelect,
@@ -243,8 +245,8 @@ export function CoachRail({
 
       <section className="consequence-section">
         <div className="rail-section-title">
-          <span>{preview ? `Consequences at ${preview.coordinate}` : 'Candidate intentions'}</span>
-          {preview && <small>{preview.legal ? 'Rules checked' : 'Not legal'}</small>}
+          <span>{preview ? 'Other candidate ideas' : 'Candidate intentions'}</span>
+          {preview && <small>{preview.legal ? `${preview.coordinate} preview shown on board` : `${preview.coordinate} is not legal`}</small>}
         </div>
         {preview && !preview.legal && (
           <div className="preview-illegal" role="alert"><X size={15} /> {preview.reason ?? 'That point is not legal now.'}</div>
@@ -255,6 +257,7 @@ export function CoachRail({
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
           inspectedCandidateId={inspectedCandidateId}
+          suggestedCandidateId={suggestedCandidateId}
           onInspect={onCandidateInspect}
           onSelect={onCandidateSelect}
           disabled={busy}

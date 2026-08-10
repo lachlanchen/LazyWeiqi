@@ -15,7 +15,7 @@ const LENSES: Array<{
   { id: 'shelter', label: 'Shelter', canonical: 'Eye space', evidence: 'tactical', icon: Eye },
   { id: 'reach', label: 'Forecast', canonical: 'Ownership tendency', evidence: 'engine', icon: Radio },
   { id: 'ground', label: 'Strong forecast', canonical: 'Display-only ownership threshold', evidence: 'engine', icon: Map },
-  { id: 'area', label: 'Area count', canonical: 'Mechanical snapshot', evidence: 'exact', icon: Calculator },
+  { id: 'area', label: 'Board count', canonical: 'Stones and empty intersections', evidence: 'exact', icon: Calculator },
   { id: 'beat', label: 'Turn', canonical: 'Side to move', evidence: 'exact', icon: TimerReset },
   { id: 'pressure', label: 'Pressure', canonical: 'Hypothetical atari consequence', evidence: 'tactical', icon: Zap },
 ]
@@ -78,8 +78,8 @@ export function EnergyLenses({ active, onToggle, facets = [], engineAvailable }:
       </div>
       {visibleFacets.length > 0 && (
         <div className="facet-readings">
-          {visibleFacets.slice(0, 4).map((facet) => (
-            <article key={`${facet.id}-${facet.value}`} className="facet-reading" data-scope={facet.scope ?? 'current'}>
+          {visibleFacets.slice(0, 6).map((facet) => (
+            <article key={`${facet.scope ?? 'current'}-${facet.id}-${facet.value}`} className="facet-reading" data-scope={facet.scope ?? 'current'} data-facet-id={facet.id}>
               <small className={`facet-scope ${facet.scope ?? 'current'}`}>
                 {facet.scope === 'if_played' ? 'If played' : 'Current position'}
               </small>

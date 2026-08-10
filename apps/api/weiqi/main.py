@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Coroutine
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
@@ -46,6 +46,40 @@ MAX_JSON_BODY_BYTES = 64 * 1024
 
 class BodyTooLarge(RuntimeError):
     pass
+
+
+async def _preview_while_connected(
+    request: Request,
+    operation: Coroutine[Any, Any, dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Cancel expensive read-only analysis when its browser has gone away."""
+
+    async def wait_for_disconnect() -> None:
+        # The JSON body has already been parsed. A long-lived receive is needed
+        # here: Request.is_disconnected() uses an immediately-cancelled probe
+        # that can miss disconnects behind Starlette's BaseHTTPMiddleware.
+        while True:
+            message = await request.receive()
+            if message.get("type") == "http.disconnect":
+                return
+
+    task = asyncio.create_task(operation)
+    disconnect_task = asyncio.create_task(wait_for_disconnect())
+    try:
+        done, _pending = await asyncio.wait(
+            (task, disconnect_task), return_when=asyncio.FIRST_COMPLETED
+        )
+        if task in done:
+            return task.result()
+        disconnect_task.result()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        return None
+    finally:
+        for pending_task in (task, disconnect_task):
+            if not pending_task.done():
+                pending_task.cancel()
+        await asyncio.gather(task, disconnect_task, return_exceptions=True)
 
 
 class RequestBodyLimitMiddleware:
@@ -169,6 +203,7 @@ def create_app(
         try:
             yield
         finally:
+            await app.state.game_service.close()
             await resolved_katago.close()
             await resolved_openai.close()
             await resolved_local.close()
@@ -352,8 +387,20 @@ def create_app(
     @app.post("/api/games/{game_id}/preview")
     async def preview_move(
         game_id: Annotated[GameId, ApiPath()], payload: PreviewRequest, request: Request
-    ) -> dict[str, Any]:
-        return await _service(request).preview(_game_id(game_id), payload)
+    ) -> Any:
+        result = await _preview_while_connected(
+            request,
+            _service(request).preview(_game_id(game_id), payload),
+        )
+        if result is None:
+            return JSONResponse(
+                status_code=499,
+                content={
+                    "code": "client_closed_request",
+                    "detail": "Preview analysis stopped because the browser cancelled it.",
+                },
+            )
+        return result
 
     @app.post("/api/games/{game_id}/analysis")
     async def analyze_game(

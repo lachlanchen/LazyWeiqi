@@ -69,6 +69,12 @@ The candidate preview is a **field-map analogy**, not simulated physics:
 - **Ground** remains distinct from potential influence. Exact enclosed regions
   and uncertain future ownership must never share the same badge.
 
+The first supported 9×9 position visibly marks the order-zero suggestion before
+the learner clicks. Any legal click creates a non-committing, rules-verified
+child position and, when KataGo is available, a child-root field comparison.
+The learner sees that evidence before the separate **Place stone** action is
+offered; previewing never changes revision, stones, or history.
+
 KataGo's pinned Analysis Engine contract documents per-move ownership and
 searched-continuation variation through `includeMovesOwnership` and
 `includeMovesOwnershipStdev`, as well as candidate score, win rate, visits,

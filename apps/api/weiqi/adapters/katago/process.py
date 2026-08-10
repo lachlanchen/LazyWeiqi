@@ -418,6 +418,11 @@ class KataGoProcess:
                 request_id = payload.get("id")
                 if not isinstance(request_id, str):
                     continue
+                # Analysis Engine warnings are advisory records followed by a
+                # real final response with the same id. Never resolve a query
+                # with a warning-only object.
+                if payload.get("warning") and "rootInfo" not in payload:
+                    continue
                 future = self._pending.get(request_id)
                 if future and not future.done() and not payload.get("isDuringSearch"):
                     if payload.get("error"):
@@ -451,6 +456,7 @@ class KataGoProcess:
         *,
         moves: list[list[str]],
         initial_stones: list[list[str]] | None = None,
+        initial_player: str,
         board_size: int,
         komi: float,
         rank_profile: str,
@@ -465,7 +471,19 @@ class KataGoProcess:
         query = {
             "id": request_id,
             "moves": moves,
-            "rules": "chinese",
+            "initialPlayer": initial_player,
+            # Match the deterministic domain exactly. KataGo's `chinese`
+            # shorthand uses simple ko, whereas this application declares
+            # positional superko and does not award a handicap bonus.
+            "rules": {
+                "hasButton": False,
+                "ko": "POSITIONAL",
+                "scoring": "AREA",
+                "suicide": False,
+                "tax": "NONE",
+                "whiteHandicapBonus": "0",
+                "friendlyPassOk": True,
+            },
             "komi": komi,
             "boardXSize": board_size,
             "boardYSize": board_size,

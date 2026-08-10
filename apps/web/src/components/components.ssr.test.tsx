@@ -78,11 +78,11 @@ describe('accessible teaching surfaces', () => {
           { ...DEMO_FACETS[0], scope: 'if_played' },
           {
             id: 'area',
-            label: 'Area snapshot',
-            canonical_term: 'Mechanical Chinese area count',
-            value: 'Black 2 · White 9.5',
+            label: 'Board count',
+            canonical_term: 'Stones and empty intersections',
+            value: 'Black 2 stones · White 2 stones',
             evidence: 'exact',
-            explanation: 'Every stone is treated alive; this is not an adjudicated result.',
+            explanation: '77 intersections are empty. Territory and dead stones are not settled.',
             scope: 'current',
           },
         ]}
