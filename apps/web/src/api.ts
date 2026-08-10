@@ -1,4 +1,5 @@
 import type {
+  AnalysisResponse,
   AgentTurnRequest,
   CoachRequest,
   CoachResponse,
@@ -61,6 +62,7 @@ export interface WeiqiApi {
   games(page?: GamesPageRequest, signal?: AbortSignal): Promise<GamesResponse>
   game(id: string, signal?: AbortSignal): Promise<GameState>
   createGame(request: CreateGameRequest, signal?: AbortSignal): Promise<GameState>
+  analyzeGame(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AnalysisResponse>
   previewMove(id: string, request: PreviewMoveRequest, signal?: AbortSignal): Promise<MovePreview>
   submitMove(id: string, request: SubmitMoveRequest, signal?: AbortSignal): Promise<GameState>
   agentTurn(id: string, request: AgentTurnRequest, signal?: AbortSignal): Promise<GameState>
@@ -119,6 +121,12 @@ export function createApi(fetcher: FetchLike = fetch, baseUrl = ''): WeiqiApi {
     },
     game: (id, signal) => request<GameState>(`/api/games/${encodeURIComponent(id)}`, {}, signal),
     createGame: (body, signal) => post<GameState, CreateGameRequest>('/api/games', body, signal),
+    analyzeGame: (id, expectedRevision, signal) =>
+      post<AnalysisResponse, { expected_revision: number }>(
+        `/api/games/${encodeURIComponent(id)}/analysis`,
+        { expected_revision: expectedRevision },
+        signal,
+      ),
     previewMove: (id, body, signal) =>
       post<MovePreview, PreviewMoveRequest>(
         `/api/games/${encodeURIComponent(id)}/preview`,

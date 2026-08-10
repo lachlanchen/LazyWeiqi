@@ -1,4 +1,4 @@
-import { CircleDot, CloudSun, Eye, GitBranch, Map, Radio, TimerReset } from 'lucide-react'
+import { Calculator, CircleDot, CloudSun, Eye, GitBranch, Map, Radio, TimerReset, Zap } from 'lucide-react'
 import type { EnergyFacet, EvidenceKind } from '../types'
 import type { EnergyLensId } from './WeiqiBoard'
 
@@ -9,13 +9,15 @@ const LENSES: Array<{
   evidence: EvidenceKind
   icon: typeof CircleDot
 }> = [
-  { id: 'cloud', label: 'Cloud', canonical: 'Stone presence', evidence: 'metaphor', icon: CloudSun },
+  { id: 'cloud', label: 'Presence sketch', canonical: 'Distance analogy', evidence: 'metaphor', icon: CloudSun },
   { id: 'breath', label: 'Breath', canonical: 'Liberties', evidence: 'exact', icon: CircleDot },
   { id: 'bonds', label: 'Bonds', canonical: 'Connections', evidence: 'exact', icon: GitBranch },
   { id: 'shelter', label: 'Shelter', canonical: 'Eye space', evidence: 'tactical', icon: Eye },
-  { id: 'reach', label: 'Reach', canonical: 'Influence', evidence: 'engine', icon: Radio },
-  { id: 'ground', label: 'Ground', canonical: 'Stable ownership', evidence: 'engine', icon: Map },
-  { id: 'beat', label: 'Beat', canonical: 'Initiative', evidence: 'tactical', icon: TimerReset },
+  { id: 'reach', label: 'Forecast', canonical: 'Ownership tendency', evidence: 'engine', icon: Radio },
+  { id: 'ground', label: 'Strong forecast', canonical: 'Display-only ownership threshold', evidence: 'engine', icon: Map },
+  { id: 'area', label: 'Area count', canonical: 'Mechanical snapshot', evidence: 'exact', icon: Calculator },
+  { id: 'beat', label: 'Turn', canonical: 'Side to move', evidence: 'exact', icon: TimerReset },
+  { id: 'pressure', label: 'Pressure', canonical: 'Hypothetical atari consequence', evidence: 'tactical', icon: Zap },
 ]
 
 export function EvidenceBadge({ kind }: { kind: EvidenceKind }) {
@@ -24,6 +26,7 @@ export function EvidenceBadge({ kind }: { kind: EvidenceKind }) {
     tactical: 'Tactical read',
     engine: 'Engine estimate',
     model: 'Model explanation',
+    teacher: 'Teacher guidance',
     metaphor: 'Metaphor',
   }
   return <span className={`evidence-badge ${kind}`}>{labels[kind]}</span>
@@ -54,7 +57,7 @@ export function EnergyLenses({ active, onToggle, facets = [], engineAvailable }:
           const isActive = active.has(lens.id)
           const blocked =
             (lens.evidence === 'engine' && !engineAvailable) ||
-            ((lens.id === 'shelter' || lens.id === 'beat') && !hasFacet(lens.id))
+            ((lens.id === 'shelter' || lens.id === 'beat' || lens.id === 'pressure') && !hasFacet(lens.id))
           return (
             <button
               key={lens.id}
@@ -76,7 +79,10 @@ export function EnergyLenses({ active, onToggle, facets = [], engineAvailable }:
       {visibleFacets.length > 0 && (
         <div className="facet-readings">
           {visibleFacets.slice(0, 4).map((facet) => (
-            <article key={`${facet.id}-${facet.value}`} className="facet-reading">
+            <article key={`${facet.id}-${facet.value}`} className="facet-reading" data-scope={facet.scope ?? 'current'}>
+              <small className={`facet-scope ${facet.scope ?? 'current'}`}>
+                {facet.scope === 'if_played' ? 'If played' : 'Current position'}
+              </small>
               <div className="facet-reading-top">
                 <strong>{facet.label}</strong>
                 <EvidenceBadge kind={facet.evidence} />

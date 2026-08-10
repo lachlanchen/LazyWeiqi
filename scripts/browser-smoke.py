@@ -701,6 +701,14 @@ def wait_idle(page: Page, timeout: int = LONG_TIMEOUT_MS) -> None:
     )
 
 
+def wait_turn_choices(page: Page, timeout: int = LONG_TIMEOUT_MS) -> None:
+    """Wait for the revision-bound, read-only next-move comparison."""
+
+    wait_idle(page, timeout)
+    page.locator(".board-operation").wait_for(state="hidden", timeout=timeout)
+    page.locator(".candidate-card").first.wait_for(state="visible", timeout=timeout)
+
+
 def report_path(path: Path) -> str:
     try:
         return str(path.relative_to(PROJECT_ROOT))
@@ -728,7 +736,7 @@ def start_first_visible_lesson(page: Page, board_size: int) -> None:
         )
     campaign.locator("article:not(.locked) .lesson-action").first.click()
     page.get_by_test_id("play-workspace").wait_for(state="visible", timeout=30_000)
-    wait_idle(page)
+    wait_turn_choices(page)
 
 
 def wait_for_move_count(page: Page, minimum: int) -> None:
@@ -737,7 +745,7 @@ def wait_for_move_count(page: Page, minimum: int) -> None:
         arg=minimum,
         timeout=LONG_TIMEOUT_MS,
     )
-    wait_idle(page)
+    wait_turn_choices(page)
 
 
 def run() -> dict[str, Any]:
@@ -874,8 +882,8 @@ def run() -> dict[str, Any]:
         )
         screenshot(page, timestamp, "journey-desktop", screenshots)
 
-        # A true 5x5 lesson: select, wait for server/KataGo preview, commit through
-        # the UI, and let the bounded opponent agent answer.
+        # A true 5x5 lesson: the service supplies deterministic/authored choices
+        # before any click, but never claims a 9x9 KataGo field.
         start_first_visible_lesson(page, 5)
         workspace = page.get_by_test_id("play-workspace")
         checks["smallBoard"] = page.get_by_test_id("weiqi-board-frame").get_attribute(
@@ -888,19 +896,23 @@ def run() -> dict[str, Any]:
         )
         commit.wait_for(state="visible")
         checks["previewVerified"] = commit.is_enabled()
-        presence_cloud = page.get_by_test_id("stone-presence-cloud")
-        presence_cloud.wait_for(state="visible")
-        checks["presenceCloudPreview"] = (
-            presence_cloud.get_attribute("data-preview") == "true"
-        )
-        checks["blackWhitePowerFields"] = (
-            presence_cloud.locator('[data-field="black"] circle').count() > 0
-            and presence_cloud.locator('[data-field="white"] circle').count() > 0
+        small_field = page.get_by_test_id("candidate-field-key")
+        checks["smallBoardNoEngineField"] = (
+            small_field.get_attribute("data-engine-field") == "false"
+            and page.get_by_test_id("candidate-ownership-after").count() == 0
+            and page.get_by_test_id("candidate-ownership-delta").count() == 0
         )
         teacher_text = page.get_by_test_id("power-teacher").inner_text()
         checks["powerTeacherConcrete"] = all(
             label in teacher_text
-            for label in ("Place here", "What changes", "Likely reply", "Do next")
+            for label in (
+                "Play",
+                "Because",
+                "Changes",
+                "Opponent",
+                "Then check",
+                "Principle",
+            )
         )
         screenshot(page, timestamp, "five-by-five-preview", screenshots)
         commit.click()
@@ -920,16 +932,18 @@ def run() -> dict[str, Any]:
         answer_bubble = generated_exchange.locator(".coach-message.answer")
         learner_box = learner_bubble.bounding_box()
         answer_box = answer_bubble.bounding_box()
-        answer_text = answer_bubble.inner_text()
         model_badges = answer_bubble.locator(".evidence-badge.model").count()
+        teacher_badges = answer_bubble.locator(".evidence-badge.teacher").count()
         exact_badges = answer_bubble.locator(".evidence-badge.exact").count()
+        engine_badges = answer_bubble.locator(".evidence-badge.engine").count()
         checks["coachAnswered"] = answer_bubble.is_visible()
         checks["learnerRightCoachLeft"] = bool(
             learner_box and answer_box and learner_box["x"] > answer_box["x"]
         )
-        checks["safeCoachProvenance"] = not (model_badges and exact_badges) and (
-            model_badges > 0
-            or (exact_badges > 0 and "Exact board check" in answer_text)
+        checks["safeCoachProvenance"] = (
+            exact_badges == 0
+            and engine_badges == 0
+            and (model_badges > 0 or teacher_badges > 0)
         )
         checks["defaultCoachAvoidsLocalProse"] = (
             "LocalLLM" not in page.locator(".coach-state").inner_text()
@@ -945,15 +959,62 @@ def run() -> dict[str, Any]:
         checks["chronicleGames"] = page.locator(".history-card").count()
         screenshot(page, timestamp, "chronicle", screenshots)
 
-        # Narrated Player Agent vs Player Agent: one deliberate turn, not autoplay.
+        # Narrated Player Agent vs Player Agent: the top choice is visible before
+        # play, pointer and keyboard compare different fields, and click pins a
+        # non-committing revision-bound preview.
         page.get_by_test_id("nav-journey").click()
         page.get_by_test_id("mode-agent_vs_agent").click()
         start_first_visible_lesson(page, 9)
         checks["theatreMode"] = workspace.get_attribute("data-mode")
-        checks["openingPowerCloud"] = page.get_by_test_id(
-            "opening-potential-cloud"
-        ).is_visible()
-        screenshot(page, timestamp, "nine-by-nine-opening-cloud", screenshots)
+        field_key = page.get_by_test_id("candidate-field-key")
+        first_field_id = field_key.get_attribute("data-candidate-id")
+        candidate_cards = page.locator(".candidate-card")
+        checks["turnStartDecisionField"] = bool(
+            first_field_id
+            and field_key.get_attribute("data-engine-field") == "true"
+            and page.get_by_test_id("candidate-ownership-after").count() == 1
+            and page.get_by_test_id("candidate-ownership-smooth").count() == 1
+            and page.get_by_test_id("candidate-ownership-delta").count() == 1
+            and page.get_by_test_id("candidate-ghost-stone").count() == 1
+        )
+        second = candidate_cards.nth(1)
+        second_id = str(second.get_attribute("data-testid")).removeprefix("candidate-")
+        second.hover()
+        page.locator(
+            f'[data-testid="candidate-field-key"][data-candidate-id="{second_id}"]'
+        ).wait_for(state="visible")
+        checks["candidateHoverSwitch"] = second_id != first_field_id
+
+        third = candidate_cards.nth(2)
+        third_id = str(third.get_attribute("data-testid")).removeprefix("candidate-")
+        third.focus()
+        page.locator(
+            f'[data-testid="candidate-field-key"][data-candidate-id="{third_id}"]'
+        ).wait_for(state="visible")
+        checks["candidateFocusOverridesHover"] = third_id != second_id
+        page.mouse.move(8, 8)
+        page.locator(
+            f'[data-testid="candidate-field-key"][data-candidate-id="{third_id}"]'
+        ).wait_for(state="visible")
+        checks["candidateFocusRestoredAfterLeave"] = True
+
+        second.click()
+        page.mouse.move(8, 8)
+        page.locator(".back-button").focus()
+        page.locator(
+            f'[data-testid="candidate-field-key"][data-candidate-id="{second_id}"]'
+        ).wait_for(state="visible")
+        field_text = field_key.inner_text()
+        checks["candidatePinnedPreview"] = (
+            second.get_attribute("data-selected") == "true"
+            and page.get_by_test_id("commit-move").count() == 0
+        )
+        checks["candidateFieldProvenance"] = (
+            "Engine estimate" in field_text
+            and "Black perspective" in field_text
+            and "not territory already secured" in field_text
+        )
+        screenshot(page, timestamp, "nine-by-nine-candidate-decision", screenshots)
         page.get_by_test_id("agent-next-turn").click()
         wait_for_move_count(page, 1)
         checks["theatreMove"] = page.locator(".timeline-track > span").count()
@@ -1028,10 +1089,14 @@ def run() -> dict[str, Any]:
         "defaultMode": "human_companion",
         "smallBoard": "5",
         "previewVerified": True,
-        "presenceCloudPreview": True,
-        "blackWhitePowerFields": True,
+        "smallBoardNoEngineField": True,
         "powerTeacherConcrete": True,
-        "openingPowerCloud": True,
+        "turnStartDecisionField": True,
+        "candidateHoverSwitch": True,
+        "candidateFocusOverridesHover": True,
+        "candidateFocusRestoredAfterLeave": True,
+        "candidatePinnedPreview": True,
+        "candidateFieldProvenance": True,
         "coachAnswered": True,
         "learnerRightCoachLeft": True,
         "safeCoachProvenance": True,

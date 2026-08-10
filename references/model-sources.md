@@ -85,6 +85,15 @@ For a beginning learner, request `includePolicy: true` with
 moves such a learner is likely to see. The main 9x9 model remains authoritative
 for evaluation; HumanSL is not used as the sole score or win-rate model.
 
+For candidate teaching, one bounded Analysis Engine request asks for root and
+per-move ownership plus searched-continuation variation
+(`includeMovesOwnership` and `includeMovesOwnershipStdev`). Every map must have
+exactly 81 finite bounded cells or it is omitted. `scoreLead`, win rate, and
+ownership remain Black-perspective; the UI labels that invariant and separately
+converts candidate differences into the mover's perspective. A principal
+variation is replayed through the deterministic rules and truncated at the first
+illegal move before it is shown.
+
 A useful review query also sets:
 
 ```json

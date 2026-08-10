@@ -29,6 +29,7 @@ from .config import REPOSITORY_ROOT, Settings
 from .domain import ActorAuthorityError, IllegalMoveError
 from .schemas import (
     AgentTurnRequest,
+    AnalysisRequest,
     CoachQuestion,
     GameCreate,
     GameDeleteRequest,
@@ -293,12 +294,15 @@ def create_app(
             }
         engine_status = {
             "status": "ready" if engine["available"] else "fallback",
-            "provider": "KataGo" if engine["available"] else "Deterministic rules",
+            "provider": "KataGo" if engine["available"] else "Exact board rules",
             "model": engine["network"] if engine["available"] else None,
             "detail": (
                 "KataGo analysis starts only when requested."
                 if engine["available"]
-                else "KataGo is not installed yet; exact board mechanics still work."
+                else (
+                    "KataGo is not installed yet; exact board mechanics remain available, "
+                    "while move-purpose guidance is authored by the teacher layer."
+                )
             ),
         }
         return {
@@ -350,6 +354,14 @@ def create_app(
         game_id: Annotated[GameId, ApiPath()], payload: PreviewRequest, request: Request
     ) -> dict[str, Any]:
         return await _service(request).preview(_game_id(game_id), payload)
+
+    @app.post("/api/games/{game_id}/analysis")
+    async def analyze_game(
+        game_id: Annotated[GameId, ApiPath()], payload: AnalysisRequest, request: Request
+    ) -> dict[str, Any]:
+        return await _service(request).analysis_response(
+            _game_id(game_id), payload.expected_revision
+        )
 
     @app.post("/api/games/{game_id}/moves")
     async def submit_move(

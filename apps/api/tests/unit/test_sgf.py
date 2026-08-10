@@ -38,6 +38,8 @@ def test_sgf_round_trip_preserves_setup_moves_passes_board_and_result() -> None:
     assert parsed.state.initial_board == state.initial_board
     assert parsed.state.phase is GamePhase.FINISHED
     assert [move.kind for move in parsed.state.history] == [move.kind for move in state.history]
+    assert "RE[" not in encoded
+    assert "no adjudicated result" in encoded
 
 
 def test_sgf_text_round_trip_preserves_line_breaks_and_escape_characters() -> None:
@@ -61,8 +63,10 @@ def test_sgf_import_reads_top_level_main_sequence_and_ignores_variations() -> No
 
 def test_sgf_resignation_round_trip_records_winner() -> None:
     state = resign(new_game(size=9), actor_id="human")
-    parsed = import_sgf(export_sgf(state))
+    encoded = export_sgf(state)
+    parsed = import_sgf(encoded)
 
+    assert "RE[W+R]" in encoded
     assert parsed.state.winner is Color.WHITE
     assert parsed.state.resigned_by is Color.BLACK
     assert parsed.state.last_move is not None

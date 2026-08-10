@@ -4,7 +4,7 @@ import {
   groupAt,
   ownershipClass,
   pointToCoordinate,
-  stableGround,
+  strongOwnershipForecast,
   teachingPresenceField,
 } from './board'
 import { DEFAULT_PREFERENCES } from './fallbackData'
@@ -40,9 +40,13 @@ describe('board teaching facts', () => {
     expect(coordinateToPoint('I4', 9)).toBeNull()
   })
 
-  it('keeps stable ground separate from uncertain reach', () => {
-    expect(stableGround({ x: 0, y: 0, value: 0.9, uncertainty: 0.1 })).toBe(true)
-    expect(stableGround({ x: 0, y: 0, value: 0.9, uncertainty: 0.5 })).toBe(false)
+  it('uses searched-line variation in the strong-forecast display heuristic', () => {
+    expect(strongOwnershipForecast({ x: 0, y: 0, value: 0.9, variation: 0.1 })).toBe(true)
+    expect(strongOwnershipForecast({ x: 0, y: 0, value: 0.9 })).toBe(false)
+    expect(strongOwnershipForecast({ x: 0, y: 0, value: 0.9, variation: 0.5 })).toBe(false)
+    expect(strongOwnershipForecast({ x: 0, y: 0, value: 0.9, uncertainty: 0.5 })).toBe(false)
+    expect(ownershipClass({ x: 0, y: 0, value: 0.9, variation: 0.5 })).toBe('mist')
+    expect(ownershipClass({ x: 0, y: 0, value: 0.9 })).toBe('mist')
     expect(ownershipClass({ x: 0, y: 0, value: 0.05, uncertainty: 0.1 })).toBe('mist')
   })
 

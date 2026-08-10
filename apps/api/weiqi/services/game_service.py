@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import re
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -30,14 +31,17 @@ from ..domain import (
     LegalCandidate,
     MoveImpact,
     MoveKind,
+    ResultReason,
     Vertex,
     analyze_energy,
     apply_candidate,
     candidate_for_action,
     chinese_area_score,
     explain_move_impact,
+    group_at,
     gtp_to_vertex,
     legal_candidates,
+    neighbors,
     new_game,
     vertex_to_gtp,
 )
@@ -70,6 +74,9 @@ COACH_CONTEXT_MAX_ANSWER_BYTES = 1_200
 COACH_HISTORY_PAGE_LIMIT = 80
 COACH_HISTORY_CURSOR_MAX_BYTES = 512
 GAME_LIST_CURSOR_MAX_BYTES = 160
+ENGINE_ANALYSIS_CACHE_ENTRIES = 24
+CANDIDATE_LIMIT = 3
+PV_MOVE_LIMIT = 4
 GAME_ID_RE = re.compile(r"^game_[0-9a-f]{32}$")
 NODE_ID_RE = re.compile(r"^node_[0-9a-f]{32}$")
 COACH_EVENT_CURSOR_ID_RE = re.compile(r"^[nm]:(?:node|coach)_[0-9a-f]{32}$")
@@ -380,6 +387,7 @@ def _moves(state: GameState, active_nodes: list[dict[str, Any]]) -> list[dict[st
                 "point": vertex_to_dict(move.vertex),
                 "actor_id": move.actor_id,
                 "intent": intent,
+                "intent_evidence": metadata.get("intent_evidence"),
                 "captured": [vertex_to_dict(vertex) for vertex in move.captured],
                 "comment": comment,
             }
@@ -401,13 +409,17 @@ def _root_coach(lesson: dict[str, Any]) -> dict[str, Any]:
 def _move_coach(state: GameState, impact: MoveImpact, lesson: dict[str, Any]) -> dict[str, Any]:
     tags = set(impact.teaching_tags)
     if impact.kind is MoveKind.PASS:
-        text = "You passed. That is a statement that no remaining move feels valuable enough."
+        text = (
+            "The second consecutive pass ended play. Review unsettled groups before calling a final score."
+            if state.phase is GamePhase.FINISHED
+            else "You passed, so the opponent has the move. One more consecutive pass would end play."
+        )
     elif impact.kind is MoveKind.RESIGN:
         text = "The expedition ends by resignation. The chronicle remains available for review."
     elif "capture" in tags:
         text = f"That move captured {len(impact.captured)} stone(s). Count the liberties that vanished."
     elif "escape" in tags:
-        text = "The pressured group found another road. Notice how urgency changed after the extension."
+        text = "The pressured group found another road. Recount its current liberties after the extension."
     elif "connect" in tags:
         text = "Two friendly groups now share their liberties. Connection changed their options immediately."
     elif "atari" in tags:
@@ -430,7 +442,13 @@ def _global_facets(state: GameState, engine: dict[str, Any] | None = None) -> li
     black_groups = sum(group.color is Color.BLACK for group in energy.groups)
     white_groups = sum(group.color is Color.WHITE for group in energy.groups)
     score = chinese_area_score(state)
-    engine_ready = engine is not None
+    engine_ready = bool(
+        _ownership_cells(
+            engine.get("ownership") if engine else None,
+            engine.get("ownershipStdev") if engine else None,
+            state.size,
+        )
+    )
     facets: list[dict[str, Any]] = [
         {
             "id": "breath",
@@ -440,7 +458,6 @@ def _global_facets(state: GameState, engine: dict[str, Any] | None = None) -> li
             "change": None,
             "evidence": "exact",
             "explanation": "A group in atari has exactly one distinct liberty.",
-            "confidence": 1.0,
         },
         {
             "id": "bonds",
@@ -450,7 +467,6 @@ def _global_facets(state: GameState, engine: dict[str, Any] | None = None) -> li
             "change": None,
             "evidence": "exact",
             "explanation": "Orthogonally connected stones form one group and share liberties.",
-            "confidence": 1.0,
         },
         {
             "id": "shelter",
@@ -460,17 +476,15 @@ def _global_facets(state: GameState, engine: dict[str, Any] | None = None) -> li
             "change": None,
             "evidence": "tactical",
             "explanation": "A group needs reliable eye space or enough room to escape; this is not a final life claim.",
-            "confidence": 0.55,
         },
         {
             "id": "roads",
             "label": "Roads",
-            "canonical_term": "Development paths",
-            "value": f"{len(energy.urgent_vertices)} urgent point(s)",
+            "canonical_term": "Low-liberty group points",
+            "value": f"{len(energy.urgent_vertices)} low-liberty point(s)",
             "change": None,
             "evidence": "exact",
-            "explanation": "Urgent points are stones or liberties belonging to groups with at most two liberties.",
-            "confidence": 1.0,
+            "explanation": "These are stones or liberties belonging to groups with at most two liberties; this count alone does not decide move priority.",
         },
         {
             "id": "reach",
@@ -484,27 +498,28 @@ def _global_facets(state: GameState, engine: dict[str, Any] | None = None) -> li
                 if engine_ready
                 else energy.disclaimer
             ),
-            "confidence": 0.8 if engine_ready else 0.5,
         },
         {
-            "id": "ground",
-            "label": "Ground",
-            "canonical_term": "Enclosed area",
-            "value": f"Black {score.black_territory} · White {score.white_territory}",
+            "id": "area",
+            "label": "Area snapshot",
+            "canonical_term": "Mechanical Chinese area count",
+            "value": f"Black {score.black_total:g} · White {score.white_total:g} (komi included)",
             "change": None,
             "evidence": "exact",
-            "explanation": "These are presently enclosed empty points, not a claim that every surrounding group is alive.",
-            "confidence": 1.0,
+            "explanation": (
+                f"Black: {score.black_stones} stones + {score.black_territory} enclosed empty; "
+                f"White: {score.white_stones} stones + {score.white_territory} enclosed empty + "
+                f"{score.komi:g} komi. Every stone is treated alive, so this is not an adjudicated result."
+            ),
         },
         {
             "id": "beat",
-            "label": "Beat",
-            "canonical_term": "Initiative",
+            "label": "Turn",
+            "canonical_term": "Side to move",
             "value": f"{state.to_move.value.title()} to move",
             "change": None,
             "evidence": "exact",
             "explanation": "The turn is exact; whether a reply is forced is a tactical judgment.",
-            "confidence": 1.0,
         },
         {
             "id": "aji",
@@ -514,7 +529,6 @@ def _global_facets(state: GameState, engine: dict[str, Any] | None = None) -> li
             "change": None,
             "evidence": "tactical",
             "explanation": "Aji names useful possibilities left in a position, not a numeric resource.",
-            "confidence": 0.55,
         },
     ]
     return facets
@@ -526,11 +540,14 @@ def _impact_facets(impact: MoveImpact) -> list[dict[str, Any]]:
             "id": "breath",
             "label": "Breath",
             "canonical_term": "Liberties",
-            "value": f"{impact.self_liberties} liberties" if impact.vertex else impact.kind.value,
+            "value": f"{impact.self_liberties} liberties" if impact.vertex else "No stone placed",
             "change": None,
             "evidence": "exact",
-            "explanation": "The resulting connected string's distinct liberties are counted exactly.",
-            "confidence": 1.0,
+            "explanation": (
+                "The resulting connected string's distinct liberties are counted exactly."
+                if impact.vertex
+                else "Pass does not create a string or change any group's liberties."
+            ),
         },
         {
             "id": "bonds",
@@ -544,39 +561,47 @@ def _impact_facets(impact: MoveImpact) -> list[dict[str, Any]]:
             "change": None,
             "evidence": "exact",
             "explanation": "Friendly stones connect only across shared board lines.",
-            "confidence": 1.0,
         },
         {
-            "id": "reach",
-            "label": "Reach",
-            "canonical_term": "Presence change",
-            "value": f"{impact.mean_presence_change:+.3f}",
-            "change": f"{impact.mean_presence_change:+.3f}",
-            "evidence": "metaphor",
-            "explanation": "A transparent distance field visualizes direction; it is not score or physics.",
-            "confidence": 0.5,
-        },
-        {
-            "id": "beat",
-            "label": "Beat",
-            "canonical_term": "Pressure",
+            "id": "pressure",
+            "label": "Pressure",
+            "canonical_term": "New atari",
             "value": f"{impact.newly_atari_opponent_groups} new atari",
             "change": None,
             "evidence": "exact",
             "explanation": "Atari means an opposing group has exactly one liberty after the move.",
-            "confidence": 1.0,
         },
     ]
 
 
+def _area_snapshot(state: GameState) -> dict[str, Any]:
+    """Expose the mechanical count without pretending dead stones are settled."""
+
+    score = chinese_area_score(state)
+    return {
+        "status": "mechanical_all_stones_alive",
+        "black_stones": score.black_stones,
+        "black_enclosed_empty": score.black_territory,
+        "black_total": score.black_total,
+        "white_stones": score.white_stones,
+        "white_enclosed_empty": score.white_territory,
+        "komi": score.komi,
+        "white_total": score.white_total,
+        "neutral_points": score.neutral_points,
+        "adjudicated": False,
+    }
+
+
 def _intent_for(state: GameState, candidate: LegalCandidate, impact: MoveImpact) -> tuple[str, str]:
+    if candidate.kind is MoveKind.PASS:
+        return "endgame", "Possible end-of-game judgment"
     tags = set(impact.teaching_tags)
     if "capture" in tags or "atari" in tags:
-        return "pressure", "Fight"
+        return "pressure", "Possible fighting idea"
     if "escape" in tags:
-        return "escape", "Escape"
+        return "escape", "Possible escape idea"
     if "connect" in tags:
-        return "connect", "Connect"
+        return "connect", "Possible connection idea"
     assert candidate.vertex is not None
     edge_distance = min(
         candidate.vertex.x,
@@ -585,14 +610,358 @@ def _intent_for(state: GameState, candidate: LegalCandidate, impact: MoveImpact)
         state.size - 1 - candidate.vertex.y,
     )
     if edge_distance <= 1:
-        return "claim", "Build ground"
+        return "claim", "Possible base-building idea"
     if edge_distance >= max(1, state.size // 3):
-        return "pressure", "Build reach"
-    return "settle", "Stay flexible"
+        return "pressure", "Possible influence-building idea"
+    return "settle", "Possible flexible-development idea"
 
 
 def _candidate_copy(public: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in public.items()}
+
+
+def _candidate_model_copy(public: dict[str, Any]) -> dict[str, Any]:
+    """Keep model evidence useful without sending three duplicated board maps."""
+
+    board_fields = {"ownership_before", "ownership_after", "ownership_delta"}
+    return {key: value for key, value in public.items() if key not in board_fields}
+
+
+def _public_candidate_id(candidate: LegalCandidate) -> str:
+    """Expose an opaque position-and-action-bound selection token.
+
+    A rank slot such as ``m0`` can name a different coordinate after a fresh
+    stochastic engine search. The deterministic domain candidate digest binds
+    this public ID to the position, color, action, and coordinate instead.
+    """
+
+    return f"m_{candidate.id.removeprefix('cand_')}"
+
+
+def _finite_float(
+    value: object,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    result = float(value)
+    if not math.isfinite(result):
+        return None
+    if minimum is not None and result < minimum:
+        return None
+    if maximum is not None and result > maximum:
+        return None
+    return result
+
+
+def _bounded_int(value: object, *, minimum: int, maximum: int) -> int | None:
+    if type(value) is not int or not minimum <= value <= maximum:
+        return None
+    return value
+
+
+def _ownership_cells(
+    values: object,
+    variation: object,
+    size: int,
+) -> list[dict[str, Any]]:
+    """Return only a complete, bounded ownership map.
+
+    The pinned KataGo configuration reports all analysis values from Black's
+    perspective, so positive cell values mean greater expected Black
+    ownership. A malformed or partial map is omitted rather than rendered as
+    if missing points were neutral.
+    """
+
+    count = size * size
+    if not isinstance(values, list) or len(values) != count:
+        return []
+    normalized: list[float] = []
+    for raw in values:
+        value = _finite_float(raw, minimum=-1.0, maximum=1.0)
+        if value is None:
+            return []
+        normalized.append(value)
+
+    normalized_variation: list[float] | None = None
+    if isinstance(variation, list) and len(variation) == count:
+        candidate_variation: list[float] = []
+        for raw in variation:
+            value = _finite_float(raw, minimum=0.0, maximum=1.0)
+            if value is None:
+                candidate_variation = []
+                break
+            candidate_variation.append(value)
+        if len(candidate_variation) == count:
+            normalized_variation = candidate_variation
+
+    cells: list[dict[str, Any]] = []
+    for index, value in enumerate(normalized):
+        cell: dict[str, Any] = {
+            "x": index % size,
+            "y": index // size,
+            "value": value,
+        }
+        if normalized_variation is not None:
+            # This is spread across searched continuations, not confidence or
+            # model accuracy.
+            cell["variation"] = normalized_variation[index]
+        cells.append(cell)
+    return cells
+
+
+def _ownership_delta(
+    before: list[dict[str, Any]],
+    after: list[dict[str, Any]],
+    size: int,
+) -> list[dict[str, Any]]:
+    count = size * size
+    if len(before) != count or len(after) != count:
+        return []
+    delta: list[dict[str, Any]] = []
+    for index, (before_cell, after_cell) in enumerate(zip(before, after, strict=True)):
+        value = round(float(after_cell["value"]) - float(before_cell["value"]), 6)
+        if value == -0.0:
+            value = 0.0
+        cell = {"x": index % size, "y": index // size, "value": value}
+        # The after-map variation describes disagreement across the searched
+        # continuations behind this change. Absence remains absence; the client
+        # must not silently interpret it as zero variation.
+        if "variation" in after_cell:
+            cell["variation"] = after_cell["variation"]
+        delta.append(cell)
+    return delta
+
+
+def _variation_for_candidate(
+    state: GameState,
+    candidate: LegalCandidate,
+    info: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if info is None or not isinstance(info.get("pv"), list):
+        return []
+    pv = info["pv"][:PV_MOVE_LIMIT]
+    if not pv or not isinstance(pv[0], str):
+        return []
+    try:
+        first = gtp_to_vertex(pv[0], state.size)
+    except ValueError:
+        return []
+    if first != candidate.vertex:
+        return []
+
+    variation: list[dict[str, Any]] = []
+    line_state = state
+    for coordinate in pv:
+        if not isinstance(coordinate, str):
+            break
+        try:
+            vertex = gtp_to_vertex(coordinate, state.size)
+        except ValueError:
+            break
+        color = line_state.to_move
+        kind = MoveKind.PASS if vertex is None else MoveKind.PLAY
+        try:
+            line_candidate = candidate_for_action(line_state, kind, vertex)
+            line_state = apply_candidate(
+                line_state,
+                CandidateSelection(
+                    line_state.state_token,
+                    line_candidate.id,
+                    line_state.actors.player_for(color).id,
+                ),
+            )
+        except (IllegalMoveError, ActorAuthorityError):
+            break
+        if vertex is None:
+            variation.append({"color": color.value, "kind": "pass", "point": None})
+        else:
+            variation.append(
+                {
+                    "color": color.value,
+                    "kind": "play",
+                    "point": {"x": vertex.x, "y": vertex.y},
+                }
+            )
+    return variation
+
+
+def _adjacent_group_anchors(state: GameState, vertex: Vertex, color: Color) -> list[Vertex]:
+    anchors: list[Vertex] = []
+    seen: set[Vertex] = set()
+    for neighbor in neighbors(vertex, state.size):
+        if neighbor in seen:
+            continue
+        group = group_at(state, neighbor)
+        if group is None or group.color is not color:
+            continue
+        seen.update(group.stones)
+        anchors.append(group.anchor)
+    return anchors
+
+
+def _candidate_tactics(
+    state: GameState,
+    candidate: LegalCandidate,
+    impact: MoveImpact,
+) -> dict[str, Any]:
+    if candidate.kind is MoveKind.PASS:
+        return {
+            "captures": [],
+            "resulting_liberties": None,
+            "resulting_group_size": None,
+            "connects": [],
+            "cuts": [],
+            "friendly_groups_joined": 0,
+            "opponent_groups_newly_in_atari": 0,
+            "friendly_groups_escaped_atari": 0,
+            "self_atari": False,
+            "ends_play": state.consecutive_passes == 1,
+            "evidence": "exact",
+        }
+    assert candidate.vertex is not None
+    friendly = _adjacent_group_anchors(state, candidate.vertex, state.to_move)
+    opponent = _adjacent_group_anchors(state, candidate.vertex, state.to_move.opponent)
+    # These are deliberately narrow topological meanings. `connects` names
+    # groups actually joined through the played stone. `cuts` names distinct
+    # opposing groups whose common connection point is occupied; it does not
+    # claim that the groups are dead or have no alternate route.
+    connects = friendly if len(friendly) >= 2 else []
+    cuts = opponent if len(opponent) >= 2 else []
+    return {
+        "captures": [vertex_to_dict(vertex) for vertex in impact.captured],
+        "resulting_liberties": impact.self_liberties,
+        "resulting_group_size": impact.self_group_size,
+        "connects": [vertex_to_dict(vertex) for vertex in connects],
+        "cuts": [vertex_to_dict(vertex) for vertex in cuts],
+        "friendly_groups_joined": impact.friendly_groups_joined,
+        "opponent_groups_newly_in_atari": impact.newly_atari_opponent_groups,
+        "friendly_groups_escaped_atari": impact.escaped_atari_groups,
+        "self_atari": impact.self_liberties == 1,
+        "evidence": "exact",
+    }
+
+
+def _candidate_engine_fields(
+    state: GameState,
+    engine: dict[str, Any] | None,
+    info: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if engine is None or info is None:
+        return {}
+    root = engine.get("rootInfo")
+    root = root if isinstance(root, dict) else {}
+    fields: dict[str, Any] = {}
+
+    before_score = _finite_float(root.get("scoreLead"), minimum=-1_000.0, maximum=1_000.0)
+    after_score = _finite_float(info.get("scoreLead"), minimum=-1_000.0, maximum=1_000.0)
+    if before_score is not None and after_score is not None:
+        delta = round(after_score - before_score, 6)
+        score: dict[str, Any] = {
+            "before": before_score,
+            "after": after_score,
+            "delta": delta,
+            "mover_delta": delta if state.to_move is Color.BLACK else round(-delta, 6),
+            "perspective": "black",
+            "evidence": "engine",
+        }
+        before_outcome_spread = _finite_float(root.get("scoreStdev"), minimum=0.0, maximum=1_000.0)
+        after_outcome_spread = _finite_float(info.get("scoreStdev"), minimum=0.0, maximum=1_000.0)
+        if before_outcome_spread is not None:
+            score["outcome_spread_before"] = before_outcome_spread
+        if after_outcome_spread is not None:
+            score["outcome_spread_after"] = after_outcome_spread
+
+        move_infos = engine.get("moveInfos")
+        top_score = None
+        if isinstance(move_infos, list):
+            for top_info in move_infos:
+                if not isinstance(top_info, dict) or top_info.get("order") != 0:
+                    continue
+                top_score = _finite_float(
+                    top_info.get("scoreLead"), minimum=-1_000.0, maximum=1_000.0
+                )
+                break
+        if top_score is not None:
+            mover_sign = 1.0 if state.to_move is Color.BLACK else -1.0
+            difference_from_top = round(
+                mover_sign * after_score - mover_sign * top_score,
+                6,
+            )
+            if difference_from_top == -0.0:
+                difference_from_top = 0.0
+            score["difference_from_top"] = difference_from_top
+            if difference_from_top < 0:
+                score["loss_vs_top"] = round(-difference_from_top, 6)
+        fields["score"] = score
+
+    evaluation: dict[str, Any] = {"perspective": "black", "evidence": "engine"}
+    before_winrate = _finite_float(root.get("winrate"), minimum=0.0, maximum=1.0)
+    after_winrate = _finite_float(info.get("winrate"), minimum=0.0, maximum=1.0)
+    if before_winrate is not None:
+        evaluation["winrate_before"] = before_winrate
+    if after_winrate is not None:
+        evaluation["winrate_after"] = after_winrate
+    if before_winrate is not None and after_winrate is not None:
+        winrate_delta = round(after_winrate - before_winrate, 6)
+        evaluation["winrate_delta"] = winrate_delta
+        evaluation["winrate_mover_delta"] = (
+            winrate_delta if state.to_move is Color.BLACK else round(-winrate_delta, 6)
+        )
+
+    order = _bounded_int(info.get("order"), minimum=0, maximum=state.size * state.size)
+    visits = _bounded_int(info.get("visits"), minimum=0, maximum=10_000_000)
+    policy = _finite_float(info.get("prior"), minimum=0.0, maximum=1.0)
+    candidate_policy = engine.get("policy")
+    if policy is None and candidate_policy:
+        if isinstance(candidate_policy, list) and len(candidate_policy) == state.size**2 + 1:
+            assert info.get("move") is not None
+            try:
+                policy_vertex = gtp_to_vertex(str(info["move"]), state.size)
+            except ValueError:
+                policy_vertex = None
+            if str(info["move"]).strip().lower() == "pass":
+                policy = _finite_float(
+                    candidate_policy[-1],
+                    minimum=0.0,
+                    maximum=1.0,
+                )
+            elif policy_vertex is not None:
+                policy = _finite_float(
+                    candidate_policy[policy_vertex.y * state.size + policy_vertex.x],
+                    minimum=0.0,
+                    maximum=1.0,
+                )
+    utility = _finite_float(info.get("utility"), minimum=-100.0, maximum=100.0)
+    for key, value in (
+        ("order", order),
+        ("visits", visits),
+        ("policy", policy),
+        ("utility", utility),
+    ):
+        if value is not None:
+            evaluation[key] = value
+    if len(evaluation) > 2:
+        fields["evaluation"] = evaluation
+
+    before_ownership = _ownership_cells(
+        engine.get("ownership"), engine.get("ownershipStdev"), state.size
+    )
+    after_ownership = _ownership_cells(
+        info.get("ownership"), info.get("ownershipStdev"), state.size
+    )
+    if before_ownership:
+        fields["ownership_before"] = before_ownership
+    if after_ownership:
+        fields["ownership_after"] = after_ownership
+    delta_ownership = _ownership_delta(before_ownership, after_ownership, state.size)
+    if delta_ownership:
+        fields["ownership_delta"] = delta_ownership
+    if before_ownership or after_ownership:
+        fields["ownership_perspective"] = "black"
+    return fields
 
 
 def _active_nodes(game: dict[str, Any]) -> list[dict[str, Any]]:
@@ -672,10 +1041,10 @@ def _coach_history_page(
 
 def _generated_coach_evidence(source: str) -> list[str]:
     base_source = source.split("+", 1)[0]
-    evidence = ["exact"] if base_source == "deterministic" else ["model"]
-    if source.endswith("+engine"):
-        evidence.append("engine")
-    return evidence
+    # A complete prose answer mixes rendered facts with explanation. Exact and
+    # engine badges belong on the separate structured facets/candidates, never
+    # on every sentence in the answer.
+    return ["teacher"] if base_source == "deterministic" else ["model"]
 
 
 def _clip_utf8(value: str, maximum: int) -> str:
@@ -749,6 +1118,9 @@ class GameService:
         self.katago = katago
         self.providers = providers
         self._coach_inflight: dict[tuple[str, str], _InflightCoachExchange] = {}
+        self._engine_analysis_cache: OrderedDict[
+            tuple[str, int, float, str, str, str], dict[str, Any]
+        ] = OrderedDict()
 
     def curriculum(self) -> dict[str, Any]:
         lessons = []
@@ -858,8 +1230,8 @@ class GameService:
         state = state_from_dict(game["current_node"]["state"])
         lesson = get_lesson(game["lesson_id"])
         result = None
-        if state.phase is GamePhase.FINISHED:
-            result = game.get("result") or chinese_area_score(state).result
+        if state.result_reason is ResultReason.RESIGNATION and state.winner is not None:
+            result = game.get("result") or f"{state.winner.gtp}+R"
         return {
             "id": game["id"],
             "title": game["title"],
@@ -907,10 +1279,13 @@ class GameService:
             "act": self._act(state),
             "coach_messages": coach_history["messages"],
             "coach_history_next_cursor": coach_history["next_cursor"],
+            "area_snapshot": _area_snapshot(state),
             "analysis": analysis
             or {
                 "status": "fallback",
-                "engine": "Deterministic board facts",
+                "engine": "Exact board facts + authored guidance",
+                "side_to_move": state.to_move.value,
+                "area_snapshot": _area_snapshot(state),
                 "network": None,
                 "visits": None,
                 "score_lead": None,
@@ -956,8 +1331,22 @@ class GameService:
         # Never decorate 5x5/7x7 lessons with estimates from an out-of-domain net.
         if state.size != 9:
             return None
+        network = getattr(getattr(self.katago, "_settings", None), "katago_model", None)
+        network_name = getattr(network, "name", "unknown-network")
+        cache_key = (
+            state.state_token,
+            state.size,
+            float(state.komi),
+            "chinese-area-positional-superko",
+            str(network_name),
+            rank_profile,
+        )
+        if cache_key in self._engine_analysis_cache:
+            cached = self._engine_analysis_cache.pop(cache_key)
+            self._engine_analysis_cache[cache_key] = cached
+            return cached
         try:
-            return await self.katago.query(
+            analysis = await self.katago.query(
                 moves=[
                     [move.color.gtp, vertex_to_gtp(move.vertex, state.size)]
                     for move in state.history
@@ -981,6 +1370,18 @@ class GameService:
             raise
         except Exception:
             return None
+        if not isinstance(analysis, dict):
+            return None
+        root = analysis.get("rootInfo")
+        # The pinned Analysis Engine contract always supplies currentPlayer.
+        # Missing or mismatched turn identity makes the whole response
+        # unsuitable for attachment to this position.
+        if not isinstance(root, dict) or root.get("currentPlayer") != state.to_move.gtp:
+            return None
+        self._engine_analysis_cache[cache_key] = analysis
+        while len(self._engine_analysis_cache) > ENGINE_ANALYSIS_CACHE_ENTRIES:
+            self._engine_analysis_cache.popitem(last=False)
+        return analysis
 
     async def _shortlist(
         self,
@@ -989,33 +1390,45 @@ class GameService:
         lesson: dict[str, Any],
         rank_profile: str,
     ) -> tuple[list[ShortlistedCandidate], dict[str, Any] | None]:
-        legal = [
-            candidate
-            for candidate in legal_candidates(state, include_pass=False)
-            if candidate.vertex
-        ]
-        if not legal:
+        all_legal = legal_candidates(state, include_pass=True)
+        legal = [candidate for candidate in all_legal if candidate.vertex]
+        pass_candidate = next(
+            (candidate for candidate in all_legal if candidate.kind is MoveKind.PASS), None
+        )
+        if not legal and pass_candidate is None:
             return [], None
         by_vertex = {(item.vertex.x, item.vertex.y): item for item in legal if item.vertex}
         engine = await self._compatible_engine_analysis(state, rank_profile=rank_profile)
         ordered: list[tuple[LegalCandidate, dict[str, Any] | None]] = []
         if engine is not None:
-            for info in engine.get("moveInfos", []):
+            move_infos = engine.get("moveInfos")
+            engine_ranked: list[tuple[int, LegalCandidate, dict[str, Any]]] = []
+            for info in move_infos if isinstance(move_infos, list) else []:
                 if not isinstance(info, dict) or not isinstance(info.get("move"), str):
+                    continue
+                order = _bounded_int(info.get("order"), minimum=0, maximum=state.size * state.size)
+                if order is None:
                     continue
                 try:
                     vertex = gtp_to_vertex(info["move"], state.size)
                 except ValueError:
                     continue
                 if vertex is None:
-                    continue
-                domain = by_vertex.get((vertex.x, vertex.y))
-                if domain and all(existing[0].id != domain.id for existing in ordered):
+                    # A pass is offered only when KataGo explicitly ranks it
+                    # first. Authored fallback never guesses that the game is
+                    # settled enough to pass.
+                    domain = pass_candidate if order == 0 else None
+                else:
+                    domain = by_vertex.get((vertex.x, vertex.y))
+                if domain is not None:
+                    engine_ranked.append((order, domain, info))
+            for _order, domain, info in sorted(engine_ranked, key=lambda item: item[0]):
+                if all(existing[0].id != domain.id for existing in ordered):
                     ordered.append((domain, info))
-                if len(ordered) == 3:
+                if len(ordered) == CANDIDATE_LIMIT:
                     break
 
-        if len(ordered) < 3:
+        if len(ordered) < CANDIDATE_LIMIT:
             featured: list[LegalCandidate] = []
             for coordinate in lesson.get("featured_moves", []):
                 try:
@@ -1057,58 +1470,64 @@ class GameService:
             for _, candidate in sorted(scored, key=lambda item: (-item[0], item[1].id)):
                 if all(existing[0].id != candidate.id for existing in ordered):
                     ordered.append((candidate, None))
-                if len(ordered) == 3:
+                if len(ordered) == CANDIDATE_LIMIT:
                     break
 
         shortlist: list[ShortlistedCandidate] = []
         actor_id = state.actors.player_for(state.to_move).id
-        for index, (domain, info) in enumerate(ordered[:3]):
+        for domain, info in ordered[:CANDIDATE_LIMIT]:
+            public_id = _public_candidate_id(domain)
             after = apply_candidate(
                 state,
                 CandidateSelection(state.state_token, domain.id, actor_id),
             )
             impact = explain_move_impact(state, after)
             intent, title = _intent_for(state, domain, impact)
-            assert domain.vertex is not None
-            pv = info.get("pv", []) if info else []
-            variation: list[dict[str, Any]] = []
-            color = state.to_move
-            for coordinate in pv[:4] if isinstance(pv, list) else []:
-                if not isinstance(coordinate, str):
-                    continue
-                try:
-                    vertex = gtp_to_vertex(coordinate, state.size)
-                except ValueError:
-                    continue
-                if vertex is not None:
-                    variation.append(
-                        {"color": color.value, "point": {"x": vertex.x, "y": vertex.y}}
-                    )
-                color = color.opponent
+            variation = _variation_for_candidate(state, domain, info)
             reply = None
             if len(variation) > 1:
-                point = variation[1]["point"]
-                reply = f"A likely reply begins near {vertex_to_gtp(Vertex(point['x'], point['y']), state.size)}."
+                reply_move = variation[1]
+                point = reply_move["point"]
+                reply_color = str(reply_move["color"]).title()
+                if point is None:
+                    reply = f"{reply_color} pass"
+                else:
+                    reply = (
+                        f"{reply_color} {vertex_to_gtp(Vertex(point['x'], point['y']), state.size)}"
+                    )
             summary = self._candidate_summary(impact, intent)
             risk = self._candidate_risk(impact, intent)
+            tactics = _candidate_tactics(state, domain, impact)
+            what_changes = self._candidate_change_text(impact, tactics)
             public = {
-                "id": f"m{index}",
-                "point": {"x": domain.vertex.x, "y": domain.vertex.y},
+                "id": public_id,
+                "kind": domain.kind.value,
+                "point": vertex_to_dict(domain.vertex),
                 "coordinate": vertex_to_gtp(domain.vertex, state.size),
                 "intent": intent,
+                "intent_evidence": "teacher",
                 "title": title,
                 "summary": summary,
-                "likely_reply": reply,
+                "main_line_reply": reply,
                 "risk": risk,
                 "variation": variation,
                 "facets": _impact_facets(impact),
                 "verified": info is not None,
+                "legal_verified": True,
+                "engine_analyzed": info is not None,
+                "tactics": tactics,
+                "why_here": summary,
+                "what_changes": what_changes,
+                "next_calculation": risk,
+                **_candidate_engine_fields(state, engine, info),
             }
-            shortlist.append(ShortlistedCandidate(f"m{index}", domain, public))
+            shortlist.append(ShortlistedCandidate(public_id, domain, public))
         return shortlist, engine
 
     @staticmethod
     def _candidate_summary(impact: MoveImpact, intent: str) -> str:
+        if impact.kind is MoveKind.PASS:
+            return "Passing places no stone. The two-consecutive-pass ending rule applies."
         if impact.captured:
             return f"Capture {len(impact.captured)} stone(s) and change the liberty balance now."
         if impact.escaped_atari_groups:
@@ -1118,20 +1537,44 @@ class GameService:
         if impact.newly_atari_opponent_groups:
             return "Apply concrete pressure by leaving an opposing group one liberty."
         if intent == "claim":
-            return "Begin a base near the edge while keeping a road toward open space."
+            return "A teacher hypothesis is to begin a base near the edge while keeping a road toward open space."
         if intent == "pressure":
-            return "Build central reach and flexibility; the open area is not territory yet."
-        return "Keep several future directions without making a fragile promise."
+            return "A teacher hypothesis is to develop central reach; the open area is not territory yet."
+        return "A teacher hypothesis is to keep several future directions open."
 
     @staticmethod
     def _candidate_risk(impact: MoveImpact, intent: str) -> str:
+        if impact.kind is MoveKind.PASS:
+            return "The opponent may still have a valuable move; passing does not prove the board is settled."
         if "self-atari-risk" in impact.teaching_tags:
             return "The resulting group has only one liberty; read the immediate reply."
         if intent == "claim":
             return "Early ground can become small if the opponent takes the wider direction."
         if intent == "pressure":
             return "Influence is potential, so it still needs a useful target or conversion."
-        return "A flexible move may be too quiet if a nearby group is already urgent."
+        return (
+            "A flexible move may be too quiet if a nearby group currently has very few liberties."
+        )
+
+    @staticmethod
+    def _candidate_change_text(impact: MoveImpact, tactics: dict[str, Any]) -> str:
+        if impact.kind is MoveKind.PASS:
+            return "Rules: pass places no stone or captures; the two-consecutive-pass ending rule applies."
+        changes: list[str] = []
+        if impact.captured:
+            changes.append(f"captures {len(impact.captured)} stone(s)")
+        if impact.friendly_groups_joined:
+            changes.append(f"joins {impact.friendly_groups_joined} friendly groups")
+        if impact.escaped_atari_groups:
+            changes.append(f"takes {impact.escaped_atari_groups} friendly group(s) out of atari")
+        if impact.newly_atari_opponent_groups:
+            changes.append(f"puts {impact.newly_atari_opponent_groups} opposing group(s) in atari")
+        if tactics["cuts"]:
+            changes.append("occupies a shared connection point between opposing groups")
+        changes.append(
+            f"leaves a {impact.self_group_size}-stone group with {impact.self_liberties} liberties"
+        )
+        return "Rules: " + "; ".join(changes) + "."
 
     @staticmethod
     def _analysis_payload(
@@ -1140,34 +1583,33 @@ class GameService:
         engine: dict[str, Any] | None,
         network: str | None,
     ) -> dict[str, Any]:
-        ownership: list[dict[str, Any]] = []
-        values = engine.get("ownership", []) if engine else []
-        stdev = engine.get("ownershipStdev", []) if engine else []
-        if isinstance(values, list) and len(values) == state.size * state.size:
-            for index, raw in enumerate(values):
-                if not isinstance(raw, (int, float)) or not math.isfinite(float(raw)):
-                    continue
-                item = {"x": index % state.size, "y": index // state.size, "value": float(raw)}
-                if (
-                    isinstance(stdev, list)
-                    and index < len(stdev)
-                    and isinstance(stdev[index], (int, float))
-                    and math.isfinite(float(stdev[index]))
-                ):
-                    item["uncertainty"] = float(stdev[index])
-                ownership.append(item)
+        ownership = _ownership_cells(
+            engine.get("ownership") if engine else None,
+            engine.get("ownershipStdev") if engine else None,
+            state.size,
+        )
         root = engine.get("rootInfo", {}) if engine else {}
-        score_lead = root.get("scoreLead") if isinstance(root, dict) else None
-        visits = root.get("visits") if isinstance(root, dict) else None
+        score_lead = (
+            _finite_float(root.get("scoreLead"), minimum=-1_000.0, maximum=1_000.0)
+            if isinstance(root, dict)
+            else None
+        )
+        visits = (
+            _bounded_int(root.get("visits"), minimum=0, maximum=10_000_000)
+            if isinstance(root, dict)
+            else None
+        )
         return {
             "status": "ready" if engine else "fallback",
-            "engine": "KataGo 1.17.2" if engine else "Deterministic teaching fallback",
+            "engine": "KataGo 1.17.2" if engine else "Exact board facts + authored guidance",
+            "side_to_move": state.to_move.value,
+            "area_snapshot": _area_snapshot(state),
             "network": network if engine else None,
-            "visits": visits if isinstance(visits, int) else None,
-            "score_lead": float(score_lead)
-            if isinstance(score_lead, (int, float)) and math.isfinite(float(score_lead))
-            else None,
+            "visits": visits,
+            "score_lead": score_lead,
+            "score_perspective": "black" if engine else None,
             "ownership": ownership,
+            "ownership_perspective": "black" if ownership else None,
             "facets": _global_facets(state, engine),
             "candidates": [_candidate_copy(item.public) for item in shortlist],
         }
@@ -1189,6 +1631,19 @@ class GameService:
         )
         return analysis, shortlist
 
+    async def analysis_response(self, game_id: str, expected_revision: int) -> dict[str, Any]:
+        """Return read-only, revision-bound teaching choices for the current turn."""
+
+        analysis, _shortlist = await self.analyze(game_id, expected_revision)
+        # KataGo runs outside the SQLite transaction. Recheck after the await so
+        # an old field can never be attached after a concurrent move or rewind.
+        game, _state, _lesson = self._load_current(game_id, expected_revision)
+        return {
+            "game_id": game_id,
+            "revision": game["revision"],
+            "analysis": analysis,
+        }
+
     async def preview(self, game_id: str, request: PreviewRequest) -> dict[str, Any]:
         game, state, _lesson = self._load_current(game_id, request.expected_revision)
         state.actors.require_turn_actor(request.actor_id, state.to_move)
@@ -1206,6 +1661,8 @@ class GameService:
                 "captures": [],
                 "resulting_liberties": None,
                 "facets": [],
+                "candidate_facets": [],
+                "position_facets": _global_facets(state),
                 "candidates": [],
                 "coach_prompt": "Choose an intersection inside the board lines.",
             }
@@ -1227,10 +1684,48 @@ class GameService:
                 "captures": [],
                 "resulting_liberties": None,
                 "facets": [],
+                "candidate_facets": [],
+                "position_facets": _global_facets(state),
                 "candidates": [],
                 "coach_prompt": "Try another intersection and compare its liberties.",
             }
         analysis, _ = await self.analyze(game_id, request.expected_revision)
+        selected_teaching = next(
+            (
+                item
+                for item in analysis["candidates"]
+                if item.get("point") == {"x": request.x, "y": request.y}
+            ),
+            None,
+        )
+        if selected_teaching is None:
+            intent, title = _intent_for(state, candidate, impact)
+            tactics = _candidate_tactics(state, candidate, impact)
+            summary = self._candidate_summary(impact, intent)
+            risk = self._candidate_risk(impact, intent)
+            candidate_facets = _impact_facets(impact)
+            selected_teaching = {
+                "id": _public_candidate_id(candidate),
+                "kind": candidate.kind.value,
+                "point": {"x": request.x, "y": request.y},
+                "coordinate": coordinate,
+                "intent": intent,
+                "intent_evidence": "teacher",
+                "title": title,
+                "summary": summary,
+                "main_line_reply": None,
+                "risk": risk,
+                "variation": [],
+                "facets": candidate_facets,
+                "verified": False,
+                "legal_verified": True,
+                "engine_analyzed": False,
+                "tactics": tactics,
+                "why_here": summary,
+                "what_changes": self._candidate_change_text(impact, tactics),
+                "next_calculation": risk,
+            }
+        candidate_facets = _impact_facets(impact)
         return {
             "game_id": game_id,
             "revision": game["revision"],
@@ -1240,8 +1735,11 @@ class GameService:
             "reason": None,
             "captures": [vertex_to_dict(item) for item in impact.captured],
             "resulting_liberties": impact.self_liberties,
-            "facets": _impact_facets(impact),
+            "facets": candidate_facets,
+            "candidate_facets": candidate_facets,
+            "position_facets": analysis["facets"],
             "candidates": analysis["candidates"],
+            "teaching": selected_teaching,
             "coach_prompt": "Name the intention before committing: build, fight, escape, or connect?",
         }
 
@@ -1270,7 +1768,11 @@ class GameService:
         )
         impact = explain_move_impact(state, after)
         coach = _move_coach(after, impact, lesson) if game["companion_enabled"] else None
-        result = chinese_area_score(after).result if after.phase is GamePhase.FINISHED else None
+        result = (
+            f"{after.winner.gtp}+R"
+            if after.result_reason is ResultReason.RESIGNATION and after.winner is not None
+            else None
+        )
         updated = self.store.append_node(
             game_id=game_id,
             expected_revision=request.expected_revision,
@@ -1281,6 +1783,7 @@ class GameService:
                 "kind": request.kind,
                 "point": vertex_to_dict(vertex),
                 "intent": request.intent.value,
+                "intent_evidence": "learner",
                 "candidate_id": candidate.id,
             },
             state=state_to_dict(after),
@@ -1342,6 +1845,7 @@ class GameService:
                 raise InvalidGameRequest("that candidate is not offered for this position")
             domain = candidate_for_action(state, MoveKind.PASS)
             public_intent = "unsure"
+            public_intent_evidence = "teacher"
             choice_source = "deterministic"
         else:
             if request.candidate_id is not None:
@@ -1355,7 +1859,7 @@ class GameService:
                 selected_id, choice_source = await self.providers.choose_candidate(
                     persona=f"{chooser.name} · {effective_doctrine} doctrine",
                     rank_profile=game["rank_profile"],
-                    candidates=[item.public for item in shortlist],
+                    candidates=[_candidate_model_copy(item.public) for item in shortlist],
                     lesson_focus=lesson["objective"],
                 )
                 match = next((item for item in shortlist if item.ui_id == selected_id), None)
@@ -1364,6 +1868,7 @@ class GameService:
                     choice_source = "deterministic"
             domain = match.domain
             public_intent = match.public["intent"]
+            public_intent_evidence = match.public["intent_evidence"]
         after = apply_candidate(
             state,
             CandidateSelection(state.state_token, domain.id, rule_actor_id),
@@ -1386,6 +1891,7 @@ class GameService:
                 "kind": domain.kind.value,
                 "point": vertex_to_dict(domain.vertex),
                 "intent": public_intent,
+                "intent_evidence": public_intent_evidence,
                 "doctrine": effective_doctrine,
                 "candidate_id": domain.id,
                 "choice_source": choice_source,
@@ -1506,7 +2012,6 @@ class GameService:
                         "anchor": vertex_to_gtp(group.anchor, state.size),
                         "stones": len(group.stones),
                         "liberties": group.liberty_count,
-                        "safety": group.safety.value,
                     }
                     for group in analyze_energy(state).groups
                 ],
@@ -1516,9 +2021,12 @@ class GameService:
                 "score_lead_black": analysis["score_lead"],
                 "visits": analysis["visits"],
             },
-            "candidates": [item.public for item in shortlist],
+            "candidates": [_candidate_model_copy(item.public) for item in shortlist],
             "teaching_contract": (
-                "Liberties/groups are exact. Engine estimates are uncertain. Energy language is metaphor."
+                "Liberties, captures, groups, side to move, and the area snapshot are exact "
+                "mechanical facts. Engine values and lines are estimates. Candidate intent, title, "
+                "summary, and risk marked intent_evidence=teacher are authored hypotheses, not "
+                "KataGo reasons. Energy language is metaphor."
             ),
         }
         draft, source, warning = await self.providers.coach(
@@ -1559,8 +2067,8 @@ class GameService:
         first_public = shortlist[0].public if shortlist else None
         if draft is None:
             energy = analyze_energy(state)
-            urgent = sorted(
-                (group for group in energy.groups if group.liberty_count <= 2),
+            groups_by_liberties = sorted(
+                energy.groups,
                 key=lambda group: (
                     group.liberty_count,
                     group.color.value,
@@ -1568,32 +2076,40 @@ class GameService:
                     group.anchor.y,
                 ),
             )
-            if urgent:
+            if groups_by_liberties:
+                fewest = groups_by_liberties[0].liberty_count
+                least_liberties = [
+                    group for group in groups_by_liberties if group.liberty_count == fewest
+                ]
                 exact = "; ".join(
                     f"{group.color.value.title()} at "
                     f"{vertex_to_gtp(group.anchor, state.size)} has {group.liberty_count} "
                     f"{'liberty' if group.liberty_count == 1 else 'liberties'}"
-                    for group in urgent[:2]
+                    for group in least_liberties[:2]
                 )
+                exact = f"fewest current liberties: {exact}"
             else:
-                exact = "No group is in immediate liberty danger (one or two liberties)."
+                exact = "there are no stone groups to compare"
             parts = [f"Exact board check — {exact}"]
             if first_public is not None:
-                verification = (
-                    "KataGo-backed option"
-                    if first_public.get("verified")
-                    else "Legal teaching option"
+                coordinate_source = (
+                    "KataGo order candidate"
+                    if first_public.get("engine_analyzed")
+                    else "Rules-verified legal candidate"
                 )
-                parts.append(
-                    f"Try {first_public['coordinate']} ({verification}): {first_public['summary']}"
-                )
-                next_watch = first_public.get("likely_reply") or first_public.get("risk")
-                if next_watch:
-                    parts.append(f"Next, watch this: {next_watch}")
+                parts.append(f"{coordinate_source}: {first_public['coordinate']}.")
+                parts.append(f"Teacher hypothesis (not KataGo's reason): {first_public['summary']}")
+                if first_public.get("main_line_reply"):
+                    parts.append(
+                        "KataGo reply in one main line (not forced): "
+                        f"{first_public['main_line_reply']}"
+                    )
+                if first_public.get("risk"):
+                    parts.append(f"Teacher risk hypothesis: {first_public['risk']}")
             parts.append(f"Remember: {lesson['memory']}")
             parts.append(
-                "The model companion was unavailable, so this answer uses only "
-                "the current board, legal candidates, and deterministic teaching facts."
+                "The model companion was unavailable. This fallback separates exact board facts "
+                "from authored teacher guidance."
             )
             return "\n\n".join(parts)
 
@@ -1616,15 +2132,21 @@ class GameService:
                 if selected_choice is not None
                 else selected_public["summary"]
             )
-            parts.append(f"Try {selected_public['coordinate']}: {reason}")
+            parts.append(f"Candidate coordinate: {selected_public['coordinate']}.")
+            reason_source = (
+                "Model explanation" if selected_choice is not None else "Teacher hypothesis"
+            )
+            parts.append(f"{reason_source}: {reason}")
             next_watch = (
                 selected_choice.risk
                 if selected_choice is not None
-                else selected_public.get("likely_reply") or selected_public.get("risk")
+                else selected_public.get("main_line_reply") or selected_public.get("risk")
             )
             if next_watch:
                 parts.append(f"Then watch: {next_watch}")
         parts.append(f"Remember: {draft.remember}")
+        if draft.uncertainty:
+            parts.append(f"Model uncertainty: {draft.uncertainty}")
         if warning:
             parts.append(warning)
         return "\n\n".join(parts)

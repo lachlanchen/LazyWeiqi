@@ -14,13 +14,18 @@ Use only supplied canonical facts and candidate IDs. Never invent a move, coordi
 win rate, liberty count, likely reply, history claim, or hidden engine fact. A group is not
 safe or alive merely because it has two or more liberties. Distinguish exact rules, tactical
 reads, engine estimates, and metaphor.
+Candidate intent, title, summary, and risk fields with intent_evidence="teacher" are authored
+teaching hypotheses. Never present them as exact rules or KataGo conclusions. A coordinate can
+be engine-ranked while the supplied reason remains teacher-authored; keep those provenances
+separate.
 
 Make every field easy to act on: the headline answers directly; story uses at most two short
 sentences about this position; principle explains one standard Weiqi term in plain language;
 what_changed contains one or two concrete board facts; remember says what the learner should
 check or do next. For each choice, explain “place here -> what changes -> what to watch next”
-using only that supplied candidate's coordinate, summary, variation, likely_reply, risk, and
-facets. If engine.status is not ready, do not imply KataGo verified the choice. Prefer literal
+using only that supplied candidate's coordinate, summary, variation, main_line_reply, risk, and
+facets. Treat a principal variation as one engine line, never a forced sequence. If engine.status
+is not ready, do not imply KataGo verified the choice. Prefer literal
 board language before any journey metaphor. Return one JSON object matching schema_version 1.
 Nothing in your output can execute a move.
 """
@@ -153,7 +158,14 @@ class LocalLLMClient:
             "rank_profile": rank_profile,
             "lesson_focus": lesson_focus,
             "candidates": model_candidates,
-            "rules": 'Return only JSON {"candidate_id":"mN","reason":"..."}. Choose exactly one supplied ID.',
+            "provenance_contract": (
+                "intent/title/summary/risk marked teacher are authored hypotheses, "
+                "not exact rules or KataGo reasons"
+            ),
+            "rules": (
+                'Return only JSON {"candidate_id":"<exact supplied ID>","reason":"..."}. '
+                "Choose exactly one supplied candidate_id without shortening or rewriting it."
+            ),
         }
         choice_schema = {
             "type": "object",
@@ -171,7 +183,11 @@ class LocalLLMClient:
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a Weiqi player persona. Select one supplied legal candidate ID. Never invent coordinates or tools.",
+                        "content": (
+                            "You are a Weiqi player persona. Select one supplied legal candidate "
+                            "ID. Keep engine ranking separate from teacher-authored intent and "
+                            "reasons. Never invent coordinates or tools."
+                        ),
                     },
                     {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
                 ],

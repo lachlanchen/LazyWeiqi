@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ApiError, createApi } from './api'
 
 describe('strict synchronous API client', () => {
-  it('uses the documented preview and move routes with JSON bodies', async () => {
+  it('uses the documented analysis, preview, and move routes with JSON bodies', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(input), init })
@@ -16,6 +16,7 @@ describe('strict synchronous API client', () => {
     }) as typeof fetch
     const client = createApi(fetcher, 'http://local.test')
 
+    await client.analyzeGame('g1', 3)
     await client.previewMove('g1', {
       x: 2,
       y: 2,
@@ -32,10 +33,12 @@ describe('strict synchronous API client', () => {
     })
 
     expect(calls.map((call) => call.url)).toEqual([
+      'http://local.test/api/games/g1/analysis',
       'http://local.test/api/games/g1/preview',
       'http://local.test/api/games/g1/moves',
     ])
-    expect(JSON.parse(String(calls[0].init?.body))).toMatchObject({
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ expected_revision: 3 })
+    expect(JSON.parse(String(calls[1].init?.body))).toMatchObject({
       x: 2,
       y: 2,
       actor_id: 'human',

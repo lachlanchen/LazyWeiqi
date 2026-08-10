@@ -24,25 +24,34 @@ server's position-bound candidate list.
 - **Tempo** — initiative, forcing replies, and when it is safe to turn away.
 
 “Energy” is deliberately a teaching metaphor, never a mystical number. Every
-claim is labeled as **Exact**, **Tactical read**, **Engine estimate**, or
-**Metaphor**, so a learner can feel the story without losing the underlying Go
-knowledge.
+claim is labeled as **Exact**, **Tactical read**, **Engine estimate**, **Teacher
+guidance**, **Model explanation**, or **Metaphor**, so a learner can feel the
+story without losing the underlying Go knowledge.
 
-The board makes that distinction visible before the first move. Soft green,
-coral, and violet opening clouds compare the practical character of corners,
-sides, and center; they do **not** claim ownership. After stones arrive, blue
-shows nearby Black presence, warm orange shows nearby White presence, and violet
-shows overlap. The companion beside the board stays concrete:
+Before the first move on a supported 9×9 board, KataGo's order-zero candidate
+is already visible. Its field is not a stone-distance halo: it compares KataGo's
+ownership forecast after that move with the current position. Blue means more
+Black tendency, orange more White tendency, and violet a near-balanced or
+high-variation boundary. Hover or keyboard-focus another candidate to compare
+its field; click or tap to keep a non-committing preview.
 
-1. **Place here** — the exact coordinate.
-2. **What changes** — captures, liberties, connection, or supplied candidate evidence.
-3. **Likely reply** — only when the position-bound analysis supplied one.
-4. **Do next** — the next check the learner should make.
+The companion beside the board stays concrete:
+
+1. **Play** — the coordinate and a clearly labeled teacher hypothesis about its job.
+2. **Because** — exact facts, engine comparisons, and teacher interpretation kept separate.
+3. **Changes** — captures, liberties, connections, score forecast, and ownership shape.
+4. **Opponent** — one supplied continuation, explicitly not a forced line.
+5. **Then check** — the failure condition or follow-up to calculate.
+6. **Principle** — one reusable strategy idea, including its limitation.
+
+The optional Presence sketch remains a clearly labeled beginner analogy for
+corner/side/center efficiency and nearby stones. It does **not** rank moves and
+is never presented as physics, territory, ownership, or score.
 
 The specialized installed network is used only on 9×9, the board size for which
-upstream designed it. The short 5×5 and 7×7 lessons use deterministic rules,
-authored Weiqi theory, and clearly labeled distance-based teaching clouds; they
-never borrow a false KataGo badge from the 9×9 model.
+upstream designed it. The short 5×5 and 7×7 lessons use deterministic rules and
+authored Weiqi theory; their location previews never borrow a false ownership,
+score, or KataGo badge from the 9×9 model.
 
 ## Learning modes
 
@@ -84,9 +93,10 @@ Core safety properties:
 - loopback-only API, browser, CDP, VNC, and noVNC listeners;
 - downloaded engine/model/runtime artifacts stay under ignored `.local/` paths.
 
-See [Architecture and safety](references/architecture-and-safety.md) for the
-authority model and [model sources](references/model-sources.md) for exact engine
-and network provenance.
+See [teaching and decision-map principles](references/teaching-principles.md)
+for the explanation contract, [Architecture and safety](references/architecture-and-safety.md)
+for the authority model, and [model sources](references/model-sources.md) for
+exact engine and network provenance.
 
 ## Quick start
 

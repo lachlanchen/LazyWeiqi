@@ -5,7 +5,7 @@ import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import 'katex/dist/katex.min.css'
-import type { CandidateMove, CoachMessage, GameMode, MoveIntent, MovePreview } from '../types'
+import type { BoardSize, CandidateMove, CoachMessage, GameMode, MoveIntent, MovePreview, StoneColor } from '../types'
 import { CandidateCards } from './CandidateCards'
 import { EvidenceBadge } from './EnergyLenses'
 
@@ -20,14 +20,18 @@ const INTENTS: Array<{ id: MoveIntent; label: string }> = [
 ]
 
 interface CoachRailProps {
+  boardSize: BoardSize
+  toPlay: StoneColor
   mode: GameMode
   messages: CoachMessage[]
   preview: MovePreview | null
   candidates: CandidateMove[]
   selectedCandidateId?: string | null
+  inspectedCandidateId?: string | null
   intent: MoveIntent
   onIntentChange: (intent: MoveIntent) => void
   onCandidateSelect: (candidate: CandidateMove) => void
+  onCandidateInspect: (candidate: CandidateMove | null) => void
   onAsk: (question: string, kind?: 'hint' | 'explain') => void
   hasOlderHistory: boolean
   historyLoading: boolean
@@ -43,14 +47,18 @@ interface CoachRailProps {
 }
 
 export function CoachRail({
+  boardSize,
+  toPlay,
   mode,
   messages,
   preview,
   candidates,
   selectedCandidateId,
+  inspectedCandidateId,
   intent,
   onIntentChange,
   onCandidateSelect,
+  onCandidateInspect,
   onAsk,
   hasOlderHistory,
   historyLoading,
@@ -242,8 +250,12 @@ export function CoachRail({
           <div className="preview-illegal" role="alert"><X size={15} /> {preview.reason ?? 'That point is not legal now.'}</div>
         )}
         <CandidateCards
+          boardSize={boardSize}
+          toPlay={toPlay}
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
+          inspectedCandidateId={inspectedCandidateId}
+          onInspect={onCandidateInspect}
           onSelect={onCandidateSelect}
           disabled={busy}
         />

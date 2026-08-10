@@ -129,7 +129,6 @@ export const DEMO_FACETS: EnergyFacet[] = [
     change: '+2',
     evidence: 'exact',
     explanation: 'The selected string would have three distinct liberties.',
-    confidence: 1,
   },
   {
     id: 'bonds',
@@ -138,7 +137,6 @@ export const DEMO_FACETS: EnergyFacet[] = [
     value: 'One string',
     evidence: 'exact',
     explanation: 'The move joins adjacent stones into one connected string.',
-    confidence: 1,
   },
   {
     id: 'reach',
@@ -147,16 +145,14 @@ export const DEMO_FACETS: EnergyFacet[] = [
     value: 'Toward the center',
     evidence: 'engine',
     explanation: 'A bounded engine estimate suggests pressure toward the open center.',
-    confidence: 0.68,
   },
   {
     id: 'beat',
-    label: 'Beat',
-    canonical_term: 'Initiative',
-    value: 'White may answer',
-    evidence: 'tactical',
-    explanation: 'The short variation gives White a natural local reply, but it is not forced.',
-    confidence: 0.72,
+    label: 'Turn',
+    canonical_term: 'Side to move',
+    value: 'Black to move',
+    evidence: 'exact',
+    explanation: 'The side to move is exact; a reply is forcing only when ignoring it has a concrete cost.',
   },
 ]
 
@@ -209,6 +205,18 @@ export const DEMO_GAME: GameState = {
   ],
   objective: 'Choose a move with a clear intention, then name what it changes.',
   act: 'Contact · Two groups are taking shape',
+  area_snapshot: {
+    status: 'mechanical_all_stones_alive',
+    black_stones: 4,
+    black_enclosed_empty: 0,
+    black_total: 4,
+    white_stones: 4,
+    white_enclosed_empty: 0,
+    komi: 7.5,
+    white_total: 11.5,
+    neutral_points: 73,
+    adjudicated: false,
+  },
   coach_history_next_cursor: null,
   coach_messages: [
     {

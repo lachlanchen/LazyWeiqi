@@ -101,13 +101,17 @@ export function ownershipMap(cells: OwnershipCell[] | undefined): Map<string, Ow
 
 export function ownershipClass(cell: OwnershipCell | undefined): 'black' | 'white' | 'mist' | 'none' {
   if (!cell) return 'none'
-  if ((cell.uncertainty ?? 0) > 0.35 || Math.abs(cell.value) < 0.18) return 'mist'
+  const spread = cell.variation ?? cell.uncertainty
+  if (spread == null || !Number.isFinite(spread)) return 'mist'
+  if (spread > 0.35 || Math.abs(cell.value) < 0.18) return 'mist'
   return cell.value > 0 ? 'black' : 'white'
 }
 
-export function stableGround(cell: OwnershipCell | undefined): boolean {
+export function strongOwnershipForecast(cell: OwnershipCell | undefined): boolean {
   if (!cell) return false
-  return Math.abs(cell.value) >= 0.78 && (cell.uncertainty ?? 0) <= 0.22
+  const spread = cell.variation ?? cell.uncertainty
+  if (spread == null || !Number.isFinite(spread)) return false
+  return Math.abs(cell.value) >= 0.78 && spread <= 0.22
 }
 
 export interface TeachingPresenceCell extends Point {

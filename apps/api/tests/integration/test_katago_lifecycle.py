@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,23 @@ class FreshProcess:
         return self.returncode
 
 
+class CaptureStdin:
+    def __init__(self) -> None:
+        self.writes: list[bytes] = []
+
+    def write(self, data: bytes) -> None:
+        self.writes.append(data)
+
+    async def drain(self) -> None:
+        return None
+
+
+class QueryProcess:
+    def __init__(self) -> None:
+        self.returncode: int | None = None
+        self.stdin = CaptureStdin()
+
+
 @pytest.mark.asyncio
 async def test_idle_reaper_releases_a_quiet_engine(monkeypatch: Any, tmp_path: Path) -> None:
     settings = Settings(data_dir=tmp_path / "data", openai_api_key=None)
@@ -53,6 +71,37 @@ async def test_idle_reaper_releases_a_quiet_engine(monkeypatch: Any, tmp_path: P
     await asyncio.wait_for(manager._release_when_idle(process), timeout=0.3)  # type: ignore[arg-type]
 
     assert stopped == [(process, False)]
+
+
+@pytest.mark.asyncio
+async def test_query_requests_after_move_ownership_in_the_single_root_analysis(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    settings = Settings(data_dir=tmp_path / "data", openai_api_key=None)
+    manager = KataGoProcess(settings)
+    process = QueryProcess()
+    manager._process = process  # type: ignore[assignment]
+
+    async def already_started() -> None:
+        return None
+
+    monkeypatch.setattr(manager, "_start", already_started)
+    task = asyncio.create_task(
+        manager.query(
+            moves=[],
+            board_size=9,
+            komi=7.5,
+            rank_profile="rank_20k",
+        )
+    )
+    await asyncio.sleep(0)
+    request = json.loads(process.stdin.writes[0])
+    assert request["includeOwnership"] is True
+    assert request["includeOwnershipStdev"] is True
+    assert request["includeMovesOwnership"] is True
+    assert request["includeMovesOwnershipStdev"] is True
+    manager._pending[request["id"]].set_result({"id": request["id"], "moveInfos": []})
+    await task
 
 
 @pytest.mark.asyncio

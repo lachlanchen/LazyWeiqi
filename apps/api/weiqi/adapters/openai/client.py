@@ -212,6 +212,10 @@ class OpenAIClient:
                 "persona": persona,
                 "rank_profile": rank_profile,
                 "lesson_focus": lesson_focus,
+                "provenance_contract": (
+                    "intent/title/summary/risk marked teacher are authored hypotheses, "
+                    "not exact rules or KataGo reasons"
+                ),
                 "candidates": [
                     {**item, "candidate_id": _candidate_id(item)} for item in candidates
                 ],
@@ -223,6 +227,7 @@ class OpenAIClient:
             instructions=(
                 "You are a Weiqi player persona. Select exactly one supplied legal candidate ID. "
                 "Prefer a level-appropriate move expressing the persona, not microscopic engine gain. "
+                "Keep engine ranking separate from teacher-authored intent and reasons. "
                 "Never invent coordinates, moves, tools, or rules."
             ),
             input_text=prompt,

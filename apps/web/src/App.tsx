@@ -245,13 +245,14 @@ export function App() {
   const [reviewGame, setReviewGame] = useState<GameState | null>(null)
   const [bootstrap, setBootstrap] = useState<'loading' | 'ready' | 'fallback'>('loading')
   const [operation, setOperation] = useState<Operation>('idle')
+  const [analysisLoading, setAnalysisLoading] = useState(false)
   const coachLaneRef = useRef(false)
   const [coachHistoryLoading, setCoachHistoryLoading] = useState(false)
   const [coachHistoryError, setCoachHistoryError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Point | null>(null)
   const [preview, setPreview] = useState<MovePreview | null>(null)
   const [intent, setIntent] = useState<MoveIntent>('unsure')
-  const [activeLenses, setActiveLenses] = useState<Set<EnergyLensId>>(() => new Set(['cloud', 'breath', 'bonds']))
+  const [activeLenses, setActiveLenses] = useState<Set<EnergyLensId>>(() => new Set(['cloud', 'breath', 'bonds', 'area']))
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [navOpen, setNavOpen] = useState(false)
@@ -266,6 +267,9 @@ export function App() {
   const historyPageEpoch = useRef(0)
   const coachHistoryAbort = useRef<AbortController | null>(null)
   const coachHistoryEpoch = useRef(0)
+  const analysisAbort = useRef<AbortController | null>(null)
+  const analysisEpoch = useRef(0)
+  const requestedAnalysisKey = useRef<string | null>(null)
 
   const serviceLive = bootstrap === 'ready'
   const engineAvailable = serviceStatus.engine.status === 'ready'
@@ -342,8 +346,78 @@ export function App() {
       historyPageEpoch.current += 1
       coachHistoryAbort.current?.abort()
       coachHistoryEpoch.current += 1
+      analysisAbort.current?.abort()
+      analysisEpoch.current += 1
     }
   }, [loadFoundation])
+
+  useEffect(() => {
+    const game = activeGame
+    const alreadyAnalyzed = Boolean(game?.analysis?.candidates?.length)
+    const turnActor = game?.actors.find(
+      (actor) => actor.color === game.to_play &&
+        (actor.role === 'human' || actor.role === 'player_agent'),
+    )
+    const learnerTurn = turnActor?.role === 'human'
+    const pausedTheatre = Boolean(
+      game?.mode === 'agent_vs_agent' && !theatreAutoPlay && operation === 'idle',
+    )
+    if (
+      !serviceLive ||
+      !game ||
+      game.id.startsWith('local-') ||
+      game.phase !== 'playing' ||
+      operation !== 'idle' ||
+      (!learnerTurn && !pausedTheatre) ||
+      alreadyAnalyzed
+    ) {
+      analysisAbort.current?.abort()
+      analysisAbort.current = null
+      setAnalysisLoading(false)
+      return
+    }
+
+    const key = `${game.id}:${game.revision}`
+    if (requestedAnalysisKey.current === key) return
+    requestedAnalysisKey.current = key
+    analysisAbort.current?.abort()
+    const controller = new AbortController()
+    analysisAbort.current = controller
+    const requestEpoch = ++analysisEpoch.current
+    setAnalysisLoading(true)
+
+    void api.analyzeGame(game.id, game.revision, controller.signal)
+      .then((response) => {
+        if (controller.signal.aborted || requestEpoch !== analysisEpoch.current) return
+        setActiveGame((current) => {
+          if (!current || current.id !== response.game_id || current.revision !== response.revision) {
+            return current
+          }
+          return { ...current, analysis: response.analysis }
+        })
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        if (controller.signal.aborted || requestEpoch !== analysisEpoch.current) return
+        setNotice(`Next-move comparison is unavailable. ${safeMessage(error)}`)
+      })
+      .finally(() => {
+        if (analysisAbort.current === controller && requestEpoch === analysisEpoch.current) {
+          analysisAbort.current = null
+          setAnalysisLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [
+    activeGame?.analysis?.candidates?.length,
+    activeGame?.id,
+    activeGame?.phase,
+    activeGame?.revision,
+    operation,
+    serviceLive,
+    theatreAutoPlay,
+  ])
 
   useEffect(() => {
     coachHistoryAbort.current?.abort()
@@ -854,6 +928,7 @@ export function App() {
             game={activeGame}
             preferences={preferences}
             operation={operation}
+            analysisLoading={analysisLoading}
             selected={selected}
             preview={preview}
             intent={intent}
@@ -879,6 +954,15 @@ export function App() {
             })}
             onCandidateSelect={(candidate) => {
               setIntent(candidate.intent)
+              if (activeGame.mode === 'agent_vs_agent' || candidate.kind === 'pass' || candidate.point == null) {
+                // Theatre cards are read-only study controls. Pin the supplied
+                // candidate locally; a separate explicit button authorizes a
+                // Player Agent turn or human pass.
+                setSelectedCandidateId(candidate.id)
+                setSelected(null)
+                setPreview(null)
+                return
+              }
               void requestPreview(candidate.point, candidate.intent, candidate.id)
             }}
             onAsk={(question, kind) => void askCoach(question, kind)}
@@ -918,6 +1002,7 @@ interface PlayWorkspaceProps {
   game: GameState
   preferences: AppPreferences
   operation: Operation
+  analysisLoading: boolean
   selected: Point | null
   preview: MovePreview | null
   intent: MoveIntent
@@ -949,6 +1034,7 @@ export function PlayWorkspace({
   game,
   preferences,
   operation,
+  analysisLoading,
   selected,
   preview,
   intent,
@@ -975,11 +1061,40 @@ export function PlayWorkspace({
   onTheatreAutoPlay,
   onOpenReview,
 }: PlayWorkspaceProps) {
-  const busy = operation !== 'idle' && operation !== 'previewing'
+  const [inspectedCandidateId, setInspectedCandidateId] = useState<string | null>(null)
+  const busy = analysisLoading || (operation !== 'idle' && operation !== 'previewing')
   const currentActor = game.actors.find((actor) => actor.color === game.to_play && (actor.role === 'human' || actor.role === 'player_agent'))
   const humanTurn = currentActor?.role === 'human'
+  const unsettledAreaLabel = game.area_snapshot
+    ? `Mechanical area snapshot: Black ${game.area_snapshot.black_total.toFixed(1)} · White ${game.area_snapshot.white_total.toFixed(1)} including komi. Dead stones are not settled.`
+    : 'Area snapshot only—dead stones are not settled.'
   const candidates = preview?.candidates ?? game.analysis?.candidates ?? []
-  const facets = preview?.facets ?? game.analysis?.facets ?? []
+  const inspectedCandidate = candidates.find((candidate) => candidate.id === inspectedCandidateId) ?? null
+  const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null
+  const previewTeachingCandidate: CandidateMove | null = preview?.teaching
+    ? {
+        ...preview.teaching,
+        summary: preview.teaching.summary ?? preview.teaching.why_here,
+      }
+    : null
+  // Keep the strongest supplied decision field visible before the learner
+  // touches the board. Hover/focus remains ephemeral, while a clicked card or
+  // point preview stays pinned until it is cancelled or committed.
+  const visualCandidate = inspectedCandidate ?? selectedCandidate ?? previewTeachingCandidate ?? candidates[0] ?? null
+  const currentFacets = preview?.position_facets ?? game.analysis?.facets ?? []
+  const hypotheticalFacets = preview?.candidate_facets ?? preview?.facets ?? []
+  // A preview may replace consequence readings such as liberties, but it must
+  // never hide exact current-position facts such as the turn or area snapshot.
+  const facets = preview
+    ? [
+        ...hypotheticalFacets
+          .filter((facet) => facet.id !== 'area' && facet.id !== 'beat')
+          .map((facet) => ({ ...facet, scope: 'if_played' as const })),
+        ...currentFacets
+          .filter((facet) => facet.id === 'area' || facet.id === 'beat')
+          .map((facet) => ({ ...facet, scope: 'current' as const })),
+      ]
+    : currentFacets.map((facet) => ({ ...facet, scope: 'current' as const }))
   const localPreview = game.id.startsWith('local-')
   const ownershipAvailable = Boolean(game.analysis?.ownership?.length)
   const previewBound = Boolean(
@@ -989,6 +1104,14 @@ export function PlayWorkspace({
       preview.revision === game.revision &&
       samePoint(preview.point, selected),
   )
+
+  useEffect(() => {
+    setInspectedCandidateId(null)
+  }, [game.id, game.revision])
+
+  const handleCandidateInspect = useCallback((candidate: CandidateMove | null) => {
+    setInspectedCandidateId(candidate?.id ?? null)
+  }, [])
 
   return (
     <div className="play-view" data-testid="play-workspace" data-mode={game.mode} data-turn={game.to_play} data-phase={game.phase}>
@@ -1005,9 +1128,12 @@ export function PlayWorkspace({
       )}
 
       {game.phase === 'finished' && (
-        <div className="completion-banner" data-testid="game-complete" role="status">
-          <Trophy size={18} aria-hidden="true" />
-          <div><small>Scene complete</small><strong>{game.result ?? 'The service marked this game complete.'}</strong></div>
+        <div className="completion-banner" data-testid={game.result ? 'game-complete' : 'play-ended-unsettled'} data-scored={Boolean(game.result)} role="status">
+          {game.result ? <Trophy size={18} aria-hidden="true" /> : <CircleDot size={18} aria-hidden="true" />}
+          <div>
+            <small>{game.result ? 'Scene complete' : 'Play ended · two consecutive passes'}</small>
+            <strong>{game.result ?? unsettledAreaLabel}</strong>
+          </div>
           <button type="button" onClick={onOpenReview}>Open reflection <ArrowRight size={15} /></button>
         </div>
       )}
@@ -1023,7 +1149,7 @@ export function PlayWorkspace({
           <span className={`turn-stone ${game.to_play}`} aria-hidden="true" />
           <div>
             <small>{game.phase === 'finished' ? `${game.move_count} moves` : `Move ${game.move_count + 1}`}</small>
-            <strong>{game.phase === 'finished' ? 'Game complete' : `${currentActor?.name ?? game.to_play} to play`}</strong>
+            <strong>{game.phase === 'finished' ? (game.result ? 'Game complete' : 'Play ended · score not settled') : `${currentActor?.name ?? game.to_play} to play`}</strong>
           </div>
         </div>
       </header>
@@ -1044,6 +1170,7 @@ export function PlayWorkspace({
               selected={selected}
               onSelect={onSelect}
               preview={preview}
+              candidatePreview={visualCandidate}
               lastMove={game.moves.at(-1) ?? null}
               ownership={game.analysis?.ownership}
               activeLenses={activeLenses}
@@ -1053,10 +1180,10 @@ export function PlayWorkspace({
               operationStatus={operation}
             />
 
-            {operation !== 'idle' && (
+            {(operation !== 'idle' || analysisLoading) && (
               <div className="board-operation" role="status">
                 <LoaderCircle size={18} className="spin" />
-                <span>{operationLabel(operation)}</span>
+                <span>{analysisLoading ? 'Comparing the next choices…' : operationLabel(operation)}</span>
               </div>
             )}
           </div>
@@ -1101,6 +1228,7 @@ export function PlayWorkspace({
             toPlay={game.to_play}
             selected={selected}
             preview={preview}
+            activeCandidate={visualCandidate}
             candidates={candidates}
             lastMove={game.moves.at(-1) ?? null}
             ownershipAvailable={ownershipAvailable}
@@ -1123,14 +1251,18 @@ export function PlayWorkspace({
         </section>
 
         <CoachRail
+          boardSize={game.board_size}
+          toPlay={game.to_play}
           mode={game.mode}
           messages={game.coach_messages}
           preview={preview}
           candidates={candidates}
           selectedCandidateId={selectedCandidateId}
+          inspectedCandidateId={inspectedCandidateId}
           intent={intent}
           onIntentChange={onIntentChange}
           onCandidateSelect={onCandidateSelect}
+          onCandidateInspect={handleCandidateInspect}
           onAsk={onAsk}
           hasOlderHistory={game.coach_history_next_cursor !== null}
           historyLoading={coachHistoryLoading}
@@ -1224,7 +1356,7 @@ function OnboardingHero({
 function LearningDoctrine() {
   const items = [
     { icon: CircleDot, title: 'Exact breath', text: 'Rules code owns liberties, legality, capture, ko, scoring, and history.' },
-    { icon: Gauge, title: 'Bounded evidence', text: 'KataGo supplies candidates and uncertainty. It never mutates a game.' },
+    { icon: Gauge, title: 'Bounded evidence', text: 'KataGo supplies candidate forecasts and variation across searched lines. It never mutates a game.' },
     { icon: GraduationCap, title: 'A companion, not a pilot', text: 'Lantern asks, explains, and reflects. Your turn remains yours.' },
     { icon: BookOpen, title: 'A story you can replay', text: 'Every rewind becomes a branch, so curiosity never erases the original game.' },
   ]

@@ -76,6 +76,13 @@ class FakeModelClient:
         self.candidate_call_kwargs.append(kwargs)
         if self.candidate_choice is None:
             raise RuntimeError("model choice disabled in deterministic tests")
+        # Older tests express an ordinal choice as m0/m1. Production IDs are
+        # now opaque position-and-move-bound tokens, so translate only inside
+        # this fake while preserving each test's intended ordinal selection.
+        if self.candidate_choice.startswith("m") and self.candidate_choice[1:].isdigit():
+            index = int(self.candidate_choice[1:])
+            if index < len(candidates):
+                return str(candidates[index]["id"])
         return self.candidate_choice
 
     async def coach(self, evidence: dict[str, Any], **_kwargs: Any) -> Any:

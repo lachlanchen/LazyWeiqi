@@ -99,30 +99,47 @@ export interface MoveRecord {
   comment?: string | null
 }
 
-export type EvidenceKind = 'exact' | 'tactical' | 'engine' | 'model' | 'metaphor'
+export type EvidenceKind = 'exact' | 'tactical' | 'engine' | 'model' | 'teacher' | 'metaphor'
 
 export interface EnergyFacet {
-  id: 'breath' | 'bonds' | 'shelter' | 'roads' | 'reach' | 'ground' | 'beat' | 'aji'
+  id: 'breath' | 'bonds' | 'shelter' | 'roads' | 'reach' | 'ground' | 'area' | 'beat' | 'pressure' | 'aji'
   label: string
   canonical_term: string
   value: string
   change?: string | null
   evidence: EvidenceKind
   explanation: string
-  confidence?: number | null
+  /** UI scope: a fact about the board now or a consequence of a preview. */
+  scope?: 'current' | 'if_played'
 }
 
 export interface CandidateMove {
   id: string
-  point: Point
+  kind?: 'play' | 'pass'
+  point: Point | null
   coordinate: string
   intent: MoveIntent
+  /** The proposed strategic job is a teacher hypothesis, not an engine label. */
+  intent_evidence?: 'teacher'
   title: string
   summary: string
-  likely_reply?: string | null
+  /** First reply from one supplied principal variation; never a forced line. */
+  main_line_reply?: string | null
   risk?: string | null
-  variation?: Array<{ color: StoneColor; point: Point }>
+  variation?: Array<{ color: StoneColor; kind?: 'play' | 'pass'; point: Point | null }>
   facets?: EnergyFacet[]
+  tactics?: CandidateTactics
+  score?: CandidateScoreImpact
+  evaluation?: CandidateEvaluation
+  ownership_before?: OwnershipCell[]
+  ownership_after?: OwnershipCell[]
+  ownership_delta?: OwnershipCell[]
+  why_here?: string | null
+  what_changes?: string | null
+  next_calculation?: string | null
+  legal_verified?: boolean
+  engine_analyzed?: boolean
+  ownership_perspective?: 'black'
   verified: boolean
 }
 
@@ -140,7 +157,59 @@ export interface CoachMessage {
 
 export interface OwnershipCell extends Point {
   value: number
+  /** Spread across searched continuations; not confidence or accuracy. */
+  variation?: number
+  /** Legacy wire name retained while older analysis payloads are readable. */
   uncertainty?: number
+}
+
+export interface CandidateTactics {
+  captures: Point[]
+  resulting_liberties: number | null
+  resulting_group_size?: number | null
+  connects: Point[]
+  cuts: Point[]
+  friendly_groups_joined: number
+  opponent_groups_newly_in_atari: number
+  friendly_groups_escaped_atari: number
+  self_atari: boolean
+  ends_play?: boolean
+  evidence: 'exact'
+}
+
+export interface CandidateScoreImpact {
+  /** Score lead before and after the move, from the named color's perspective. */
+  before: number
+  after: number
+  delta: number
+  mover_delta?: number
+  perspective: 'black'
+  evidence: 'engine'
+  outcome_spread_before?: number | null
+  outcome_spread_after?: number | null
+  difference_from_top?: number | null
+  loss_vs_top?: number | null
+}
+
+export interface CandidateEvaluation {
+  perspective: 'black'
+  evidence: 'engine'
+  winrate_before?: number
+  winrate_after?: number
+  winrate_delta?: number
+  winrate_mover_delta?: number
+  order?: number
+  visits?: number
+  policy?: number
+  utility?: number
+}
+
+export type MoveTeachingEvidence = Omit<CandidateMove, 'summary' | 'tactics' | 'why_here' | 'what_changes' | 'next_calculation'> & {
+  summary?: string
+  tactics: CandidateTactics
+  why_here: string
+  what_changes: string
+  next_calculation: string
 }
 
 export interface GameAnalysis {
@@ -149,9 +218,17 @@ export interface GameAnalysis {
   network?: string | null
   visits?: number | null
   score_lead?: number | null
+  score_perspective?: 'black' | null
   ownership?: OwnershipCell[]
+  ownership_perspective?: 'black' | null
   facets?: EnergyFacet[]
   candidates?: CandidateMove[]
+}
+
+export interface AnalysisResponse {
+  game_id: string
+  revision: number
+  analysis: GameAnalysis
 }
 
 export interface ReviewMoment {
@@ -189,6 +266,7 @@ export interface GameState extends GameSummary {
   coach_messages: CoachMessage[]
   coach_history_next_cursor: string | null
   analysis?: GameAnalysis | null
+  area_snapshot?: AreaSnapshot
   review_moments?: ReviewMoment[]
   story_summary?: {
     promise?: string
@@ -196,6 +274,19 @@ export interface GameState extends GameSummary {
     resolution?: string
     memory?: string
   } | null
+}
+
+export interface AreaSnapshot {
+  status: 'mechanical_all_stones_alive'
+  black_stones: number
+  black_enclosed_empty: number
+  black_total: number
+  white_stones: number
+  white_enclosed_empty: number
+  komi: number
+  white_total: number
+  neutral_points: number
+  adjudicated: false
 }
 
 export interface GamesResponse {
@@ -253,8 +344,13 @@ export interface MovePreview {
   reason?: string | null
   captures: Point[]
   resulting_liberties?: number | null
+  /** Hypothetical consequences if this move is played. */
   facets: EnergyFacet[]
+  candidate_facets?: EnergyFacet[]
+  /** Current-position readings that remain true while inspecting. */
+  position_facets?: EnergyFacet[]
   candidates: CandidateMove[]
+  teaching?: MoveTeachingEvidence
   coach_prompt?: string | null
 }
 

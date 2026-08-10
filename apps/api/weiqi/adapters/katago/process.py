@@ -473,6 +473,12 @@ class KataGoProcess:
             "analysisPVLen": 10,
             "includeOwnership": True,
             "includeOwnershipStdev": True,
+            # KataGo can return the searched after-move ownership maps in the
+            # same bounded root query.  The service keeps only the three
+            # shortlisted legal moves, avoiding one extra search per hover
+            # candidate.
+            "includeMovesOwnership": True,
+            "includeMovesOwnershipStdev": True,
             "includePolicy": True,
             "overrideSettings": {
                 "humanSLProfile": rank_profile,

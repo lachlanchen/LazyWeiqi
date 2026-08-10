@@ -51,6 +51,33 @@ def _ask(
     return response.json()["message"]
 
 
+def _offered_candidate_id(
+    client: TestClient,
+    game_id: str,
+    *,
+    revision: int,
+    index: int,
+) -> str:
+    game = client.get(f"/api/games/{game_id}").json()
+    occupied = {(item["x"], item["y"]) for item in game["stones"]}
+    for y in range(game["board_size"]):
+        for x in range(game["board_size"]):
+            if (x, y) in occupied:
+                continue
+            response = client.post(
+                f"/api/games/{game_id}/preview",
+                json={
+                    "x": x,
+                    "y": y,
+                    "actor_id": "sparring-agent",
+                    "expected_revision": revision,
+                },
+            )
+            if response.status_code == 200 and response.json()["legal"]:
+                return str(response.json()["candidates"][index]["id"])
+    raise AssertionError("test position has no previewable candidate")
+
+
 def test_initial_game_state_cursor_recovers_messages_older_than_its_bounded_window(
     app_client_factory: Any,
 ) -> None:
@@ -121,7 +148,7 @@ def test_coach_history_pages_every_active_branch_event_with_explicit_provenance(
             json={
                 "expected_revision": 2,
                 "actor_id": "sparring-agent",
-                "candidate_id": "m0",
+                "candidate_id": _offered_candidate_id(client, game_id, revision=2, index=0),
                 "client_request_id": "history-branch-agent-0001",
             },
         )
@@ -157,7 +184,7 @@ def test_coach_history_pages_every_active_branch_event_with_explicit_provenance(
             json={
                 "expected_revision": 4,
                 "actor_id": "sparring-agent",
-                "candidate_id": "m1",
+                "candidate_id": _offered_candidate_id(client, game_id, revision=4, index=1),
                 "client_request_id": "history-branch-agent-0002",
             },
         )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sqlite3
 import time
 from typing import Any
@@ -44,6 +45,34 @@ def _move(
     )
 
 
+def _offered_candidate_id(
+    client: TestClient,
+    game_id: str,
+    *,
+    revision: int,
+    actor_id: str,
+    index: int = 0,
+) -> str:
+    game = client.get(f"/api/games/{game_id}").json()
+    occupied = {(item["x"], item["y"]) for item in game["stones"]}
+    for y in range(game["board_size"]):
+        for x in range(game["board_size"]):
+            if (x, y) in occupied:
+                continue
+            response = client.post(
+                f"/api/games/{game_id}/preview",
+                json={
+                    "x": x,
+                    "y": y,
+                    "actor_id": actor_id,
+                    "expected_revision": revision,
+                },
+            )
+            if response.status_code == 200 and response.json()["legal"]:
+                return str(response.json()["candidates"][index]["id"])
+    raise AssertionError("test position has no previewable candidate")
+
+
 def _coach_draft(*, long: bool = False) -> CoachDraft:
     return CoachDraft.model_validate(
         {
@@ -67,8 +96,8 @@ def _coach_draft(*, long: bool = False) -> CoachDraft:
 
 def test_generated_prose_never_inherits_an_exact_badge() -> None:
     assert _generated_coach_evidence("gpt-5.6-sol") == ["model"]
-    assert _generated_coach_evidence("localllm+engine") == ["model", "engine"]
-    assert _generated_coach_evidence("deterministic+engine") == ["exact", "engine"]
+    assert _generated_coach_evidence("localllm+engine") == ["model"]
+    assert _generated_coach_evidence("deterministic+engine") == ["teacher"]
 
 
 def test_create_list_and_get_preserve_a_session(app_client_factory: Any) -> None:
@@ -133,6 +162,7 @@ def test_delete_game_requires_current_revision_and_cascades_owned_rows(
         )
         assert stale.status_code == 409
         assert stale.json()["code"] == "revision_conflict"
+
         assert client.get(f"/api/games/{game_id}").status_code == 200
 
         deleted = client.request(
@@ -232,7 +262,7 @@ def test_selected_agent_doctrine_and_companion_style_reach_the_runtime_contract(
 
 def test_preview_reports_legal_and_illegal_points_without_mutation(app_client_factory: Any) -> None:
     unavailable_for_small_boards = {
-        "moveInfos": [{"move": "C4", "pv": ["C4"]}],
+        "moveInfos": [{"move": "C4", "order": 0, "pv": ["C4"]}],
         "ownership": [0.0] * 25,
         "rootInfo": {"scoreLead": 99.0, "visits": 999},
     }
@@ -275,6 +305,32 @@ def test_preview_reports_legal_and_illegal_points_without_mutation(app_client_fa
         assert unchanged["moves"] == []
         assert katago.queries == []
 
+
+def test_small_board_candidate_teaching_uses_exact_connection_facts_without_engine(
+    app_client_factory: Any,
+) -> None:
+    with app_client_factory(katago_analysis={"rootInfo": {"scoreLead": 99.0}, "moveInfos": []}) as (
+        client,
+        katago,
+        _openai,
+        _local,
+    ):
+        game = create_game(client, lesson_id="bridge-5", board_size=5)
+        preview = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 2, "y": 2, "actor_id": "human", "expected_revision": 1},
+        )
+        assert preview.status_code == 200, preview.text
+        teaching = preview.json()["teaching"]
+        assert teaching["legal_verified"] is True
+        assert teaching["engine_analyzed"] is False
+        assert teaching["tactics"]["friendly_groups_joined"] == 2
+        assert teaching["tactics"]["connects"] == [{"x": 1, "y": 2}, {"x": 3, "y": 2}]
+        assert teaching["tactics"]["evidence"] == "exact"
+        assert "score" not in teaching
+        assert "ownership_after" not in teaching
+        assert katago.queries == []
+
         seven = create_game(client, lesson_id="roads-7", board_size=7)
         seven_preview = client.post(
             f"/api/games/{seven['id']}/preview",
@@ -292,10 +348,10 @@ def test_pinned_katago_teaching_network_is_used_only_for_nine_by_nine(
     app_client_factory: Any,
 ) -> None:
     engine = {
-        "moveInfos": [{"move": "E5", "pv": ["E5", "D5"]}],
+        "moveInfos": [{"move": "E5", "order": 0, "pv": ["E5", "D5"]}],
         "ownership": [0.0] * 81,
         "ownershipStdev": [0.1] * 81,
-        "rootInfo": {"scoreLead": 0.5, "visits": 4},
+        "rootInfo": {"currentPlayer": "B", "scoreLead": 0.5, "visits": 4},
     }
     with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
         game = create_game(client, lesson_id="opening-compass", board_size=9)
@@ -306,6 +362,590 @@ def test_pinned_katago_teaching_network_is_used_only_for_nine_by_nine(
         assert preview.status_code == 200
         assert katago.queries and katago.queries[-1]["board_size"] == 9
         assert any(candidate["verified"] is True for candidate in preview.json()["candidates"])
+
+
+def test_analysis_endpoint_supplies_choices_before_a_board_point_is_selected(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {"currentPlayer": "B", "scoreLead": 0.5, "visits": 4},
+        "ownership": [0.0] * 81,
+        "ownershipStdev": [0.1] * 81,
+        "moveInfos": [
+            {
+                "move": "E5",
+                "order": 0,
+                "scoreLead": 1.0,
+                "visits": 4,
+                "pv": ["E5", "D5"],
+                "ownership": [0.1] * 81,
+                "ownershipStdev": [0.1] * 81,
+            }
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
+        game = create_game(client, lesson_id="opening-compass", board_size=9)
+        response = client.post(
+            f"/api/games/{game['id']}/analysis",
+            json={"expected_revision": 1},
+        )
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["game_id"] == game["id"]
+        assert payload["revision"] == 1
+        assert payload["analysis"]["candidates"][0]["coordinate"] == "E5"
+        assert payload["analysis"]["candidates"][0]["engine_analyzed"] is True
+        assert len(payload["analysis"]["candidates"][0]["ownership_after"]) == 81
+        assert len(katago.queries) == 1
+
+        stale = client.post(
+            f"/api/games/{game['id']}/analysis",
+            json={"expected_revision": 2},
+        )
+        assert stale.status_code == 409
+
+
+def test_katago_order_zero_pass_is_a_state_bound_selectable_agent_candidate(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {
+            "currentPlayer": "B",
+            "scoreLead": -1.0,
+            "winrate": 0.4,
+            "visits": 20,
+        },
+        "ownership": [0.0] * 81,
+        "policy": [-1.0] * 81 + [0.8],
+        "moveInfos": [
+            {
+                "move": "E5",
+                "order": 1,
+                "visits": 5,
+                "scoreLead": -2.0,
+                "winrate": 0.35,
+                "prior": 0.1,
+                "pv": ["E5", "D5"],
+                "ownership": [-0.1] * 81,
+            },
+            {
+                "move": "pass",
+                "order": 0,
+                "visits": 15,
+                "scoreLead": -1.0,
+                "winrate": 0.4,
+                "utility": -0.2,
+                "pv": ["pass", "E5"],
+                "ownership": [0.0] * 81,
+            },
+        ],
+    }
+    with app_client_factory(katago_analysis=engine, openai_choice="m0") as (
+        client,
+        _katago,
+        openai,
+        _local,
+    ):
+        game = create_game(client, mode="agent_vs_agent")
+        response = client.post(
+            f"/api/games/{game['id']}/analysis",
+            json={"expected_revision": 1},
+        )
+        assert response.status_code == 200, response.text
+        analysis = response.json()["analysis"]
+        candidate = analysis["candidates"][0]
+
+        assert candidate["kind"] == "pass"
+        assert candidate["coordinate"] == "pass"
+        assert candidate["point"] is None
+        assert re.fullmatch(r"m_[0-9a-f]{32}", candidate["id"])
+        assert candidate["intent"] == "endgame"
+        assert candidate["intent_evidence"] == "teacher"
+        assert candidate["title"] == "Possible end-of-game judgment"
+        assert candidate["tactics"]["resulting_liberties"] is None
+        assert candidate["tactics"]["ends_play"] is False
+        assert candidate["tactics"]["captures"] == []
+        assert candidate["evaluation"]["order"] == 0
+        assert candidate["evaluation"]["policy"] == 0.8
+        assert candidate["variation"][:2] == [
+            {"color": "black", "kind": "pass", "point": None},
+            {"color": "white", "kind": "play", "point": {"x": 4, "y": 4}},
+        ]
+        assert {item["id"] for item in candidate["facets"]} == {
+            "breath",
+            "bonds",
+            "pressure",
+        }
+        assert analysis["side_to_move"] == "black"
+        assert analysis["area_snapshot"]["status"] == "mechanical_all_stones_alive"
+        assert {item["id"] for item in analysis["facets"]} >= {"area", "beat"}
+
+        turn = client.post(
+            f"/api/games/{game['id']}/agent-turn",
+            json={"expected_revision": 1, "actor_id": "black-agent"},
+        )
+        assert turn.status_code == 200, turn.text
+        move = turn.json()["moves"][0]
+        assert move["kind"] == "pass"
+        assert move["point"] is None
+        assert move["intent"] == "endgame"
+        assert move["intent_evidence"] == "teacher"
+        assert turn.json()["to_play"] == "white"
+        assert openai.candidate_calls[0][0]["coordinate"] == "pass"
+        assert openai.candidate_calls[0][0]["intent_evidence"] == "teacher"
+        assert "ownership_after" not in openai.candidate_calls[0][0]
+
+
+def test_order_zero_second_pass_candidate_says_it_ends_play_without_scoring(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {"currentPlayer": "W", "scoreLead": -1.0, "visits": 12},
+        "moveInfos": [
+            {
+                "move": "pass",
+                "order": 0,
+                "visits": 12,
+                "scoreLead": -1.0,
+                "pv": ["pass"],
+            }
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, _katago, _openai, _local):
+        game = create_game(client)
+        first_pass = client.post(
+            f"/api/games/{game['id']}/moves",
+            json={
+                "actor_id": "human",
+                "expected_revision": 1,
+                "kind": "pass",
+                "intent": "endgame",
+                "client_request_id": "first-pass-before-engine-pass-0001",
+            },
+        )
+        assert first_pass.status_code == 200, first_pass.text
+        assert first_pass.json()["to_play"] == "white"
+
+        response = client.post(
+            f"/api/games/{game['id']}/analysis",
+            json={"expected_revision": 2},
+        )
+        assert response.status_code == 200, response.text
+        candidate = response.json()["analysis"]["candidates"][0]
+        assert candidate["kind"] == "pass"
+        assert candidate["tactics"]["ends_play"] is True
+        assert "two-consecutive-pass ending rule" in candidate["summary"]
+
+        second_pass = client.post(
+            f"/api/games/{game['id']}/agent-turn",
+            json={
+                "expected_revision": 2,
+                "actor_id": "sparring-agent",
+                "candidate_id": candidate["id"],
+            },
+        )
+        assert second_pass.status_code == 200, second_pass.text
+        ended = second_pass.json()
+        assert ended["phase"] == "finished"
+        assert ended["result"] is None
+        assert ended["moves"][-1]["kind"] == "pass"
+        assert "second consecutive pass ended play" in ended["coach_messages"][-1]["text"].lower()
+
+
+def test_engine_pass_below_order_zero_is_not_offered(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {"currentPlayer": "B", "scoreLead": 0.0, "visits": 10},
+        "moveInfos": [
+            {"move": "pass", "order": 1, "pv": ["pass"]},
+            {"move": "E5", "order": 0, "pv": ["E5"]},
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, _katago, _openai, _local):
+        game = create_game(client)
+        response = client.post(
+            f"/api/games/{game['id']}/analysis",
+            json={"expected_revision": 1},
+        )
+        assert response.status_code == 200
+        assert all(
+            candidate["coordinate"] != "pass"
+            for candidate in response.json()["analysis"]["candidates"]
+        )
+
+
+def test_preview_separates_teacher_intent_move_facets_and_current_position_facts(
+    app_client_factory: Any,
+) -> None:
+    with app_client_factory() as (client, _katago, _openai, _local):
+        game = create_game(client)
+        preview = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 0, "y": 8, "actor_id": "human", "expected_revision": 1},
+        )
+        assert preview.status_code == 200, preview.text
+        payload = preview.json()
+        teaching = payload["teaching"]
+        assert teaching["kind"] == "play"
+        assert teaching["intent_evidence"] == "teacher"
+        assert teaching["title"].startswith("Possible ")
+        assert "teacher hypothesis" in teaching["summary"].lower()
+        assert {item["id"] for item in payload["candidate_facets"]} == {
+            "breath",
+            "bonds",
+            "pressure",
+        }
+        assert "beat" not in {item["id"] for item in payload["candidate_facets"]}
+        position_ids = {item["id"] for item in payload["position_facets"]}
+        assert {"area", "beat"} <= position_ids
+        assert (
+            next(item for item in payload["position_facets"] if item["id"] == "beat")[
+                "canonical_term"
+            ]
+            == "Side to move"
+        )
+        assert payload["candidates"]
+        assert all(item["intent_evidence"] == "teacher" for item in payload["candidates"])
+        analysis_response = client.post(
+            f"/api/games/{game['id']}/analysis",
+            json={"expected_revision": 1},
+        )
+        assert analysis_response.status_code == 200
+        analysis = analysis_response.json()["analysis"]
+        assert analysis["engine"] == "Exact board facts + authored guidance"
+        assert analysis["side_to_move"] == "black"
+        assert analysis["area_snapshot"]["adjudicated"] is False
+
+
+def test_candidate_engine_evidence_is_black_perspective_complete_and_cached(
+    app_client_factory: Any,
+) -> None:
+    root_ownership = [0.0] * 81
+    after_ownership = [0.1] * 81
+    engine = {
+        "rootInfo": {
+            "currentPlayer": "B",
+            "scoreLead": 1.0,
+            "scoreStdev": 5.0,
+            "winrate": 0.5,
+            "visits": 30,
+        },
+        "ownership": root_ownership,
+        "ownershipStdev": [0.2] * 81,
+        "moveInfos": [
+            {
+                "move": "C3",
+                "order": 2,
+                "visits": 3,
+                "scoreLead": 0.5,
+                "winrate": 0.48,
+                "prior": 0.1,
+                "utility": -0.1,
+                "pv": ["C3", "D3"],
+                "ownership": [-0.05] * 81,
+            },
+            {
+                "move": "E5",
+                "order": 0,
+                "visits": 20,
+                "scoreLead": 2.0,
+                "scoreStdev": 6.0,
+                "winrate": 0.6,
+                "prior": 0.3,
+                "utility": 0.2,
+                "pv": ["E5", "pass", "D5"],
+                "ownership": after_ownership,
+                "ownershipStdev": [0.25] * 81,
+            },
+            {
+                "move": "E3",
+                "order": 1,
+                "visits": 7,
+                "scoreLead": 1.5,
+                "winrate": 0.55,
+                "prior": 0.2,
+                "utility": 0.1,
+                "pv": ["E3", "E4"],
+                "ownership": [0.05] * 81,
+            },
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
+        game = create_game(client)
+        first = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 4, "y": 4, "actor_id": "human", "expected_revision": 1},
+        )
+        assert first.status_code == 200, first.text
+        candidate = first.json()["teaching"]
+
+        assert candidate["coordinate"] == "E5"
+        assert candidate["legal_verified"] is True
+        assert candidate["engine_analyzed"] is True
+        assert re.fullmatch(r"m_[0-9a-f]{32}", candidate["id"])
+        assert candidate["score"] == {
+            "before": 1.0,
+            "after": 2.0,
+            "delta": 1.0,
+            "mover_delta": 1.0,
+            "perspective": "black",
+            "evidence": "engine",
+            "outcome_spread_before": 5.0,
+            "outcome_spread_after": 6.0,
+            "difference_from_top": 0.0,
+        }
+        assert candidate["evaluation"] == {
+            "perspective": "black",
+            "evidence": "engine",
+            "winrate_before": 0.5,
+            "winrate_after": 0.6,
+            "winrate_delta": 0.1,
+            "winrate_mover_delta": 0.1,
+            "order": 0,
+            "visits": 20,
+            "policy": 0.3,
+            "utility": 0.2,
+        }
+        assert len(candidate["ownership_before"]) == 81
+        assert len(candidate["ownership_after"]) == 81
+        assert len(candidate["ownership_delta"]) == 81
+        assert candidate["ownership_after"][0] == {
+            "x": 0,
+            "y": 0,
+            "value": 0.1,
+            "variation": 0.25,
+        }
+        assert candidate["ownership_delta"][-1] == {
+            "x": 8,
+            "y": 8,
+            "value": 0.1,
+            "variation": 0.25,
+        }
+        assert candidate["ownership_perspective"] == "black"
+        assert candidate["variation"][1] == {
+            "color": "white",
+            "kind": "pass",
+            "point": None,
+        }
+        assert candidate["main_line_reply"] == "White pass"
+        assert "influence" not in candidate
+
+        repeated = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 3, "y": 4, "actor_id": "human", "expected_revision": 1},
+        )
+        assert repeated.status_code == 200
+        assert len(katago.queries) == 1
+
+
+def test_white_mover_keeps_engine_values_black_normalized_and_gets_mover_delta(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {
+            "currentPlayer": "W",
+            "scoreLead": 2.0,
+            "winrate": 0.6,
+            "visits": 12,
+        },
+        "ownership": [0.2] * 81,
+        "moveInfos": [
+            {
+                "move": "D5",
+                "order": 0,
+                "visits": 10,
+                "scoreLead": 3.0,
+                "winrate": 0.7,
+                "prior": 0.4,
+                "utility": 0.3,
+                "pv": ["D5", "E4"],
+                "ownership": [0.3] * 81,
+            }
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, _katago, _openai, _local):
+        game = create_game(client)
+        moved = _move(
+            client,
+            game["id"],
+            revision=1,
+            actor_id="human",
+            x=4,
+            y=4,
+            request_id="candidate-perspective-move-0001",
+        )
+        assert moved.status_code == 200
+        preview = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={
+                "x": 3,
+                "y": 4,
+                "actor_id": "sparring-agent",
+                "expected_revision": 2,
+            },
+        )
+        assert preview.status_code == 200, preview.text
+        candidate = preview.json()["teaching"]
+        assert candidate["score"]["perspective"] == "black"
+        assert candidate["score"]["delta"] == 1.0
+        assert candidate["score"]["mover_delta"] == -1.0
+        assert candidate["evaluation"]["winrate_delta"] == 0.1
+        assert candidate["evaluation"]["winrate_mover_delta"] == -0.1
+        assert candidate["ownership_delta"][0]["value"] == 0.1
+
+
+def test_engine_response_for_the_wrong_side_to_move_is_not_attached_to_candidates(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {"currentPlayer": "W", "scoreLead": 4.0, "visits": 12},
+        "ownership": [0.5] * 81,
+        "moveInfos": [
+            {
+                "move": "E5",
+                "order": 0,
+                "scoreLead": 5.0,
+                "pv": ["E5"],
+                "ownership": [0.6] * 81,
+            }
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
+        game = create_game(client)
+        preview = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 4, "y": 4, "actor_id": "human", "expected_revision": 1},
+        )
+        assert preview.status_code == 200
+        teaching = preview.json()["teaching"]
+        assert teaching["legal_verified"] is True
+        assert teaching["engine_analyzed"] is False
+        assert "score" not in teaching
+        assert "ownership_after" not in teaching
+        assert len(katago.queries) == 1
+
+
+def test_engine_response_without_current_player_is_not_attached_to_candidates(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {"scoreLead": 4.0, "visits": 12},
+        "ownership": [0.5] * 81,
+        "moveInfos": [
+            {
+                "move": "E5",
+                "order": 0,
+                "scoreLead": 5.0,
+                "pv": ["E5"],
+                "ownership": [0.6] * 81,
+            }
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, katago, _openai, _local):
+        game = create_game(client)
+        preview = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 4, "y": 4, "actor_id": "human", "expected_revision": 1},
+        )
+        assert preview.status_code == 200
+        teaching = preview.json()["teaching"]
+        assert teaching["legal_verified"] is True
+        assert teaching["engine_analyzed"] is False
+        assert "score" not in teaching
+        assert "ownership_after" not in teaching
+        assert len(katago.queries) == 1
+
+
+def test_malformed_candidate_evidence_is_omitted_and_payloads_stay_bounded(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {
+            "currentPlayer": "B",
+            "scoreLead": "unknown",
+            "winrate": 2.0,
+            "visits": -1,
+        },
+        "ownership": [0.0] * 80,
+        "moveInfos": [
+            {
+                "move": "E5",
+                "order": 0,
+                "visits": -5,
+                "scoreLead": float("nan"),
+                "winrate": -0.1,
+                "prior": 4.0,
+                "utility": float("inf"),
+                "pv": ["E5"] * 2_000,
+                "ownership": [0.0] * 80,
+                "ownershipStdev": [0.1] * 2_000,
+            }
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, _katago, _openai, _local):
+        game = create_game(client)
+        preview = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 4, "y": 4, "actor_id": "human", "expected_revision": 1},
+        )
+        assert preview.status_code == 200, preview.text
+        payload = preview.json()
+        candidate = payload["teaching"]
+        assert candidate["engine_analyzed"] is True
+        assert candidate["variation"] == [
+            {"color": "black", "kind": "play", "point": {"x": 4, "y": 4}}
+        ]
+        assert candidate["main_line_reply"] is None
+        assert "score" not in candidate
+        assert candidate["evaluation"] == {
+            "perspective": "black",
+            "evidence": "engine",
+            "order": 0,
+        }
+        assert "ownership_before" not in candidate
+        assert "ownership_after" not in candidate
+        assert "ownership_delta" not in candidate
+        assert len(payload["candidates"]) <= 3
+        assert len(preview.content) < 60_000
+
+
+def test_stable_candidate_id_cannot_remap_when_engine_ranking_changes(
+    app_client_factory: Any,
+) -> None:
+    first_engine = {
+        "rootInfo": {"currentPlayer": "B", "scoreLead": 0.0, "visits": 10},
+        "moveInfos": [
+            {"move": "E5", "order": 0, "pv": ["E5"]},
+            {"move": "C3", "order": 1, "pv": ["C3"]},
+        ],
+    }
+    with app_client_factory(katago_analysis=first_engine) as (client, katago, _openai, _local):
+        game = create_game(client, mode="agent_vs_agent")
+        preview = client.post(
+            f"/api/games/{game['id']}/preview",
+            json={"x": 4, "y": 4, "actor_id": "black-agent", "expected_revision": 1},
+        )
+        original = next(item for item in preview.json()["candidates"] if item["coordinate"] == "E5")
+
+        katago.analysis = {
+            "rootInfo": {"currentPlayer": "B", "scoreLead": 0.0, "visits": 10},
+            "moveInfos": [
+                {"move": "C3", "order": 0, "pv": ["C3"]},
+                {"move": "E5", "order": 1, "pv": ["E5"]},
+            ],
+        }
+        client.app.state.game_service._engine_analysis_cache.clear()
+        turn = client.post(
+            f"/api/games/{game['id']}/agent-turn",
+            json={
+                "expected_revision": 1,
+                "actor_id": "black-agent",
+                "candidate_id": original["id"],
+            },
+        )
+        assert turn.status_code == 200, turn.text
+        assert turn.json()["moves"][0]["point"] == {"x": 4, "y": 4}
 
 
 def test_move_is_idempotent_and_revision_compare_and_swap_is_enforced(
@@ -366,6 +1006,65 @@ def test_move_is_idempotent_and_revision_compare_and_swap_is_enforced(
         assert reused.json()["code"] == "idempotency_conflict"
 
 
+def test_two_pass_finish_stays_unscored_while_resignation_keeps_its_result(
+    app_client_factory: Any,
+) -> None:
+    with app_client_factory() as (client, _katago, _openai, _local):
+        game = create_game(client, mode="two_player")
+        first_pass = client.post(
+            f"/api/games/{game['id']}/moves",
+            json={
+                "actor_id": "black-human",
+                "expected_revision": 1,
+                "kind": "pass",
+                "client_request_id": "two-pass-black-0001",
+            },
+        )
+        assert first_pass.status_code == 200, first_pass.text
+        assert first_pass.json()["phase"] == "playing"
+        assert first_pass.json()["result"] is None
+
+        second_pass = client.post(
+            f"/api/games/{game['id']}/moves",
+            json={
+                "actor_id": "white-human",
+                "expected_revision": 2,
+                "kind": "pass",
+                "client_request_id": "two-pass-white-0001",
+            },
+        )
+        assert second_pass.status_code == 200, second_pass.text
+        assert second_pass.json()["phase"] == "finished"
+        assert second_pass.json()["result"] is None
+        assert second_pass.json()["area_snapshot"] == {
+            "status": "mechanical_all_stones_alive",
+            "black_stones": 0,
+            "black_enclosed_empty": 0,
+            "black_total": 0.0,
+            "white_stones": 0,
+            "white_enclosed_empty": 0,
+            "komi": 7.5,
+            "white_total": 7.5,
+            "neutral_points": 81,
+            "adjudicated": False,
+        }
+        assert client.get(f"/api/games/{game['id']}").json()["result"] is None
+
+        resigned_game = create_game(client, mode="two_player")
+        resigned = client.post(
+            f"/api/games/{resigned_game['id']}/moves",
+            json={
+                "actor_id": "black-human",
+                "expected_revision": 1,
+                "kind": "resign",
+                "client_request_id": "resignation-black-0001",
+            },
+        )
+        assert resigned.status_code == 200, resigned.text
+        assert resigned.json()["phase"] == "finished"
+        assert resigned.json()["result"] == "W+R"
+
+
 def test_frontend_move_without_an_explicit_request_key_is_still_retry_safe(
     app_client_factory: Any,
 ) -> None:
@@ -415,7 +1114,9 @@ def test_companion_needs_explicit_one_turn_delegation_and_never_owns_the_move(
         assert position["moves"][0]["actor_id"] == "human"
         assert position["to_play"] == "white"
         assert openai.candidate_calls
-        assert [item["id"] for item in openai.candidate_calls[0]] == ["m0", "m1", "m2"]
+        offered_ids = [item["id"] for item in openai.candidate_calls[0]]
+        assert len(offered_ids) == len(set(offered_ids)) == 3
+        assert all(re.fullmatch(r"m_[0-9a-f]{32}", item) for item in offered_ids)
 
         cannot_reuse = client.post(
             f"/api/games/{game_id}/agent-turn",
@@ -448,7 +1149,7 @@ def test_agent_choice_maps_only_a_supplied_ui_id_to_its_domain_candidate(
             json={
                 "expected_revision": 2,
                 "actor_id": "white-agent",
-                "candidate_id": "m9",
+                "candidate_id": "m_00000000000000000000000000000000",
             },
         )
         assert invalid.status_code == 400
@@ -521,7 +1222,12 @@ def test_rewind_hides_coaching_attached_to_abandoned_nodes(app_client_factory: A
             json={
                 "expected_revision": 2,
                 "actor_id": "sparring-agent",
-                "candidate_id": "m0",
+                "candidate_id": _offered_candidate_id(
+                    client,
+                    game_id,
+                    revision=2,
+                    actor_id="sparring-agent",
+                ),
                 "client_request_id": "story-branch-request-0002",
             },
         )
@@ -547,7 +1253,13 @@ def test_rewind_hides_coaching_attached_to_abandoned_nodes(app_client_factory: A
             json={
                 "expected_revision": 4,
                 "actor_id": "sparring-agent",
-                "candidate_id": "m1",
+                "candidate_id": _offered_candidate_id(
+                    client,
+                    game_id,
+                    revision=4,
+                    actor_id="sparring-agent",
+                    index=1,
+                ),
                 "client_request_id": "story-branch-request-0003",
             },
         )
@@ -581,7 +1293,12 @@ def test_coach_conversation_is_interleaved_with_moves_in_chronological_order(
             json={
                 "expected_revision": 2,
                 "actor_id": "sparring-agent",
-                "candidate_id": "m0",
+                "candidate_id": _offered_candidate_id(
+                    client,
+                    game["id"],
+                    revision=2,
+                    actor_id="sparring-agent",
+                ),
                 "client_request_id": "ordered-chat-request-0002",
             },
         )
@@ -636,16 +1353,64 @@ def test_coach_falls_back_to_exact_deterministic_facts_and_persists_message(
         )
         assert answer.status_code == 200, answer.text
         message = answer.json()["message"]
-        assert message["evidence"] == ["exact"]
+        assert message["evidence"] == ["teacher"]
         assert "Exact board check" in message["text"]
-        assert "Try " in message["text"]
-        assert "Next, watch this:" in message["text"]
+        assert "fewest current liberties" in message["text"]
+        assert "Rules-verified legal candidate:" in message["text"]
+        assert "Teacher hypothesis (not KataGo's reason):" in message["text"]
+        assert "Teacher risk hypothesis:" in message["text"]
+        assert "urgent" not in message["text"]
+        assert "weakest" not in message["text"]
         assert "model companion was unavailable" in message["text"]
         assert openai.coach_calls
         assert local.coach_calls == []
 
         loaded = client.get(f"/api/games/{game['id']}").json()
         assert loaded["coach_messages"][-1]["text"] == message["text"]
+        assert openai.coach_calls[0]["candidates"]
+        assert all(
+            item["intent_evidence"] == "teacher" for item in openai.coach_calls[0]["candidates"]
+        )
+        assert "intent_evidence=teacher" in openai.coach_calls[0]["teaching_contract"]
+
+
+def test_engine_candidate_coordinate_and_teacher_reason_are_rendered_separately(
+    app_client_factory: Any,
+) -> None:
+    engine = {
+        "rootInfo": {"currentPlayer": "B", "scoreLead": 0.0, "visits": 10},
+        "moveInfos": [
+            {"move": "E5", "order": 0, "pv": ["E5", "D5"]},
+        ],
+    }
+    with app_client_factory(katago_analysis=engine) as (client, _katago, _openai, _local):
+        game = create_game(client)
+        answer = client.post(
+            f"/api/games/{game['id']}/coach",
+            json={"expected_revision": 1, "question": "What should I compare?"},
+        )
+        assert answer.status_code == 200, answer.text
+        text = answer.json()["message"]["text"]
+        assert "KataGo order candidate: E5." in text
+        assert "Teacher hypothesis (not KataGo's reason):" in text
+        assert "KataGo reply in one main line (not forced): White D5" in text
+
+
+def test_model_coach_uncertainty_is_preserved_in_rendered_and_stored_text(
+    app_client_factory: Any,
+) -> None:
+    uncertainty = "The supplied evidence does not settle whether the group can make two eyes."
+    draft = _coach_draft().model_copy(update={"uncertainty": uncertainty})
+    with app_client_factory(openai_draft=draft) as (client, _katago, _openai, _local):
+        game = create_game(client, lesson_id="breath-5", board_size=5)
+        answer = client.post(
+            f"/api/games/{game['id']}/coach",
+            json={"expected_revision": 1, "question": "What remains unknown?"},
+        )
+        assert answer.status_code == 200, answer.text
+        assert f"Model uncertainty: {uncertainty}" in answer.json()["message"]["text"]
+        loaded = client.get(f"/api/games/{game['id']}").json()
+        assert f"Model uncertainty: {uncertainty}" in loaded["coach_messages"][-1]["text"]
 
 
 def test_model_coach_does_not_claim_engine_evidence_when_katago_is_unavailable(
@@ -679,7 +1444,8 @@ def test_model_coach_does_not_claim_engine_evidence_when_katago_is_unavailable(
         assert message["text"].startswith("Now: Count before you run")
         assert "What changed: The current string is in atari." in message["text"]
         assert "Why: Liberties —" in message["text"]
-        assert "Try " in message["text"]
+        assert "Candidate coordinate:" in message["text"]
+        assert "Teacher hypothesis:" in message["text"]
         assert "Remember: Count exact liberties" in message["text"]
         assert "The scout still has one open road" not in message["text"]
 
@@ -698,7 +1464,7 @@ def test_default_configuration_does_not_use_unverified_local_prose(
         )
         assert answer.status_code == 200
         message = answer.json()["message"]
-        assert message["evidence"] == ["exact"]
+        assert message["evidence"] == ["teacher"]
         assert "Exact board check" in message["text"]
         assert openai.coach_calls
         assert local.coach_calls == []
@@ -869,7 +1635,12 @@ def test_follow_up_context_excludes_dialogue_from_an_abandoned_branch(
             json={
                 "expected_revision": 2,
                 "actor_id": "sparring-agent",
-                "candidate_id": "m0",
+                "candidate_id": _offered_candidate_id(
+                    client,
+                    game_id,
+                    revision=2,
+                    actor_id="sparring-agent",
+                ),
                 "client_request_id": "dialogue-branch-agent-0001",
             },
         )

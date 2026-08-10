@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "first-journey",
   "title": "The First Journey Across the Board",
-  "summary": "A complete 9x9 game taught as a calm journey from the first liberty to a readable final score.",
+  "summary": "A complete 9x9 game taught as a calm journey from the first liberty to an honest ending review.",
   "default_board_size": 9,
   "lessons": [
     {
@@ -60,10 +60,10 @@
       "chapter": 6,
       "title": "Finish the story and count",
       "story_hook": "A game ends when both travelers agree there is no valuable road left to take.",
-      "objective": "Close the borders, pass responsibly, and read Chinese area scoring.",
+      "objective": "Close the borders, pass responsibly, inspect the area snapshot, and identify unsettled stones before a final score.",
       "concepts": ["endgame", "pass", "area scoring", "neutral point"],
       "remember": ["Under Chinese area scoring, stones and surrounded empty points count.", "Two consecutive passes end the game."],
-      "reflection": "Can you name the black area, white area, neutral points, komi, and final margin?"
+      "reflection": "Can you name the black area, white area, neutral points, komi, and which groups still need settlement before a final margin?"
     }
   ]
 }

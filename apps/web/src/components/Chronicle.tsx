@@ -50,7 +50,7 @@ export function Chronicle({
                     <span><CalendarDays size={12} /> {formatDate(game.updated_at)}</span>
                   </span>
                   <strong>{game.title}</strong>
-                  <small>{game.result ?? `${game.move_count} moves · ${game.phase}`}</small>
+                  <small>{game.result ?? (game.phase === 'finished' ? 'Play ended · score not settled' : `${game.move_count} moves · ${game.phase}`)}</small>
                   <span className="concept-tags compact">
                     {(game.concepts ?? []).slice(0, 3).map((concept) => <span key={concept}>{concept}</span>)}
                   </span>
@@ -90,7 +90,7 @@ export function Chronicle({
             <>
               <span className="eyebrow">Review hall</span>
               <h3>{selected.title}</h3>
-              <div className="review-result"><Trophy size={17} /> {selected.result ?? 'Journey in progress'}</div>
+              <div className="review-result"><Trophy size={17} /> {selected.result ?? (selected.phase === 'finished' ? 'Play ended · score not settled' : 'Journey in progress')}</div>
               {selected.story_summary && (
                 <div className="story-acts">
                   {selected.story_summary.promise && <StoryAct number="I" title="Promise" text={selected.story_summary.promise} />}

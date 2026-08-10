@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from .coordinates import escape_sgf_value, sgf_to_vertex, vertex_to_sgf
 from .core_types import Color, MoveKind
-from .rules import GameState, new_game, pass_turn, play, resign
+from .rules import GameState, ResultReason, new_game, pass_turn, play, resign
 from .scoring import chinese_area_score
 
 MAX_SGF_CHARS = 1_048_576
@@ -59,8 +59,18 @@ def export_sgf(
         root.append(_property("AW", white_setup))
     if state.history and state.history[0].color is Color.WHITE:
         root.append(_property("PL", ("W",)))
-    if state.result_reason is not None:
+    if state.result_reason is ResultReason.RESIGNATION:
         root.append(_property("RE", (chinese_area_score(state).result,)))
+    elif state.result_reason is ResultReason.TWO_PASSES:
+        root.append(
+            _property(
+                "C",
+                (
+                    "Play ended by two consecutive passes. Dead stones were not "
+                    "settled, so no adjudicated result is recorded.",
+                ),
+            )
+        )
 
     nodes = [";" + "".join(root)]
     for move in state.history:

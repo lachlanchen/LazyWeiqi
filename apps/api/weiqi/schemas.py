@@ -104,6 +104,10 @@ class PreviewRequest(StrictModel):
     intent: Intent = Intent.UNSURE
 
 
+class AnalysisRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+
+
 class MoveRequest(StrictModel):
     actor_id: SafeActorId
     expected_revision: int = Field(ge=1)
@@ -126,7 +130,7 @@ class AgentTurnRequest(StrictModel):
     actor_id: SafeActorId | None = None
     doctrine: AgentDoctrine | None = None
     delegated_by: SafeActorId | None = None
-    candidate_id: Annotated[str, StringConstraints(pattern=r"^m[0-9]{1,2}$")] | None = None
+    candidate_id: Annotated[str, StringConstraints(pattern=r"^m_[0-9a-f]{32}$")] | None = None
     client_request_id: SafeRequestId | None = None
 
 
@@ -145,7 +149,7 @@ class CoachQuestion(StrictModel):
 
 
 class CandidateChoice(StrictModel):
-    candidate_id: Annotated[str, StringConstraints(pattern=r"^m[0-9]{1,2}$")]
+    candidate_id: Annotated[str, StringConstraints(pattern=r"^m_[0-9a-f]{32}$")]
     intent: Literal["build", "fight", "escape", "connect", "reduce", "tenuki"]
     title: Annotated[str, StringConstraints(min_length=1, max_length=60)]
     reason: Annotated[str, StringConstraints(min_length=1, max_length=300)]

@@ -77,8 +77,10 @@ def test_capture_counts_do_not_add_prisoner_points_under_chinese_area_scoring() 
     assert score.black_total != score.black_stones + score.black_territory + state.black_captures
 
 
-def test_two_passes_produce_an_area_result_and_resignation_uses_r() -> None:
+def test_two_passes_allow_a_mechanical_area_snapshot_and_resignation_uses_r() -> None:
     two_passes = pass_turn(pass_turn(new_game(size=9, komi=7.5)))
+    # All stones are treated as present. This is useful for teaching the area
+    # count, but is not an adjudicated result until dead stones are settled.
     assert chinese_area_score(two_passes).result == "W+7.5"
 
     resigned = resign(new_game(size=9), actor_id="human")

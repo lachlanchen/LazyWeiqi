@@ -90,8 +90,11 @@ LESSONS: tuple[dict[str, Any], ...] = (
         "training_rule": None,
         "concepts": ["full_game", "pass", "chinese_area_scoring"],
         "story_hook": "This time the road will not end at one capture. Carry the position to its true ending.",
-        "objective": "Play until both sides pass, score the board, and tell its story in one sentence.",
-        "memory": "Finish first; refinement comes later.",
+        "objective": (
+            "Play until both sides pass, inspect the mechanical area snapshot, "
+            "and identify unsettled groups before calling a final score."
+        ),
+        "memory": "Two passes end play; settle dead stones before declaring the final margin.",
         "setup": {"black": [], "white": [], "to_play": "B"},
         "featured_moves": ["C3", "G7", "E5"],
         "available": True,

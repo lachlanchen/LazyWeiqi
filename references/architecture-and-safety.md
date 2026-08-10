@@ -38,7 +38,10 @@ The Energy Lens deliberately separates evidence classes:
 
 - **Exact**: liberties, groups, adjacency, captures, phase, and legal status.
 - **Tactical read**: a bounded variation, clearly identified as a read.
-- **Engine estimate**: KataGo ownership, policy, score, and uncertainty.
+- **Engine estimate**: KataGo ownership, policy, score, and variation across
+  searched continuations. This variation is not model confidence or accuracy.
+- **Teacher guidance**: deterministic/authored explanation that may combine
+  exact facts with an explicitly non-exact strategic interpretation.
 - **Model explanation**: validated learner-facing prose that is not itself an
   exact board fact.
 - **Metaphor**: learner-facing language such as breath, shelter, roads, or reach.
@@ -51,19 +54,35 @@ bytes together). Rewound dialogue is excluded. Strict structured output rejects
 unknown candidate IDs and unsupported fields. Provider failure falls back to
 deterministic teaching rather than blocking play.
 
-The default Cloud layer is a transparent distance-decay visualization computed
-from canonical stone coordinates. On an empty board it shows authored
-corner/side/center opening potential; after play it shows separate Black, White,
-and overlap fields. It is labeled **Metaphor** and is never score, territory,
-physics, or hidden model output. On 9×9, a separate Reach/Ground layer may render
-the supplied KataGo ownership estimate with an **Engine estimate** label. The
-installed 9×9-specialized network is never queried for 5×5 or 7×7 positions.
+On 9×9, the board shows KataGo's order-zero candidate immediately and switches its
+field on candidate hover, focus, tap, or click. Its proposed strategic job is
+always labeled as a teacher hypothesis. Each field is the complete
+validated KataGo ownership forecast **after that candidate**, plus the strongest
+displayed changes from the current forecast. It is always labeled Black-positive
+and never called secured territory. Score and win-rate forecasts retain their
+Black perspective; candidate comparison additionally converts the signed
+difference into the mover's perspective.
 
-The adjacent teaching card uses a fixed beginner scan—place, change, reply,
-next—rather than an essay. Coordinates and exact liberty/capture facts come from
-the deterministic position; candidate summaries and replies are displayed only
-when they exist in the position-bound shortlist. Model instructions forbid
-turning “two or more liberties” into an unsupported alive/safe claim.
+The client obtains this initial comparison through a read-only, revision-bound
+`POST /api/games/{id}/analysis`. The service rechecks the revision after the
+engine await, so a concurrent move or rewind rejects the stale field. Automatic
+analysis runs only on learner turns (or a deliberately paused Agent Theatre),
+avoiding duplicate searches while a Player Agent is already choosing.
+
+The optional Presence sketch is a transparent distance-decay analogy computed
+from canonical stone coordinates. On an empty board it shows authored
+corner/side/center efficiency; after play it shows separate Black, White, and
+overlap proximity. It is labeled **Metaphor**, does not rank candidates, and is
+never score, territory, physics, or hidden model output. The installed
+9×9-specialized network is never queried for 5×5 or 7×7 positions.
+
+The adjacent teaching card uses a fixed beginner scan—play, because, changes,
+opponent, then check, principle—rather than an essay. Coordinates and exact
+liberty/capture facts come from the deterministic position. Engine rank, score,
+ownership, and a legally replayed bounded continuation appear only when the
+position-bound analysis supplied them. A principal variation is one searched
+line, not a forced reply. Model instructions forbid turning “two or more
+liberties” into an unsupported alive/safe claim.
 
 The complete learner-facing dialogue remains in the game chronicle. This release
 does not turn older model text into a privileged semantic summary; only the
