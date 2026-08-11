@@ -7,8 +7,8 @@ date-released: 2026-08-10
 authors:
   - family-names: Chen
     given-names: Lachlan
-repository-code: "https://github.com/lachlanchen/Weiqi"
-url: "https://github.com/lachlanchen/Weiqi"
+repository-code: "https://github.com/lachlanchen/LazyWeiqi"
+url: "https://github.com/lachlanchen/LazyWeiqi"
 license: MIT
 keywords:
   - Weiqi

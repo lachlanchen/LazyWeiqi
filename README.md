@@ -111,8 +111,8 @@ Prerequisites: Linux, Python 3.10+, [uv](https://docs.astral.sh/uv/), Node.js
 lessons work without it.
 
 ```bash
-git clone https://github.com/lachlanchen/Weiqi.git
-cd Weiqi
+git clone https://github.com/lachlanchen/LazyWeiqi.git
+cd LazyWeiqi
 npm ci
 uv sync --project apps/api --extra dev --locked
 cp .env.example .env
@@ -257,7 +257,7 @@ GitHub reads [`CITATION.cff`](CITATION.cff) and exposes **Cite this repository**
   title = {Path of Influence: A Local-First Weiqi Teaching Journey},
   year = {2026},
   version = {0.1.0},
-  url = {https://github.com/lachlanchen/Weiqi}
+  url = {https://github.com/lachlanchen/LazyWeiqi}
 }
 ```
 
