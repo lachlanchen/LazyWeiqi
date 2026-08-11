@@ -877,8 +877,17 @@ def run() -> dict[str, Any]:
         page.on("response", handle_response)
         page.bring_to_front()
 
-        # The compact interface is a real, reloadable route. Opening it must
-        # not create a game, and switching layouts must use the same App state.
+        # The compact interface is the reloadable default. Its legacy /simple
+        # alias remains available, and neither route may create a game.
+        page.goto(APP_URL, wait_until="networkidle")
+        page.locator(
+            '[data-testid="app-root"][data-layout="simple"][data-view="journey"]'
+        ).wait_for(state="visible")
+        checks["simpleDefaultRoute"] = (
+            urlsplit(page.url).path == "/"
+            and page.get_by_test_id("simple-launcher").is_visible()
+            and not created_game_ids
+        )
         page.goto(f"{APP_URL}simple/", wait_until="networkidle")
         root = page.get_by_test_id("app-root")
         root.wait_for(state="visible")
@@ -918,9 +927,11 @@ def run() -> dict[str, Any]:
         page.locator('[data-testid="app-root"][data-layout="classic"]').wait_for(
             state="visible"
         )
-        checks["simpleSwitchPreservesEmptyState"] = not created_game_ids
+        checks["simpleSwitchPreservesEmptyState"] = (
+            urlsplit(page.url).path == "/full" and not created_game_ids
+        )
 
-        page.goto(APP_URL, wait_until="networkidle")
+        page.goto(f"{APP_URL}full", wait_until="networkidle")
         root = page.get_by_test_id("app-root")
         root.wait_for(state="visible")
         page.locator('[data-testid="app-root"][data-status="ready"]').wait_for(
@@ -1214,7 +1225,7 @@ def run() -> dict[str, Any]:
             '[data-testid="play-workspace"][data-layout="simple"]'
         ).wait_for(state="visible")
         checks["simplePreviewStatePreserved"] = (
-            urlsplit(page.url).path == "/simple"
+            urlsplit(page.url).path == "/"
             and workspace.get_attribute("data-selected-coordinate")
             == preview_coordinate_before_simple
             and page.get_by_test_id("commit-move").is_enabled()
@@ -1266,7 +1277,8 @@ def run() -> dict[str, Any]:
             state="visible"
         )
         simple_back_preserved = (
-            workspace.get_attribute("data-selected-coordinate")
+            urlsplit(page.url).path == "/full"
+            and workspace.get_attribute("data-selected-coordinate")
             == preview_coordinate_before_simple
             and page.get_by_test_id("commit-move").is_enabled()
         )
@@ -1276,6 +1288,7 @@ def run() -> dict[str, Any]:
         )
         checks["simpleHistoryNavigationPreservesPreview"] = (
             simple_back_preserved
+            and urlsplit(page.url).path == "/"
             and workspace.get_attribute("data-selected-coordinate")
             == preview_coordinate_before_simple
             and page.get_by_test_id("commit-move").is_enabled()

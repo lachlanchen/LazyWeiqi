@@ -66,7 +66,7 @@ def test_simple_ui_route_serves_the_reviewed_spa_entry(
     monkeypatch.setattr(main_module, "_web_dist", lambda: web_dist)
 
     with app_client_factory() as (client, _katago, _openai, _local):
-        for route in ("/simple", "/simple/"):
+        for route in ("/", "/simple", "/simple/", "/full", "/full/"):
             response = client.get(route)
             assert response.status_code == 200
             assert response.text == entry

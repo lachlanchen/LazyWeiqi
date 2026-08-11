@@ -119,8 +119,8 @@ cp .env.example .env
 scripts/run.sh start
 ```
 
-Open <http://127.0.0.1:8010/> for the complete learning interface or
-<http://127.0.0.1:8010/simple> for the compact, full-screen board. The header
+Open <http://127.0.0.1:8010/> for the default compact, full-screen board or
+<http://127.0.0.1:8010/full> for the complete learning interface. The header
 switch changes between them without reloading or losing the active game. Stop
 only this repository's owned API process with:
 
@@ -173,7 +173,7 @@ as hidden reasoning; only the validated learner-facing explanation is persisted.
 
 English is the default, with reviewed Simplified Chinese and Japanese catalogs.
 The header selector uses an allowlist, persists its choice locally, and updates
-the document language without restarting the lesson or changing the `/simple`
+the document language without restarting the lesson or changing the active UI
 route. Stable interface copy, deterministic rules explanations, and curriculum
 lessons are localized by catalog key or lesson ID. Unconstrained engine/model
 prose stays verbatim and keeps its evidence label; the client never presents a

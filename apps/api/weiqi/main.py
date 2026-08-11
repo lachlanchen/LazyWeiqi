@@ -439,8 +439,10 @@ def create_app(
 
         @app.get("/simple", include_in_schema=False)
         @app.get("/simple/", include_in_schema=False)
-        async def simple_ui() -> FileResponse:
-            """Serve the same reviewed SPA entry point for the compact UI route."""
+        @app.get("/full", include_in_schema=False)
+        @app.get("/full/", include_in_schema=False)
+        async def interface_ui() -> FileResponse:
+            """Serve the reviewed SPA entry point for explicit interface routes."""
 
             return FileResponse(web_dist / "index.html", media_type="text/html")
 

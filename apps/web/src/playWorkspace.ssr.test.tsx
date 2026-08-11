@@ -156,10 +156,12 @@ function renderWorkspace({
 }
 
 describe('simple interface route contract', () => {
-  it('recognizes only the dedicated simple path, including its trailing slash', () => {
+  it('uses the simple interface at the root and keeps explicit aliases', () => {
+    expect(interfaceLayoutForPath('/')).toBe('simple')
     expect(interfaceLayoutForPath('/simple')).toBe('simple')
     expect(interfaceLayoutForPath('/simple/')).toBe('simple')
-    expect(interfaceLayoutForPath('/')).toBe('classic')
+    expect(interfaceLayoutForPath('/full')).toBe('classic')
+    expect(interfaceLayoutForPath('/full/')).toBe('classic')
     expect(interfaceLayoutForPath('/chronicle')).toBe('classic')
   })
 

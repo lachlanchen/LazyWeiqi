@@ -89,7 +89,7 @@ const COACH_HISTORY_PAGE_SIZE = 80
 
 export function interfaceLayoutForPath(pathname: string): InterfaceLayout {
   const normalized = pathname.replace(/\/+$/, '') || '/'
-  return normalized === '/simple' ? 'simple' : 'classic'
+  return normalized === '/' || normalized === '/simple' ? 'simple' : 'classic'
 }
 
 export function shouldUseClientRouteSwitch(event: {
@@ -401,7 +401,7 @@ export function App() {
 
   const switchInterface = useCallback((next: InterfaceLayout) => {
     if (typeof window === 'undefined' || next === interfaceLayout) return
-    window.history.pushState(null, '', next === 'simple' ? '/simple' : '/')
+    window.history.pushState(null, '', next === 'simple' ? '/' : '/full')
     setInterfaceLayout(next)
   }, [interfaceLayout])
 
@@ -999,7 +999,7 @@ export function App() {
             <button type="button" className="simple-icon-button" aria-label={t('action.coordinates')} aria-pressed={preferences.coordinates} title={t('action.coordinates')} onClick={() => updatePreferences({ coordinates: !preferences.coordinates })}>
               <Settings2 size={17} />
             </button>
-            <a href="/" className="interface-route-link" data-testid="ui-classic" title={t('nav.openFull')} onClick={(event) => {
+            <a href="/full" className="interface-route-link" data-testid="ui-classic" title={t('nav.openFull')} onClick={(event) => {
               if (!shouldUseClientRouteSwitch(event)) return
               event.preventDefault()
               switchInterface('classic')
@@ -1042,7 +1042,7 @@ export function App() {
           <button type="button" className="settings-button" aria-label={t('action.coordinates')} aria-pressed={preferences.coordinates} title={t('action.coordinates')} onClick={() => updatePreferences({ coordinates: !preferences.coordinates })}>
             <Settings2 size={18} />
           </button>
-          <a href="/simple" className="interface-route-link" data-testid="ui-simple" title={t('nav.openSimple')} onClick={(event) => {
+          <a href="/" className="interface-route-link" data-testid="ui-simple" title={t('nav.openSimple')} onClick={(event) => {
             if (!shouldUseClientRouteSwitch(event)) return
             event.preventDefault()
             switchInterface('simple')
