@@ -8,7 +8,7 @@
 
 [![Website](https://img.shields.io/badge/Website-Lazying.Art-0EA5E9)](https://lazying.art) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-lachlanchen-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/lachlanchen)
 
-Path of Influence is a local-first teaching application for Go/Weiqi. It moves from short 5×5 and 7×7 lessons into complete 9×9 games with an explanatory companion, bounded player agents, narrated agent theatre, and a replayable chronicle. Exact rules remain authoritative even when every analysis or language-model provider is offline.
+Path of Influence is a local-first teaching application for Go/Weiqi. It moves from short 5×5 and 7×7 lessons through complete 9×9 games to ordinary full-board 19×19 play, with an explanatory companion, bounded player agents, narrated agent theatre, and a replayable chronicle. Exact rules remain authoritative even when every analysis or language-model provider is offline.
 
 | Donate | PayPal | Stripe |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ The board keeps exact liberties, groups, captures, ko, and legal moves visually 
 - Player Agents choose only from position-bound legal candidate IDs supplied by the server.
 - Companion Agents explain and ask questions; they move only after an explicit one-turn delegation.
 - “Energy” is a teaching metaphor with separately labeled exact, tactical, engine, teacher, model, and metaphor evidence.
-- Ordinary games use declared Chinese area rules; training variants are labeled.
+- Ordinary games, including full-board 19×19 play, use declared Chinese area rules with positional superko; training variants are labeled.
 
 ## What is included
 
@@ -118,4 +118,4 @@ If you use Path of Influence in teaching or research, cite the repository. GitHu
 
 ## Status and scope
 
-This is a production teaching application under active development, not a disposable board-game demo. The source is MIT licensed; KataGo and downloaded networks retain their upstream licenses and are not committed here. The current default is 9×9, while 13×13 and 19×19 remain planned, separately budgeted bridges.
+This is a production teaching application under active development, not a disposable board-game demo. The source is MIT licensed; KataGo and downloaded networks retain their upstream licenses and are not committed here. The teaching default remains 9×9; ordinary full-board 19×19 play is also supported under declared Chinese area rules with positional superko.

@@ -121,18 +121,19 @@ function candidateSteps(
   topCandidate?: CandidateMove,
   locale: Locale = 'en',
 ): TeachingStep[] {
+  const engineAnalyzed = candidate.engine_analyzed === true
   const reasoning = candidateReasoning(candidate, locale)
   const pv = variationSummary(candidate, size, locale)
   const changes: TeachingSentence[] = candidate.tactics
     ? [{ source: 'Exact rules', text: tacticsSummary(candidate.tactics, candidate.kind === 'pass' || candidate.point == null, locale) }]
     : [{ source: 'Teacher interpretation', text: reasoning.changes }]
-  if (candidate.score && candidate.engine_analyzed && size === 9) {
+  if (candidate.score && engineAnalyzed) {
     changes.push({ source: 'Engine estimate', text: scoreImpactSummary(candidate.score, toPlay, locale) })
   }
   const because: TeachingSentence[] = [{ source: 'Teacher interpretation', text: reasoning.why }]
   const engineRank = candidate.evaluation?.order != null ? candidate.evaluation.order + 1 : null
   const qualityComparison = candidateQualityComparison(candidate, topCandidate, toPlay, locale)
-  if (size === 9 && candidate.engine_analyzed && engineRank != null) {
+  if (engineAnalyzed && engineRank != null) {
     because.push({
       source: 'Engine estimate',
       text: translate(locale, 'candidate.rank', {
@@ -144,7 +145,7 @@ function candidateSteps(
       }),
     })
   }
-  if (size === 9 && candidate.engine_analyzed && qualityComparison) {
+  if (engineAnalyzed && qualityComparison) {
     because.push({
       source: 'Engine estimate',
       text: qualityComparison,
@@ -153,13 +154,13 @@ function candidateSteps(
 
   const opponent = pv
     ? [{
-        source: candidate.engine_analyzed && size === 9 ? 'Engine estimate' as const : 'Teacher interpretation' as const,
-        text: `${candidate.engine_analyzed && size === 9 ? authored(locale, 'One engine main line (not forced)', '一条引擎主变（非强制）', 'エンジン主変化の一例（強制ではない）') : authored(locale, 'One authored line to examine', '一条供检查的编写变化', '検討用に作成された変化の一例')}: ${pv}`,
+        source: engineAnalyzed ? 'Engine estimate' as const : 'Teacher interpretation' as const,
+        text: `${engineAnalyzed ? authored(locale, 'One engine main line (not forced)', '一条引擎主变（非强制）', 'エンジン主変化の一例（強制ではない）') : authored(locale, 'One authored line to examine', '一条供检查的编写变化', '検討用に作成された変化の一例')}: ${pv}`,
       }]
     : candidate.main_line_reply
       ? [{
-          source: candidate.engine_analyzed && size === 9 ? 'Engine estimate' as const : 'Teacher interpretation' as const,
-          text: `${candidate.engine_analyzed && size === 9 ? authored(locale, 'Reply in one engine line (not forced)', '引擎主变中的回应（非强制）', 'エンジン主変化の応手（強制ではない）') : authored(locale, 'Reply to examine', '需检查的回应', '検討する応手')}: ${candidate.main_line_reply}`,
+          source: engineAnalyzed ? 'Engine estimate' as const : 'Teacher interpretation' as const,
+          text: `${engineAnalyzed ? authored(locale, 'Reply in one engine line (not forced)', '引擎主变中的回应（非强制）', 'エンジン主変化の応手（強制ではない）') : authored(locale, 'Reply to examine', '需检查的回应', '検討する応手')}: ${candidate.main_line_reply}`,
         }]
       : [{ source: 'Teacher interpretation' as const, text: authored(locale, 'No reply line was supplied. Check the opponent’s most forcing capture, cut, or liberty-reducing move.', '未提供回应变化。检查对手最强制的提子、切断或减气着法。', '応手の変化は提供されていません。相手の最も強制的な取り、切り、ダメを詰める手を確認します。') }]
 
@@ -270,19 +271,26 @@ export function PowerTeacher({
   const selectedCandidate = candidateForPoint(candidates, selected)
   const candidate = activeCandidate ?? selectedCandidate ?? (!selected ? candidates[0] : undefined)
   const steps = candidate
-    ? candidateSteps(size, toPlay, candidate, candidates.find((item) => item.evaluation?.order === 0), locale)
+    ? candidateSteps(
+        size,
+        toPlay,
+        candidate,
+        candidates.find((item) => item.engine_analyzed === true && item.evaluation?.order === 0),
+        locale,
+      )
     : selected
       ? selectedSteps(size, stones, toPlay, selected, preview, locale)
       : currentSteps(size, stones, toPlay, undefined, lastMove, locale)
-  const evidenceMode = size < 9
-    ? authoredTemplate(locale, 'Authored {size}×{size} view · no KataGo claim', { size }, `人工编写的 ${size}×${size} 视图 · 不声称有 KataGo 依据`, `教材用の ${size}×${size} 表示 · KataGo の主張なし`)
-    : candidate
-      ? candidate.engine_analyzed
-        ? authored(locale, 'Rules + labeled engine forecasts', '规则 + 已标注的引擎预测', 'ルール + 出典付きエンジン予測')
-        : authored(locale, 'Rules + teacher interpretation · no candidate engine claim', '规则 + 教师解读 · 不声称候选着有引擎依据', 'ルール + 教師の解釈 · 候補手のエンジン根拠なし')
-      : ownershipAvailable
-        ? authored(locale, 'Current-position ownership forecast + rules', '当前局面归属预测 + 规则', '現在局面の帰属予測 + ルール')
-        : authored(locale, 'Rules + teacher interpretation', '规则 + 教师解读', 'ルール + 教師の解釈')
+  const candidateEngineAnalyzed = candidate?.engine_analyzed === true
+  const evidenceMode = candidateEngineAnalyzed
+    ? authored(locale, 'Rules + labeled engine forecasts', '规则 + 已标注的引擎预测', 'ルール + 出典付きエンジン予測')
+    : size < 9
+      ? authoredTemplate(locale, 'Authored {size}×{size} view · no KataGo claim', { size }, `人工编写的 ${size}×${size} 视图 · 不声称有 KataGo 依据`, `教材用の ${size}×${size} 表示 · KataGo の主張なし`)
+      : candidate
+        ? authored(locale, 'Rules + teacher interpretation · no candidate engine claim', '规则 + 教师解读 · 不声称候选着有引擎依据', 'ルール + 教師の解釈 · 候補手のエンジン根拠なし')
+        : ownershipAvailable
+          ? authored(locale, 'Current-position ownership forecast + rules', '当前局面归属预测 + 规则', '現在局面の帰属予測 + ルール')
+          : authored(locale, 'Rules + teacher interpretation', '规则 + 教师解读', 'ルール + 教師の解釈')
 
   return (
     <section

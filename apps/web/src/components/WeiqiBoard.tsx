@@ -50,6 +50,9 @@ function authored(locale: Locale, english: string, chinese: string, japanese: st
 }
 
 function starPoints(size: BoardSize): Point[] {
+  if (size === 19) {
+    return [3, 9, 15].flatMap((y) => [3, 9, 15].map((x) => ({ x, y })))
+  }
   if (size === 9) {
     return [
       { x: 2, y: 2 }, { x: 6, y: 2 }, { x: 4, y: 4 },
@@ -83,10 +86,14 @@ export function WeiqiBoard({
   const toPlayName = toPlay === 'black' ? t('board.black') : t('board.white')
   const instanceId = useId().replace(/:/g, '')
   const step = GRID_SPAN / (size - 1)
+  // Dense 19x19 intersections must not overlap, otherwise a later SVG cell
+  // can steal a click intended for its neighbor. Smaller teaching boards keep
+  // their established generous touch targets.
+  const hitRadius = size === 19 ? step * 0.47 : Math.max(20, step * 0.47)
   const occupied = useMemo(() => stoneMap(stones), [stones])
   const groups = useMemo(() => allGroups(stones, size), [stones, size])
   const candidateEngineField = Boolean(
-    candidatePreview?.engine_analyzed === true && size === 9 && (candidatePreview.ownership_after?.length || candidatePreview.ownership_delta?.length),
+    candidatePreview?.engine_analyzed === true && (candidatePreview.ownership_after?.length || candidatePreview.ownership_delta?.length),
   )
   const candidateOwnership = candidateEngineField ? candidatePreview?.ownership_after : undefined
   const displayedOwnership = candidatePreview ? candidateOwnership : ownership
@@ -179,7 +186,11 @@ export function WeiqiBoard({
   }
 
   return (
-    <div className="board-visual">
+    <div
+      className="board-visual"
+      data-board-size={size}
+      data-presence-key={presenceSketchVisible ? 'visible' : 'hidden'}
+    >
       <div
         className={`board-frame ${reducedMotion ? 'reduce-motion' : ''}`}
         data-testid="weiqi-board-frame"
@@ -200,6 +211,9 @@ export function WeiqiBoard({
         role="grid"
         aria-label={t('board.grid', { size, color: toPlay === 'black' ? t('board.black') : t('board.white') })}
         aria-keyshortcuts={selectionClearable ? 'Escape' : undefined}
+        aria-rowcount={size}
+        aria-colcount={size}
+        data-board-size={size}
         data-testid="weiqi-board"
       >
         <title>{t('board.grid', { size, color: toPlay === 'black' ? t('board.black') : t('board.white') })}</title>
@@ -475,7 +489,17 @@ export function WeiqiBoard({
 
         {starPoints(size).map((point) => {
           const { x, y } = position(point)
-          return <circle key={`star-${pointKey(point)}`} cx={x} cy={y} r={size === 9 ? 4.4 : 3.8} className="star-point" aria-hidden="true" />
+          return (
+            <circle
+              key={`star-${pointKey(point)}`}
+              cx={x}
+              cy={y}
+              r={size === 9 ? 4.4 : 3.8}
+              className="star-point"
+              data-coordinate={pointToCoordinate(point, size)}
+              aria-hidden="true"
+            />
+          )
         })}
 
         {showCoordinates &&
@@ -661,7 +685,7 @@ export function WeiqiBoard({
                   key={`hit-${pointKey(point)}`}
                   cx={x}
                   cy={y}
-                  r={Math.max(20, step * 0.47)}
+                  r={hitRadius}
                   fill="transparent"
                   className="board-hit"
                   data-point={pointKey(point)}

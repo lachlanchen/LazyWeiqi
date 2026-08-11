@@ -1,4 +1,4 @@
-export type BoardSize = 5 | 7 | 9
+export type BoardSize = 5 | 7 | 9 | 19
 
 export type StoneColor = 'black' | 'white'
 export type GamePhase = 'playing' | 'finished'

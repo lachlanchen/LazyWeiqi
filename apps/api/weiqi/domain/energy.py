@@ -63,7 +63,7 @@ class PositionEnergy:
 
 
 @dataclass(frozen=True, slots=True)
-class MoveImpact:
+class MoveTactics:
     color: Color
     kind: MoveKind
     vertex: Vertex | None
@@ -73,9 +73,13 @@ class MoveImpact:
     friendly_groups_joined: int
     escaped_atari_groups: int
     newly_atari_opponent_groups: int
+    teaching_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MoveImpact(MoveTactics):
     mean_presence_change: float
     mean_tension_change: float
-    teaching_tags: tuple[str, ...]
 
 
 def _safety(liberties: int) -> GroupSafety:
@@ -165,7 +169,14 @@ def analyze_energy(state: GameState, *, distance_decay: float = 0.58) -> Positio
     )
 
 
-def explain_move_impact(before: GameState, after: GameState) -> MoveImpact:
+def explain_move_tactics(before: GameState, after: GameState) -> MoveTactics:
+    """Explain exact, local move consequences without building metaphor fields.
+
+    Candidate ranking may call this for every legal move. It intentionally
+    excludes the board-wide presence and tension maps, which are presentation
+    evidence and are computed only for the bounded public shortlist.
+    """
+
     if after.move_number != before.move_number + 1 or after.history[:-1] != before.history:
         raise ValueError("after state must be the direct immutable child of before state")
     move = after.last_move
@@ -174,7 +185,7 @@ def explain_move_impact(before: GameState, after: GameState) -> MoveImpact:
         raise ValueError("move is not bound to the before position")
 
     if move.kind is not MoveKind.PLAY or move.vertex is None:
-        return MoveImpact(
+        return MoveTactics(
             color=move.color,
             kind=move.kind,
             vertex=None,
@@ -184,8 +195,6 @@ def explain_move_impact(before: GameState, after: GameState) -> MoveImpact:
             friendly_groups_joined=0,
             escaped_atari_groups=0,
             newly_atari_opponent_groups=0,
-            mean_presence_change=0.0,
-            mean_tension_change=0.0,
             teaching_tags=(move.kind.value,),
         )
 
@@ -217,6 +226,56 @@ def explain_move_impact(before: GameState, after: GameState) -> MoveImpact:
     )
     newly_atari = max(0, after_atari - before_atari)
 
+    tags: list[str] = []
+    if move.captured:
+        tags.append("capture")
+    if len(adjacent_friendly_before) >= 2:
+        tags.append("connect")
+    if escaped_atari:
+        tags.append("escape")
+    if newly_atari:
+        tags.append("atari")
+    if len(played_group.liberties) == 1:
+        tags.append("self-atari-risk")
+    elif len(played_group.liberties) >= 3:
+        tags.append("build-liberties")
+    if not tags:
+        tags.append("develop")
+
+    return MoveTactics(
+        color=move.color,
+        kind=move.kind,
+        vertex=move.vertex,
+        captured=move.captured,
+        self_group_size=len(played_group.stones),
+        self_liberties=len(played_group.liberties),
+        friendly_groups_joined=(
+            len(adjacent_friendly_before) if len(adjacent_friendly_before) >= 2 else 0
+        ),
+        escaped_atari_groups=escaped_atari,
+        newly_atari_opponent_groups=newly_atari,
+        teaching_tags=tuple(tags),
+    )
+
+
+def explain_move_impact(before: GameState, after: GameState) -> MoveImpact:
+    tactics = explain_move_tactics(before, after)
+    if tactics.kind is not MoveKind.PLAY:
+        return MoveImpact(
+            color=tactics.color,
+            kind=tactics.kind,
+            vertex=tactics.vertex,
+            captured=tactics.captured,
+            self_group_size=tactics.self_group_size,
+            self_liberties=tactics.self_liberties,
+            friendly_groups_joined=tactics.friendly_groups_joined,
+            escaped_atari_groups=tactics.escaped_atari_groups,
+            newly_atari_opponent_groups=tactics.newly_atari_opponent_groups,
+            teaching_tags=tactics.teaching_tags,
+            mean_presence_change=0.0,
+            mean_tension_change=0.0,
+        )
+
     before_energy = analyze_energy(before)
     after_energy = analyze_energy(after)
     count = before.size * before.size
@@ -238,36 +297,17 @@ def explain_move_impact(before: GameState, after: GameState) -> MoveImpact:
         )
         / count
     )
-
-    tags: list[str] = []
-    if move.captured:
-        tags.append("capture")
-    if len(adjacent_friendly_before) >= 2:
-        tags.append("connect")
-    if escaped_atari:
-        tags.append("escape")
-    if newly_atari:
-        tags.append("atari")
-    if len(played_group.liberties) == 1:
-        tags.append("self-atari-risk")
-    elif len(played_group.liberties) >= 3:
-        tags.append("build-liberties")
-    if not tags:
-        tags.append("develop")
-
     return MoveImpact(
-        color=move.color,
-        kind=move.kind,
-        vertex=move.vertex,
-        captured=move.captured,
-        self_group_size=len(played_group.stones),
-        self_liberties=len(played_group.liberties),
-        friendly_groups_joined=(
-            len(adjacent_friendly_before) if len(adjacent_friendly_before) >= 2 else 0
-        ),
-        escaped_atari_groups=escaped_atari,
-        newly_atari_opponent_groups=newly_atari,
+        color=tactics.color,
+        kind=tactics.kind,
+        vertex=tactics.vertex,
+        captured=tactics.captured,
+        self_group_size=tactics.self_group_size,
+        self_liberties=tactics.self_liberties,
+        friendly_groups_joined=tactics.friendly_groups_joined,
+        escaped_atari_groups=tactics.escaped_atari_groups,
+        newly_atari_opponent_groups=tactics.newly_atari_opponent_groups,
+        teaching_tags=tactics.teaching_tags,
         mean_presence_change=round(presence_change, 6),
         mean_tension_change=round(tension_change, 6),
-        teaching_tags=tuple(tags),
     )

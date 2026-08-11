@@ -803,7 +803,7 @@ blockquote {
 .board-size-switch {
   display: grid;
   max-width: 650px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-bottom: 25px;
   padding: 6px;
@@ -1216,6 +1216,8 @@ blockquote {
 
 .play-layout {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: minmax(560px, 1fr) minmax(350px, 420px);
   align-items: start;
   gap: 14px;
@@ -1223,12 +1225,16 @@ blockquote {
 
 .board-column {
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   gap: 12px;
 }
 
 .board-stage {
   position: relative;
   display: grid;
+  min-width: 0;
+  max-width: 100%;
   min-height: 620px;
   place-items: center;
   overflow: hidden;
@@ -1244,21 +1250,32 @@ blockquote {
 .board-visual {
   display: grid;
   width: min(100%, 610px);
+  min-width: 0;
+  max-width: 100%;
   gap: 9px;
 }
 
 .board-frame {
   position: relative;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   aspect-ratio: 1;
+  --board-coordinate-size: 10px;
+}
+
+.board-frame[data-board-size='19'] {
+  --board-coordinate-size: 11px;
 }
 
 .weiqi-board {
   display: block;
   width: 100%;
+  max-width: 100%;
   height: auto;
   overflow: visible;
   filter: drop-shadow(0 20px 24px rgba(64, 72, 50, 0.16));
+  touch-action: manipulation;
 }
 
 .board-line {
@@ -1275,7 +1292,7 @@ blockquote {
 
 .board-coordinate text {
   fill: #715b3c;
-  font-size: 10px;
+  font-size: var(--board-coordinate-size);
   font-weight: 700;
   opacity: 0.7;
 }
@@ -1595,6 +1612,7 @@ blockquote {
 
 .candidate-field-title > div {
   display: grid;
+  min-width: 0;
   gap: 1px;
 }
 
@@ -1608,6 +1626,7 @@ blockquote {
 .candidate-field-title strong {
   color: #294c59;
   font-size: 0.76rem;
+  overflow-wrap: anywhere;
 }
 
 .candidate-field-modes {
@@ -1800,6 +1819,11 @@ blockquote {
   border-color: #87c5b3;
   background: #e9f7f2;
   color: var(--jade-dark);
+}
+
+.turn-end-controls {
+  display: inline-flex;
+  gap: 6px;
 }
 
 .primary-control {
@@ -3030,8 +3054,8 @@ blockquote {
 
 .simple-size-choice {
   display: grid;
-  width: min(100%, 470px);
-  grid-template-columns: repeat(3, 1fr);
+  width: min(100%, 560px);
+  grid-template-columns: repeat(4, 1fr);
   gap: 7px;
   margin-bottom: 13px;
 }
@@ -3414,7 +3438,7 @@ blockquote {
   .mode-grid { grid-template-columns: 1fr 1fr; }
   .mode-card:last-child { grid-column: 1 / -1; min-height: 120px; }
   .doctrine-grid { grid-template-columns: 1fr 1fr; }
-  .play-layout { grid-template-columns: minmax(500px, 1fr) 360px; }
+  .play-layout { grid-template-columns: minmax(0, 1fr) minmax(320px, 360px); }
   .board-stage { min-height: 540px; }
   .lens-chips { grid-template-columns: repeat(3, 1fr); }
   .facet-readings { grid-template-columns: 1fr 1fr; }
@@ -3538,6 +3562,27 @@ blockquote {
   .simple-play .coach-conversation { max-height: 110px; }
 }
 
+/* A full board is taller than the two-column desktop teaching composition.
+   On tablets, let the 19x19 board column contribute its honest max-content
+   height to the existing play-layout scroller instead of compressing the
+   board-stage track underneath a fixed-size SVG. */
+@media (min-width: 681px) and (max-width: 900px) {
+  .simple-play[data-board-size='19'] .play-layout {
+    align-items: start;
+    grid-auto-rows: max-content;
+  }
+
+  .simple-play[data-board-size='19'] .board-column {
+    height: max-content;
+    min-height: max-content;
+    grid-template-rows: repeat(4, max-content);
+  }
+
+  .simple-play[data-board-size='19'] .board-stage {
+    min-height: 628px;
+  }
+}
+
 @media (max-width: 680px) {
   html { scroll-padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
   .content-width { width: min(100% - 24px, 1180px); }
@@ -3586,6 +3631,9 @@ blockquote {
   .board-stage { padding: 6px; border-radius: 20px; }
   .board-visual { width: 100%; }
   .board-frame { width: 100%; }
+  .candidate-field-title { align-items: stretch; flex-direction: column; }
+  .candidate-field-modes,
+  .candidate-field-facts { grid-template-columns: minmax(0, 1fr); }
   .power-cloud-items { grid-template-columns: 1fr; }
   .power-teacher > header { align-items: flex-start; flex-wrap: wrap; }
   .power-teacher-source { width: 100%; margin-left: 38px; white-space: normal; }
@@ -3596,6 +3644,8 @@ blockquote {
   .move-instruction { order: -1; width: 100%; justify-content: center; padding: 3px; text-align: center; }
   .secondary-control,
   .primary-control { min-height: 44px; flex: 1; }
+  .turn-end-controls { display: flex; flex: 1 1 100%; }
+  .turn-end-controls .secondary-control { flex: 1; }
   .energy-panel { padding: 12px; }
   .lens-chips { grid-template-columns: repeat(2, 1fr); }
   .facet-readings { grid-template-columns: 1fr; }
@@ -3693,6 +3743,25 @@ blockquote {
   }
   .simple-play .board-stage { min-height: 0; padding: 3px; }
   .simple-play .board-visual { width: min(calc(100% - 8px), calc(100dvh - 405px)); min-width: min(calc(100% - 8px), 285px); }
+  .simple-play[data-board-size='19'] .board-stage { container-type: size; }
+  .simple-play[data-board-size='19'] .board-visual {
+    width: min(calc(100% - 8px), calc(100cqh - 2px));
+    min-width: 0;
+  }
+  .simple-play[data-board-size='19'] .board-visual[data-presence-key='visible'] {
+    width: min(calc(100% - 8px), calc(100cqh - 24px));
+  }
+  .simple-play[data-board-size='19'] .board-visual .power-cloud-key {
+    padding: 3px 5px;
+  }
+  .simple-play[data-board-size='19'] .board-visual .power-cloud-title { display: none; }
+  .simple-play[data-board-size='19'] .board-visual .power-cloud-items { gap: 6px; }
+  .simple-play[data-board-size='19'] .board-visual .power-cloud-items > span {
+    justify-content: center;
+    font-size: 0;
+    line-height: 1;
+  }
+  .simple-play[data-board-size='19'] .board-visual .power-cloud-items b { font-size: 0.5rem; }
   .simple-play .unconfirmed-analysis {
     position: absolute !important;
     width: 1px !important;

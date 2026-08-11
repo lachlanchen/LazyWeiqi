@@ -71,9 +71,14 @@ export function CandidateCards({
         const reasoning = candidateReasoning(candidate, locale)
         const pv = variationSummary(candidate, boardSize, locale)
         const evaluation = candidate.evaluation ? evaluationSummary(candidate.evaluation, locale) : null
-        const engineEvidenceAllowed = boardSize === 9 && candidate.engine_analyzed === true
+        // Trust the evidence contract on the candidate itself. The backend may
+        // decline analysis for an unsupported network/board combination, but
+        // a genuinely analyzed candidate must not be hidden by a UI size gate.
+        const engineEvidenceAllowed = candidate.engine_analyzed === true
         const engineRank = candidate.evaluation?.order != null ? candidate.evaluation.order + 1 : null
-        const topCandidate = candidates.find((item) => item.evaluation?.order === 0)
+        const topCandidate = candidates.find(
+          (item) => item.engine_analyzed === true && item.evaluation?.order === 0,
+        )
         const qualityComparison = candidateQualityComparison(candidate, topCandidate, toPlay, locale)
         const candidateVariationAvailable = Boolean(
           candidate.ownership_after?.length &&
@@ -112,7 +117,7 @@ export function CandidateCards({
             data-inspecting={inspecting}
             data-selected={selected}
             data-suggested={suggested}
-            data-suggestion-source={suggested ? (candidate.engine_analyzed ? 'engine' : 'teacher') : undefined}
+            data-suggestion-source={suggested ? (engineEvidenceAllowed ? 'engine' : 'teacher') : undefined}
           >
             <span className="candidate-coordinate">{candidate.coordinate}</span>
             <span className="candidate-body">
@@ -123,18 +128,18 @@ export function CandidateCards({
               </span>
               {suggested && (
                 <span className="candidate-suggestion-badge" data-testid="suggested-first-stone-card">
-                  {t('candidate.suggestedBadge', { source: candidate.engine_analyzed ? suggestedRank : t('candidate.teacherFallback') })}
+                  {t('candidate.suggestedBadge', { source: engineEvidenceAllowed ? suggestedRank : t('candidate.teacherFallback') })}
                 </span>
               )}
               <span className="intent-provenance">{t('candidate.intentProvenance')}</span>
               <span className="candidate-summary">{candidate.summary}</span>
               {candidate.main_line_reply && (
-                <span className="candidate-detail"><ArrowRight size={13} aria-hidden="true" /> {candidate.engine_analyzed && boardSize === 9 ? t('candidate.replyEngine') : t('candidate.replyExamine')}: {candidate.main_line_reply}</span>
+                <span className="candidate-detail"><ArrowRight size={13} aria-hidden="true" /> {engineEvidenceAllowed ? t('candidate.replyEngine') : t('candidate.replyExamine')}: {candidate.main_line_reply}</span>
               )}
               {candidate.risk && (
                 <span className="candidate-detail risk"><ShieldAlert size={13} aria-hidden="true" /> {t('candidate.risk')} {candidate.risk}</span>
               )}
-              {!candidate.engine_analyzed && (
+              {!engineEvidenceAllowed && (
                 <span className="candidate-detail"><ShieldAlert size={13} aria-hidden="true" /> {t('candidate.noEngine')}</span>
               )}
 
@@ -190,7 +195,7 @@ export function CandidateCards({
                   </span>
                 )}
 
-                {!engineEvidenceAllowed && (candidate.score || candidate.ownership_after?.length || candidate.ownership_delta?.length) && (
+                {boardSize < 9 && !engineEvidenceAllowed && (candidate.score || candidate.ownership_after?.length || candidate.ownership_delta?.length) && (
                   <span className="candidate-small-board-honesty" role="note">
                     {t('candidate.smallBoardHidden', { size: boardSize })}
                   </span>

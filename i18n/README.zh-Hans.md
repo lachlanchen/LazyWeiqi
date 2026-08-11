@@ -8,7 +8,7 @@
 
 [![Website](https://img.shields.io/badge/Website-Lazying.Art-0EA5E9)](https://lazying.art) [![License](https://img.shields.io/badge/License-MIT-green.svg)](../LICENSE) [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-lachlanchen-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/lachlanchen)
 
-Path of Influence 是一个以本地为先的围棋/Weiqi 教学应用。它从简短的 5×5 和 7×7 课程过渡到完整的 9×9 游戏，并配有解释性伴侣、有限的玩家代理、叙述代理剧场和可重播的编年史。即使在每个分析或语言模型提供者离线时，确切的规则仍然是权威的。
+Path of Influence 是一个本地优先的围棋/Weiqi 教学应用。它从简短的 5×5 和 7×7 课程出发，经由完整的 9×9 对局，进阶到普通的 19×19 全棋盘对局，并配有讲解型陪伴代理、受限玩家代理、叙事式代理剧场和可重放的棋局编年史。即使所有分析和语言模型服务都离线，确定性规则仍是最终依据。
 
 | Donate | PayPal | Stripe |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ Path of Influence 是一个以本地为先的围棋/Weiqi 教学应用。它从�
 - Player Agents 仅从服务器提供的位置绑定合法候选 ID 中选择。
 - Companion Agents 解释并提出问题；它们仅在明确的一步委托后移动。
 - “能量”是一个教学隐喻，具有单独标记的确切、战术、引擎、教师、模型和隐喻证据。
-- 普通游戏使用声明的中国区域规则；训练变体被标记。
+- 普通对局（包括 19×19 全棋盘对局）采用声明的中国规则面积计分和位置超劫；训练变体均有明确标记。
 
 ## 包含的内容
 
@@ -118,4 +118,4 @@ git diff --check
 
 ## 状态与范围
 
-这是一个正在积极开发的生产教学应用，而不是一个一次性的棋盘游戏演示。源代码采用 MIT 许可证；KataGo 和下载的网络保留其上游许可证，并未在此提交。当前默认是 9×9，而 13×13 和 19×19 仍在计划中，分别预算的桥接。
+这是一个正在积极开发的实用教学应用，而不是一次性棋盘游戏演示。源代码采用 MIT 许可证；KataGo 和下载的网络保留其上游许可证，不会提交到此仓库。教学默认棋盘仍为 9×9；普通的 19×19 全棋盘对局也已受支持，并采用声明的中国规则面积计分和位置超劫。

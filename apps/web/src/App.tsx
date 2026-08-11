@@ -61,6 +61,7 @@ import type {
   BoardSize,
   CandidateMove,
   CoachMessage,
+  CreateGameRequest,
   CurriculumResponse,
   GameMode,
   GameState,
@@ -92,6 +93,7 @@ const LESSON_OBJECTIVES: Record<string, string> = {
   'first-expedition': 'Play until both sides pass, inspect the mechanical area snapshot, and identify unsettled groups before calling a final score.',
   'shape-of-power': 'Use a strong outside position without overclaiming uncertain ground.',
   'river-chronicle': "Complete and review a 9×9 game without requiring the engine's best move.",
+  'full-landscape-19': 'Play a normal 19×19 game under Chinese area rules with positional superko, from the opening through passes or resignation.',
   'first-breath': 'See how a stone stays alive.',
   'bridge-builders': 'Connect before the road closes.',
   'two-lanterns': 'Build two independent eyes.',
@@ -102,6 +104,14 @@ const LESSON_OBJECTIVES: Record<string, string> = {
 const PREFERENCES_KEY = 'weiqi.path.preferences.v1'
 const HISTORY_PAGE_SIZE = 20
 const COACH_HISTORY_PAGE_SIZE = 80
+export const SELECTABLE_BOARD_SIZES = [5, 7, 9, 19] as const satisfies readonly BoardSize[]
+
+export function selectableBoardSizes(status: ServiceStatus): BoardSize[] {
+  const advertised = (status.supported_board_sizes ?? []).filter((size) =>
+    SELECTABLE_BOARD_SIZES.includes(size),
+  )
+  return advertised.length ? [...new Set(advertised)] : [...SELECTABLE_BOARD_SIZES]
+}
 
 export function interfaceLayoutForPath(pathname: string): InterfaceLayout {
   const normalized = pathname.replace(/\/+$/, '') || '/'
@@ -124,19 +134,34 @@ export function shouldUseClientRouteSwitch(event: {
     !event.altKey
 }
 
-function readPreferences(): AppPreferences {
-  if (typeof window === 'undefined') return DEFAULT_PREFERENCES
+export function preferencesFromStoredValue(stored: string | null): AppPreferences {
+  if (!stored) return DEFAULT_PREFERENCES
   try {
-    const stored = window.localStorage.getItem(PREFERENCES_KEY)
-    if (!stored) return DEFAULT_PREFERENCES
-    const parsed = JSON.parse(stored) as Partial<AppPreferences>
+    const value: unknown = JSON.parse(stored)
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return DEFAULT_PREFERENCES
+    }
+    const parsed = value as Partial<AppPreferences>
+    const boardSize = SELECTABLE_BOARD_SIZES.includes(parsed.board_size as BoardSize)
+      ? parsed.board_size as BoardSize
+      : DEFAULT_PREFERENCES.board_size
     return {
       ...DEFAULT_PREFERENCES,
       ...parsed,
+      board_size: boardSize,
       black_agent: { ...DEFAULT_PREFERENCES.black_agent, ...parsed.black_agent },
       white_agent: { ...DEFAULT_PREFERENCES.white_agent, ...parsed.white_agent },
       companion: { ...DEFAULT_PREFERENCES.companion, ...parsed.companion },
     }
+  } catch {
+    return DEFAULT_PREFERENCES
+  }
+}
+
+function readPreferences(): AppPreferences {
+  if (typeof window === 'undefined') return DEFAULT_PREFERENCES
+  try {
+    return preferencesFromStoredValue(window.localStorage.getItem(PREFERENCES_KEY))
   } catch {
     return DEFAULT_PREFERENCES
   }
@@ -208,9 +233,12 @@ export function localGameForLesson(lesson: LessonSummary, mode: GameMode): GameS
       { x: 3, y: 2, color: 'white', move_number: 2 },
       { x: 3, y: 4, color: 'white', move_number: 4 },
     ]
-  } else {
+  } else if (size === 9) {
     stones = DEMO_GAME.stones
   }
+
+  const blackStones = stones.filter((stone) => stone.color === 'black').length
+  const whiteStones = stones.filter((stone) => stone.color === 'white').length
 
   const actors =
     mode === 'agent_vs_agent'
@@ -241,6 +269,7 @@ export function localGameForLesson(lesson: LessonSummary, mode: GameMode): GameS
     revision: 1,
     actors,
     objective: LESSON_OBJECTIVES[lesson.id] ?? lesson.subtitle,
+    act: stones.length ? DEMO_GAME.act : 'Arrival · Make the first promise',
     concepts: lesson.concepts,
     rules: {
       ...DEMO_GAME.rules,
@@ -252,6 +281,18 @@ export function localGameForLesson(lesson: LessonSummary, mode: GameMode): GameS
       engine: 'Authored setup; no live position analysis',
       facets: [],
       candidates: [],
+    },
+    area_snapshot: {
+      status: 'mechanical_all_stones_alive',
+      black_stones: blackStones,
+      black_enclosed_empty: 0,
+      black_total: blackStones,
+      white_stones: whiteStones,
+      white_enclosed_empty: 0,
+      komi: lesson.training_variant ? 0 : 7.5,
+      white_total: whiteStones + (lesson.training_variant ? 0 : 7.5),
+      neutral_points: size * size - blackStones - whiteStones,
+      adjudicated: false,
     },
     coach_messages: [
       {
@@ -274,7 +315,27 @@ export function canonicalLessonForStart(
   return curriculum.lessons.find((lesson) => lesson.id === displayedLesson.id) ?? displayedLesson
 }
 
-function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent, locale: Locale): MovePreview {
+export function createGameRequestForLesson(
+  lesson: LessonSummary,
+  preferences: AppPreferences,
+): CreateGameRequest {
+  return {
+    lesson_id: lesson.id,
+    board_size: lesson.board_size,
+    mode: preferences.mode,
+    human_color: preferences.mode === 'agent_vs_agent' ? undefined : 'black',
+    black_agent: preferences.black_agent,
+    white_agent: preferences.white_agent,
+    companion: preferences.mode === 'human_companion' ? preferences.companion : undefined,
+  }
+}
+
+export function localPreviewForPoint(
+  game: GameState,
+  point: Point,
+  intent: MoveIntent,
+  locale: Locale,
+): MovePreview {
   const occupied = stoneMap(game.stones)
   const empty = !occupied.has(pointKey(point))
   const coordinate = pointToCoordinate(point, game.board_size)
@@ -313,6 +374,30 @@ function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent, loc
       : [],
     coach_prompt: localizeAuthoredText(locale, 'Name what you expect to change, then reconnect the service to test the hypothesis.'),
   }
+}
+
+function candidateMatchesBoard(candidate: CandidateMove, size: BoardSize): boolean {
+  const point = candidate.point
+  if (
+    candidate.kind === 'pass' ||
+    !point ||
+    !Number.isInteger(point.x) ||
+    !Number.isInteger(point.y) ||
+    point.x < 0 ||
+    point.y < 0 ||
+    point.x >= size ||
+    point.y >= size
+  ) {
+    return false
+  }
+  return candidate.coordinate.trim().toUpperCase() === pointToCoordinate(point, size)
+}
+
+export function openingSuggestionForGame(game: GameState): CandidateMove | null {
+  const candidates = (game.analysis?.candidates ?? []).filter((candidate) =>
+    candidateMatchesBoard(candidate, game.board_size),
+  )
+  return candidates.find((candidate) => candidate.evaluation?.order === 0) ?? candidates[0] ?? null
 }
 
 export function App() {
@@ -392,6 +477,7 @@ export function App() {
     () => preview ? localizeMovePreview(preview, locale) : null,
     [preview, locale],
   )
+  const boardSizes = useMemo(() => selectableBoardSizes(serviceStatus), [serviceStatus])
 
   useEffect(() => {
     translateRef.current = t
@@ -399,7 +485,7 @@ export function App() {
 
   useEffect(() => {
     if (!activeGame?.id.startsWith('local-') || !selected) return
-    setPreview(makeLocalPreview(activeGame, selected, intent, locale))
+    setPreview(localPreviewForPoint(activeGame, selected, intent, locale))
   }, [activeGame, intent, locale, selected])
 
   useEffect(() => {
@@ -665,15 +751,7 @@ export function App() {
     setOperation('creating')
     setNotice(null)
     try {
-      const game = await api.createGame({
-        lesson_id: lesson.id,
-        board_size: lesson.board_size,
-        mode: preferences.mode,
-        human_color: preferences.mode === 'agent_vs_agent' ? undefined : 'black',
-        black_agent: preferences.black_agent,
-        white_agent: preferences.white_agent,
-        companion: preferences.mode === 'human_companion' ? preferences.companion : undefined,
-      })
+      const game = await api.createGame(createGameRequestForLesson(lesson, preferences))
       setActiveGame(game)
       rememberGame(game)
     } catch (error) {
@@ -705,7 +783,7 @@ export function App() {
     setOperation('previewing')
     try {
       if (activeGame.id.startsWith('local-')) {
-        setPreview(makeLocalPreview(activeGame, point, requestedIntent, locale))
+        setPreview(localPreviewForPoint(activeGame, point, requestedIntent, locale))
       } else {
         const result = await api.previewMove(
           activeGame.id,
@@ -730,7 +808,7 @@ export function App() {
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
       if (controller.signal.aborted || requestEpoch !== previewEpoch.current) return
-      setPreview(makeLocalPreview(activeGame, point, requestedIntent, locale))
+      setPreview(localPreviewForPoint(activeGame, point, requestedIntent, locale))
       setNotice(noticeFromError(error))
     } finally {
       if (previewAbort.current === controller && requestEpoch === previewEpoch.current) {
@@ -794,7 +872,7 @@ export function App() {
     }
   }, [invalidatePreview, rememberGame, t])
 
-  const submitMove = useCallback(async (kind: 'play' | 'pass') => {
+  const submitMove = useCallback(async (kind: 'play' | 'pass' | 'resign') => {
     if (!activeGame || activeGame.id.startsWith('local-')) {
       setNotice({ key: 'notice.commitOffline' })
       return
@@ -1089,6 +1167,7 @@ export function App() {
           simpleInterface ? (
             <SimpleStart
               lesson={currentLesson}
+              boardSizes={boardSizes}
               preferences={preferences}
               loading={operation === 'creating'}
               fallback={bootstrap === 'fallback'}
@@ -1120,6 +1199,7 @@ export function App() {
               />
               <Campaign
                 lessons={displayCurriculum.lessons}
+                boardSizes={boardSizes}
                 selectedBoard={preferences.board_size}
                 onBoardChange={(board_size) => updatePreferences({ board_size })}
                 onStartLesson={(lesson) => void startLesson(lesson)}
@@ -1152,6 +1232,7 @@ export function App() {
             onCancelSelection={invalidatePreview}
             onCommit={() => void submitMove('play')}
             onPass={() => void submitMove('pass')}
+            onResign={() => void submitMove('resign')}
             onRewind={() => void rewind()}
             onIntentChange={setIntent}
             onLensToggle={(id) => setActiveLenses((current) => {
@@ -1227,6 +1308,7 @@ interface PlayWorkspaceProps {
   onCancelSelection: () => void
   onCommit: () => void
   onPass: () => void
+  onResign: () => void
   onRewind: () => void
   onIntentChange: (intent: MoveIntent) => void
   onLensToggle: (id: EnergyLensId) => void
@@ -1260,6 +1342,7 @@ export function PlayWorkspace({
   onCancelSelection,
   onCommit,
   onPass,
+  onResign,
   onRewind,
   onIntentChange,
   onLensToggle,
@@ -1273,6 +1356,7 @@ export function PlayWorkspace({
 }: PlayWorkspaceProps) {
   const { locale, t } = useI18n()
   const [inspectedCandidateId, setInspectedCandidateId] = useState<string | null>(null)
+  const [resignArmed, setResignArmed] = useState(false)
   const boardBusy = operation !== 'idle' && operation !== 'previewing'
   const busy = analysisLoading || boardBusy
   const currentActor = game.actors.find((actor) => actor.color === game.to_play && (actor.role === 'human' || actor.role === 'player_agent'))
@@ -1292,15 +1376,14 @@ export function PlayWorkspace({
   const comparisonCandidate = inspectedCandidate && (
     !previewTeachingCandidate || inspectedCandidate.id !== previewTeachingCandidate.id
   ) ? inspectedCandidate : null
-  const openingSuggestion = game.board_size === 9 && game.move_count === 0 && game.stones.length === 0 &&
+  const openingSuggestion = game.move_count === 0 && game.stones.length === 0 &&
     !selected && !preview && humanTurn && game.mode !== 'agent_vs_agent'
-    ? game.analysis?.candidates?.find((candidate) =>
-        candidate.kind !== 'pass' && candidate.point != null && candidate.evaluation?.order === 0,
-      ) ?? game.analysis?.candidates?.find((candidate) => candidate.kind !== 'pass' && candidate.point != null) ?? null
+    ? openingSuggestionForGame(game)
     : null
   const passiveTheatreCandidate = game.mode === 'agent_vs_agent' ? candidates[0] ?? null : null
-  // Hover/focus may temporarily replace the pinned preview. A fresh 9×9 board
-  // shows the supplied first-stone suggestion, but never requests or plays it.
+  // Hover/focus may temporarily replace the pinned preview. A fresh normal
+  // board shows only the server-supplied, board-native suggestion and never
+  // requests or plays it automatically.
   const visualCandidate = comparisonCandidate ?? (
     selected
       ? previewTeachingCandidate ?? selectedCandidate
@@ -1351,7 +1434,12 @@ export function PlayWorkspace({
 
   useEffect(() => {
     setInspectedCandidateId(null)
+    setResignArmed(false)
   }, [game.id, game.revision])
+
+  useEffect(() => {
+    if (selected || selectedCandidateId) setResignArmed(false)
+  }, [selected, selectedCandidateId])
 
   const handleCandidateInspect = useCallback((candidate: CandidateMove | null) => {
     setInspectedCandidateId(candidate?.id ?? null)
@@ -1386,6 +1474,7 @@ export function PlayWorkspace({
       className={layout === 'simple' ? 'play-view simple-play' : 'play-view'}
       data-testid="play-workspace"
       data-layout={layout}
+      data-board-size={game.board_size}
       data-mode={game.mode}
       data-turn={game.to_play}
       data-phase={game.phase}
@@ -1518,6 +1607,12 @@ export function PlayWorkspace({
                   </span>
                 )}
               </>
+            ) : resignArmed ? (
+              <>
+                <button type="button" className="secondary-control" onClick={() => setResignArmed(false)} disabled={busy}>{t('play.cancel')}</button>
+                <p className="move-instruction" role="status">{t('play.resign')}?</p>
+                <button type="button" className="primary-control" onClick={onResign} disabled={game.phase !== 'playing' || busy || !humanTurn} data-testid="confirm-resign">{t('play.resign')}</button>
+              </>
             ) : (
               <>
                 <button
@@ -1534,7 +1629,10 @@ export function PlayWorkspace({
                     ? t('play.candidatePinned')
                     : t('play.selectEmpty')}
                 </p>
-                <button type="button" className="secondary-control" onClick={onPass} disabled={game.phase !== 'playing' || busy || !humanTurn}>{t('play.pass')}</button>
+                <span className="turn-end-controls">
+                  <button type="button" className="secondary-control" onClick={onPass} disabled={game.phase !== 'playing' || busy || !humanTurn}>{t('play.pass')}</button>
+                  <button type="button" className="secondary-control" onClick={() => setResignArmed(true)} disabled={game.phase !== 'playing' || busy || !humanTurn} data-testid="arm-resign">{t('play.resign')}</button>
+                </span>
               </>
             )}
           </div>
@@ -1614,6 +1712,7 @@ export function PlayWorkspace({
 
 function SimpleStart({
   lesson,
+  boardSizes,
   preferences,
   loading,
   fallback,
@@ -1625,6 +1724,7 @@ function SimpleStart({
   onCompanionChange,
 }: {
   lesson?: LessonSummary
+  boardSizes: readonly BoardSize[]
   preferences: AppPreferences
   loading: boolean
   fallback: boolean
@@ -1644,7 +1744,7 @@ function SimpleStart({
         <p>{lesson?.subtitle ?? t('simple.beginSmall')}</p>
 
         <div className="simple-size-choice" role="radiogroup" aria-label={t('simple.boardSize')}>
-          {([5, 7, 9] as BoardSize[]).map((size) => (
+          {boardSizes.map((size) => (
             <button
               key={size}
               type="button"
@@ -1655,7 +1755,7 @@ function SimpleStart({
               data-testid={`simple-board-size-${size}`}
             >
               <strong>{size}×{size}</strong>
-              <small>{size === 5 ? t('simple.firstBreath') : size === 7 ? t('simple.shape') : t('simple.fullGame')}</small>
+              <small>{size === 5 ? t('simple.firstBreath') : size === 7 ? t('simple.shape') : size === 19 ? t('campaign.fullJourney') : t('simple.fullGame')}</small>
             </button>
           ))}
         </div>
@@ -1668,7 +1768,13 @@ function SimpleStart({
 
         <div className="simple-lesson-facts" aria-label={t('simple.lessonFacts')}>
           <span><Target size={14} /> {t('simple.minutes', { count: lesson?.duration_minutes ?? '—' })}</span>
-          <span><CircleDot size={14} /> {lesson?.training_variant ? t('simple.trainingPosition') : t('simple.chineseRules')}</span>
+          <span data-testid={lesson?.board_size === 19 ? 'simple-full-board-rules' : undefined}>
+            <CircleDot size={14} /> {lesson?.training_variant
+              ? t('simple.trainingPosition')
+              : lesson?.board_size === 19
+                ? `${lesson.subtitle} · ${t('simple.chineseRules')} · ${t('rules.positionalSuperko')}`
+                : t('simple.chineseRules')}
+          </span>
           <span className={fallback ? 'fallback' : ''}>{fallback ? <WifiOff size={14} /> : <Check size={14} />}{fallback ? t('simple.safePreview') : t('simple.connected')}</span>
         </div>
 

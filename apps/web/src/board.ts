@@ -1,6 +1,11 @@
 import type { BoardSize, OwnershipCell, Point, Stone, StoneColor } from './types'
 
-const COLUMN_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J'] as const
+// Go coordinates omit I. Keep the complete 19x19 alphabet here so the same
+// conversion functions remain authoritative for every exposed board size.
+const COLUMN_LABELS = [
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K',
+  'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+] as const
 
 export function pointKey(point: Point): string {
   return `${point.x}:${point.y}`
@@ -17,7 +22,7 @@ export function pointToCoordinate(point: Point, size: BoardSize): string {
 
 export function coordinateToPoint(coordinate: string, size: BoardSize): Point | null {
   const normalized = coordinate.trim().toUpperCase()
-  const match = /^([A-HJ])(\d{1,2})$/.exec(normalized)
+  const match = /^([A-HJ-T])(\d{1,2})$/.exec(normalized)
   if (!match) return null
   const x = COLUMN_LABELS.indexOf(match[1] as (typeof COLUMN_LABELS)[number])
   const row = Number(match[2])

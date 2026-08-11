@@ -38,6 +38,10 @@ describe('board teaching facts', () => {
     expect(pointToCoordinate({ x: 3, y: 5 }, 9)).toBe('D4')
     expect(coordinateToPoint('D4', 9)).toEqual({ x: 3, y: 5 })
     expect(coordinateToPoint('I4', 9)).toBeNull()
+    expect(pointToCoordinate({ x: 18, y: 0 }, 19)).toBe('T19')
+    expect(pointToCoordinate({ x: 3, y: 3 }, 19)).toBe('D16')
+    expect(coordinateToPoint('T1', 19)).toEqual({ x: 18, y: 18 })
+    expect(coordinateToPoint('I19', 19)).toBeNull()
   })
 
   it('uses searched-line variation in the strong-forecast display heuristic', () => {

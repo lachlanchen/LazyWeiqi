@@ -22,6 +22,7 @@ export const ADDITIONAL_LESSON_IDS = [
   'first-expedition',
   'shape-of-power',
   'river-chronicle',
+  'full-landscape-19',
   'first-breath',
   'bridge-builders',
   'two-lanterns',
@@ -97,6 +98,14 @@ export const lessonTranslationsAdditional = {
       objective: 'أكمل مباراة 9×9 وراجعها من دون اشتراط أفضل نقلة لدى المحرك.',
       memory: 'أفضل مراجعة تجد مبدأ واحدًا يمكن إعادة استخدامه، لا قائمة عقوبات.',
       concepts: ['مباراة كاملة', 'المراجعة', 'التأمل'],
+    },
+    'full-landscape-19': {
+      title: 'المشهد الكامل',
+      subtitle: 'مباراة عادية على الرقعة الكاملة',
+      story: 'ينفتح المشهد الكامل. أصبحت الزوايا والجوانب والوسط الآن جزءًا من رحلة واحدة مترابطة.',
+      objective: 'العب مباراة عادية 19×19 وفق قواعد حساب المساحة الصينية مع السوبركو الموضعي، من الافتتاح حتى التمريرات أو الاستسلام.',
+      memory: 'يغيّر حجم الرقعة المقياس، لا معنى الحريات أو الاتصال أو العدّ النزيه.',
+      concepts: ['الرقعة الكاملة', 'الافتتاح', 'الاستراتيجية واسعة النطاق'],
     },
     'first-breath': {
       title: 'النَّفَس الأول',
@@ -196,6 +205,14 @@ export const lessonTranslationsAdditional = {
       memory: 'La mejor revisión encuentra un principio reutilizable, no una lista de castigos.',
       concepts: ['partida completa', 'revisión', 'reflexión'],
     },
+    'full-landscape-19': {
+      title: 'El paisaje completo',
+      subtitle: 'Una partida normal en el tablero completo',
+      story: 'Se abre el paisaje completo. Las esquinas, los lados y el centro forman ahora un único recorrido conectado.',
+      objective: 'Juega una partida normal de 19×19 bajo reglas de puntuación de área china con superko posicional, desde la apertura hasta los pases o el abandono.',
+      memory: 'El tamaño del tablero cambia la escala, no el significado de las libertades, la conexión ni el conteo honesto.',
+      concepts: ['tablero completo', 'apertura', 'estrategia a gran escala'],
+    },
     'first-breath': {
       title: 'El primer aliento',
       subtitle: 'Mira cómo sobrevive una piedra',
@@ -293,6 +310,14 @@ export const lessonTranslationsAdditional = {
       objective: 'Terminez et analysez une partie en 9×9 sans exiger le meilleur coup du moteur.',
       memory: 'La meilleure analyse trouve un principe réutilisable, pas une liste de punitions.',
       concepts: ['partie complète', 'analyse', 'réflexion'],
+    },
+    'full-landscape-19': {
+      title: 'Le paysage complet',
+      subtitle: 'Une partie normale sur le goban complet',
+      story: 'Le paysage complet s’ouvre. Les coins, les côtés et le centre forment désormais un seul parcours continu.',
+      objective: 'Jouez une partie normale en 19×19 selon les règles chinoises de comptage par aire avec superko positionnel, de l’ouverture jusqu’aux passes ou à l’abandon.',
+      memory: 'La taille du goban change l’échelle, pas le sens des libertés, de la connexion ni d’un comptage honnête.',
+      concepts: ['goban complet', 'ouverture', 'stratégie à grande échelle'],
     },
     'first-breath': {
       title: 'Le premier souffle',
@@ -392,6 +417,14 @@ export const lessonTranslationsAdditional = {
       memory: '좋은 복기는 벌점 목록이 아니라 다시 쓸 수 있는 원칙 하나를 찾아냅니다.',
       concepts: ['완국', '복기', '성찰'],
     },
+    'full-landscape-19': {
+      title: '온전한 풍경',
+      subtitle: '전체 바둑판에서 두는 일반 대국',
+      story: '온전한 풍경이 열립니다. 귀, 변, 중앙이 이제 하나로 이어진 여정에 속합니다.',
+      objective: '포석부터 패스 또는 기권까지, 중국식 면적 계가 규칙과 위치적 슈퍼코에 따라 일반 19×19 대국을 두세요.',
+      memory: '바둑판 크기는 규모를 바꿀 뿐, 활로와 연결, 정직한 계가의 의미는 바꾸지 않습니다.',
+      concepts: ['전체 바둑판', '포석', '대규모 전략'],
+    },
     'first-breath': {
       title: '첫 숨',
       subtitle: '돌이 어떻게 살아남는지 보기',
@@ -489,6 +522,14 @@ export const lessonTranslationsAdditional = {
       objective: 'Hoàn thành và xem lại một ván 9×9 mà không đòi hỏi mọi nước đều là lựa chọn tốt nhất của máy.',
       memory: 'Lần xem lại tốt nhất tìm ra một nguyên tắc có thể dùng lại, không phải một danh sách trừng phạt.',
       concepts: ['ván cờ hoàn chỉnh', 'xem lại', 'suy ngẫm'],
+    },
+    'full-landscape-19': {
+      title: 'Toàn cảnh',
+      subtitle: 'Một ván cờ thông thường trên bàn cờ đầy đủ',
+      story: 'Toàn cảnh mở ra. Các góc, biên và trung tâm giờ đây hợp thành một hành trình liền mạch.',
+      objective: 'Chơi một ván 19×19 thông thường theo quy tắc tính điểm diện tích Trung Quốc với siêu ko vị trí, từ khai cuộc cho đến khi bỏ lượt hoặc đầu hàng.',
+      memory: 'Kích thước bàn cờ thay đổi quy mô, không thay đổi ý nghĩa của khí, kết nối hay cách đếm trung thực.',
+      concepts: ['toàn bàn cờ', 'khai cuộc', 'chiến lược quy mô lớn'],
     },
     'first-breath': {
       title: 'Hơi thở đầu tiên',
@@ -588,6 +629,14 @@ export const lessonTranslationsAdditional = {
       memory: '最好的複盤會找到一條可重複運用的原則，而不是列出一串懲罰。',
       concepts: ['完整對局', '複盤', '反思'],
     },
+    'full-landscape-19': {
+      title: '全局天地',
+      subtitle: '全棋盤上的一般對局',
+      story: '全局天地就此展開。角、邊與中央，如今匯成一段彼此連結的旅程。',
+      objective: '依照中國規則面積計分和位置超劫，從佈局開始完成一局一般的 19×19 對局，直至雙方停一手或一方認輸。',
+      memory: '棋盤大小改變的是尺度，不是氣、連接或如實計數的含義。',
+      concepts: ['全棋盤', '佈局', '大尺度戰略'],
+    },
     'first-breath': {
       title: '第一口氣',
       subtitle: '看見棋子如何存活',
@@ -686,6 +735,14 @@ export const lessonTranslationsAdditional = {
       memory: 'Die beste Besprechung findet ein wiederverwendbares Prinzip statt einer Liste von Bestrafungen.',
       concepts: ['vollständige Partie', 'Besprechung', 'Reflexion'],
     },
+    'full-landscape-19': {
+      title: 'Die ganze Landschaft',
+      subtitle: 'Eine reguläre Partie auf dem vollen Brett',
+      story: 'Die ganze Landschaft öffnet sich. Ecken, Seiten und Mitte gehören nun zu einer zusammenhängenden Reise.',
+      objective: 'Spielen Sie eine reguläre 19×19-Partie nach chinesischer Flächenwertung mit positionalem Superko – von der Eröffnung bis zu Pässen oder Aufgabe.',
+      memory: 'Die Brettgröße verändert den Maßstab, nicht die Bedeutung von Freiheiten, Verbindung oder ehrlicher Zählung.',
+      concepts: ['gesamtes Brett', 'Eröffnung', 'großräumige Strategie'],
+    },
     'first-breath': {
       title: 'Der erste Atemzug',
       subtitle: 'Sehen Sie, wie ein Stein am Leben bleibt',
@@ -783,6 +840,14 @@ export const lessonTranslationsAdditional = {
       objective: 'Завершите и разберите партию 9×9, не требуя на каждом ходу лучшего выбора движка.',
       memory: 'Лучший разбор находит один принцип, который можно применить снова, а не список наказаний.',
       concepts: ['полная партия', 'разбор', 'осмысление'],
+    },
+    'full-landscape-19': {
+      title: 'Полный пейзаж',
+      subtitle: 'Обычная партия на полной доске',
+      story: 'Открывается полный пейзаж. Углы, стороны и центр теперь составляют единое связное путешествие.',
+      objective: 'Сыграйте обычную партию 19×19 по китайским правилам подсчёта по площади с позиционным суперко — от начала партии до пасов или сдачи.',
+      memory: 'Размер доски меняет масштаб, но не смысл дамэ, соединения и честного подсчёта.',
+      concepts: ['полная доска', 'начало партии', 'крупномасштабная стратегия'],
     },
     'first-breath': {
       title: 'Первое дыхание',

@@ -4,13 +4,14 @@ import type { BoardSize, LessonSummary } from '../types'
 
 interface CampaignProps {
   lessons: LessonSummary[]
+  boardSizes: readonly BoardSize[]
   selectedBoard: BoardSize
   onBoardChange: (size: BoardSize) => void
   onStartLesson: (lesson: LessonSummary) => void
   busy?: boolean
 }
 
-export function Campaign({ lessons, selectedBoard, onBoardChange, onStartLesson, busy = false }: CampaignProps) {
+export function Campaign({ lessons, boardSizes, selectedBoard, onBoardChange, onStartLesson, busy = false }: CampaignProps) {
   const { t } = useI18n()
   const visible = lessons.filter((lesson) => lesson.board_size === selectedBoard)
   return (
@@ -24,7 +25,7 @@ export function Campaign({ lessons, selectedBoard, onBoardChange, onStartLesson,
       </div>
 
       <div className="board-size-switch" role="radiogroup" aria-label={t('campaign.boardSize')}>
-        {([5, 7, 9] as BoardSize[]).map((size) => (
+        {boardSizes.map((size) => (
           <button
             key={size}
             type="button"
@@ -35,7 +36,7 @@ export function Campaign({ lessons, selectedBoard, onBoardChange, onStartLesson,
             data-testid={`board-size-${size}`}
           >
             <span>{size}×{size}</span>
-            <small>{size === 9 ? t('campaign.fullJourney') : size === 5 ? t('campaign.firstBreaths') : t('campaign.growingShape')}</small>
+            <small>{size === 19 ? t('campaign.fullJourney') : size === 9 ? t('simple.fullGame') : size === 5 ? t('campaign.firstBreaths') : t('campaign.growingShape')}</small>
           </button>
         ))}
       </div>
@@ -58,6 +59,11 @@ export function Campaign({ lessons, selectedBoard, onBoardChange, onStartLesson,
                   <span>{lesson.board_size}×{lesson.board_size}</span>
                   <span><Clock3 size={13} /> {t('simple.minutes', { count: lesson.duration_minutes })}</span>
                   {lesson.training_variant && <span className="training-label">{t('campaign.trainingRules')}</span>}
+                  {lesson.board_size === 19 && (
+                    <span data-testid="classic-full-board-rules">
+                      {t('simple.chineseRules')} · {t('rules.positionalSuperko')}
+                    </span>
+                  )}
                 </div>
                 <h3>{lesson.title}</h3>
                 <p className="lesson-subtitle">{lesson.subtitle}</p>

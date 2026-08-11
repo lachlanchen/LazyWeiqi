@@ -9,6 +9,7 @@ from weiqi.domain import (
     Vertex,
     analyze_energy,
     explain_move_impact,
+    explain_move_tactics,
     group_metrics,
     new_game,
     pass_turn,
@@ -125,6 +126,62 @@ def test_pass_impact_is_structured_but_has_no_invented_board_effect() -> None:
     assert impact.vertex is None
     assert impact.mean_presence_change == 0
     assert impact.teaching_tags == ("pass",)
+
+
+def test_lightweight_tactics_match_every_exact_full_impact_field() -> None:
+    positions = [
+        new_game(
+            size=5,
+            komi=0,
+            initial_black=(Vertex(0, 1), Vertex(1, 0), Vertex(2, 1)),
+            initial_white=(Vertex(1, 1),),
+        ),
+        new_game(
+            size=5,
+            komi=0,
+            initial_black=(Vertex(1, 2), Vertex(3, 2)),
+            initial_white=(Vertex(4, 4),),
+        ),
+        new_game(
+            size=5,
+            komi=0,
+            initial_black=(Vertex(1, 1),),
+            initial_white=(Vertex(0, 1), Vertex(1, 0), Vertex(2, 1)),
+        ),
+        new_game(
+            size=5,
+            komi=0,
+            initial_black=(Vertex(0, 1), Vertex(1, 0)),
+            initial_white=(Vertex(1, 1),),
+        ),
+    ]
+    children = [
+        play(positions[0], Vertex(1, 2)),
+        play(positions[1], Vertex(2, 2)),
+        play(positions[2], Vertex(1, 2)),
+        play(positions[3], Vertex(2, 1)),
+    ]
+    exact_fields = (
+        "color",
+        "kind",
+        "vertex",
+        "captured",
+        "self_group_size",
+        "self_liberties",
+        "friendly_groups_joined",
+        "escaped_atari_groups",
+        "newly_atari_opponent_groups",
+        "teaching_tags",
+    )
+
+    pass_before = new_game()
+    cases = [*zip(positions, children, strict=True), (pass_before, pass_turn(pass_before))]
+    for before, after in cases:
+        tactics = explain_move_tactics(before, after)
+        impact = explain_move_impact(before, after)
+        assert {field: getattr(tactics, field) for field in exact_fields} == {
+            field: getattr(impact, field) for field in exact_fields
+        }
 
 
 def test_impact_requires_a_direct_immutable_parent_child_pair() -> None:

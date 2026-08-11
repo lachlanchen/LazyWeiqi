@@ -141,6 +141,7 @@ function renderWorkspace({
       onCancelSelection={() => undefined}
       onCommit={() => undefined}
       onPass={() => undefined}
+      onResign={() => undefined}
       onRewind={() => undefined}
       onIntentChange={() => undefined}
       onLensToggle={() => undefined}
@@ -208,9 +209,94 @@ describe('simple interface route contract', () => {
     expect(html).toContain('data-density="full"')
     expect(html).not.toContain('simple-play')
   })
+
+  it('offers pass and a separately armed resignation on a human turn', () => {
+    const html = renderWorkspace()
+
+    expect(html).toContain('>Pass</button>')
+    expect(html).toContain('data-testid="arm-resign"')
+    expect(html).not.toContain('data-testid="confirm-resign"')
+  })
 })
 
 describe('unconfirmed first-move analysis flow', () => {
+  it('shows the server-supplied 19x19 star-point suggestion without reusing 9x9 coordinates', () => {
+    const fullBoardSuggestion: CandidateMove = {
+      ...suggestion,
+      id: 'm_19191919191919191919191919191919',
+      point: { x: 3, y: 3 },
+      coordinate: 'D16',
+      title: 'Possible base-building idea',
+      summary: 'Begin near a full-board corner while keeping a road toward open space.',
+      score: undefined,
+      evaluation: undefined,
+      ownership_after: undefined,
+      ownership_delta: undefined,
+      legal_verified: true,
+      engine_analyzed: false,
+      verified: false,
+    }
+    const game: GameState = {
+      ...freshGame,
+      title: 'The Full Landscape',
+      lesson_id: 'full-landscape-19',
+      lesson_title: 'The Full Landscape',
+      board_size: 19,
+      objective: 'Play a normal 19×19 game under Chinese area rules with positional superko, from the opening through passes or resignation.',
+      area_snapshot: {
+        ...currentArea,
+        komi: 7.5,
+        white_total: 7.5,
+        neutral_points: 361,
+      },
+      analysis: {
+        status: 'fallback',
+        engine: 'Exact board facts + authored guidance',
+        facets: [],
+        candidates: [fullBoardSuggestion],
+      },
+    }
+    const html = renderWorkspace({ game, layout: 'simple' })
+
+    expect(html).toContain('data-testid="play-workspace" data-layout="simple" data-board-size="19"')
+    expect(html).toContain('data-board-size="19"')
+    expect(html).toContain('data-testid="suggested-first-stone"')
+    expect(html).toContain('data-coordinate="D16"')
+    expect(html).toContain('Suggested first: D16')
+    expect(html).toContain('Suggested first stone · teacher fallback')
+    expect(html).toContain('Chinese area rules')
+    expect(html).toContain('Positional superko')
+    expect(html).not.toContain('Suggested first: C7')
+  })
+
+  it('rejects a stale 9x9 opening coordinate on a 19x19 game', () => {
+    const game: GameState = {
+      ...freshGame,
+      board_size: 19,
+      area_snapshot: { ...currentArea, neutral_points: 361 },
+      analysis: {
+        status: 'fallback',
+        engine: 'Exact board facts + authored guidance',
+        candidates: [{
+          ...suggestion,
+          engine_analyzed: false,
+          score: undefined,
+          evaluation: undefined,
+          ownership_after: undefined,
+          ownership_delta: undefined,
+          // C7 is correct for this point only on 9x9. On 19x19 it is C17.
+          point: { x: 2, y: 2 },
+          coordinate: 'C7',
+        }],
+      },
+    }
+    const html = renderWorkspace({ game })
+
+    expect(html).toContain('data-board-size="19"')
+    expect(html).not.toContain('data-testid="suggested-first-stone"')
+    expect(html).not.toContain('Suggested first: C7')
+  })
+
   it('keeps the strongest passive comparison visible in agent theatre', () => {
     const html = renderWorkspace({
       game: {

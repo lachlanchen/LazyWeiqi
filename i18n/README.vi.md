@@ -8,7 +8,7 @@
 
 [![Website](https://img.shields.io/badge/Website-Lazying.Art-0EA5E9)](https://lazying.art) [![License](https://img.shields.io/badge/License-MIT-green.svg)](../LICENSE) [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-lachlanchen-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/lachlanchen)
 
-Path of Influence là một ứng dụng giảng dạy ưu tiên địa phương cho Go/Weiqi. Nó chuyển từ các bài học ngắn 5×5 và 7×7 sang các trò chơi hoàn chỉnh 9×9 với một người bạn giải thích, các tác nhân người chơi giới hạn, rạp hát tác nhân có lời kể, và một biên niên sử có thể phát lại. Các quy tắc chính xác vẫn giữ nguyên tính chính thống ngay cả khi mọi phân tích hoặc nhà cung cấp mô hình ngôn ngữ đều ngoại tuyến.
+Path of Influence là một ứng dụng dạy Go/Weiqi ưu tiên hoạt động cục bộ. Ứng dụng dẫn người học từ các bài học ngắn 5×5 và 7×7, qua những ván cờ hoàn chỉnh 9×9, đến lối chơi thông thường trên bàn cờ đầy đủ 19×19, cùng một người bạn đồng hành giải thích, các tác nhân người chơi có giới hạn, sân khấu tác nhân có lời dẫn và một biên niên sử có thể phát lại. Các quy tắc chính xác vẫn là căn cứ cuối cùng ngay cả khi mọi nhà cung cấp phân tích hoặc mô hình ngôn ngữ đều ngoại tuyến.
 
 | Donate | PayPal | Stripe |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ Bảng giữ các tự do, nhóm, bắt, ko, và các nước đi hợp pháp ch
 - Player Agents chỉ chọn từ các ID ứng viên hợp pháp giới hạn vị trí được cung cấp bởi máy chủ.
 - Companion Agents giải thích và đặt câu hỏi; họ chỉ di chuyển sau khi được ủy quyền một lượt rõ ràng.
 - “Năng lượng” là một phép ẩn dụ giảng dạy với các bằng chứng chính xác, chiến thuật, động cơ, giáo viên, mô hình, và phép ẩn dụ được gán nhãn riêng biệt.
-- Các trò chơi thông thường sử dụng quy tắc khu vực Trung Quốc đã được công bố; các biến thể đào tạo được gán nhãn.
+- Các ván cờ thông thường, bao gồm chơi trên bàn cờ đầy đủ 19×19, áp dụng quy tắc tính điểm diện tích Trung Quốc đã công bố cùng siêu ko vị trí; các biến thể huấn luyện được gắn nhãn.
 
 ## Những gì được bao gồm
 
@@ -118,4 +118,4 @@ Nếu bạn sử dụng Path of Influence trong giảng dạy hoặc nghiên c�
 
 ## Trạng thái và phạm vi
 
-Đây là một ứng dụng giảng dạy sản xuất đang trong quá trình phát triển tích cực, không phải là một bản demo trò chơi bảng dùng một lần. Mã nguồn được cấp phép MIT; KataGo và các mạng đã tải xuống giữ nguyên giấy phép nguồn gốc của chúng và không được cam kết ở đây. Mặc định hiện tại là 9×9, trong khi 13×13 và 19×19 vẫn được lên kế hoạch, với ngân sách riêng cho các cầu nối.
+Đây là một ứng dụng giảng dạy thực tế đang được phát triển tích cực, không phải bản trình diễn trò chơi bàn cờ dùng một lần. Mã nguồn được cấp phép MIT; KataGo và các mạng đã tải xuống giữ nguyên giấy phép gốc và không được đưa vào kho mã này. Kích thước mặc định cho giảng dạy vẫn là 9×9; lối chơi thông thường trên bàn cờ đầy đủ 19×19 cũng được hỗ trợ theo quy tắc tính điểm diện tích Trung Quốc đã công bố cùng siêu ko vị trí.

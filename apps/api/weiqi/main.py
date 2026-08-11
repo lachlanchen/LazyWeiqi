@@ -38,6 +38,7 @@ from .schemas import (
     PreviewRequest,
     RewindRequest,
 )
+from .services.curriculum import PUBLIC_BOARD_SIZES
 from .services.game_service import GameService, InvalidGameRequest
 from .services.providers import TeachingProviders
 
@@ -346,7 +347,7 @@ def create_app(
             "version": "0.1.0",
             "engine": engine_status,
             "coach": coach_status,
-            "supported_board_sizes": [5, 7, 9],
+            "supported_board_sizes": list(PUBLIC_BOARD_SIZES),
         }
 
     @app.get("/api/curriculum")

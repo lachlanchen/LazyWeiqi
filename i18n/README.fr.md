@@ -8,7 +8,7 @@
 
 [![Website](https://img.shields.io/badge/Website-Lazying.Art-0EA5E9)](https://lazying.art) [![License](https://img.shields.io/badge/License-MIT-green.svg)](../LICENSE) [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-lachlanchen-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/lachlanchen)
 
-Path of Influence est une application d'enseignement locale pour Go/Weiqi. Elle passe de courtes leçons de 5×5 et 7×7 à des parties complètes de 9×9 avec un compagnon explicatif, des agents joueurs limités, un théâtre d'agents narré et une chronique rejouable. Les règles exactes restent autoritaires même lorsque chaque analyse ou fournisseur de modèle linguistique est hors ligne.
+Path of Influence est une application d’enseignement locale pour Go/Weiqi. Elle progresse de courtes leçons sur gobans 5×5 et 7×7, en passant par des parties complètes en 9×9, jusqu’au jeu normal sur goban complet 19×19, avec un compagnon explicatif, des agents joueurs limités, un théâtre d’agents narré et une chronique rejouable. Les règles exactes restent la référence même lorsque tous les fournisseurs d’analyse ou de modèles linguistiques sont hors ligne.
 
 | Donate | PayPal | Stripe |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ Le tableau garde les libertés exactes, les groupes, les captures, le ko et les 
 - Player Agents choisit uniquement parmi les ID de candidats légaux liés à la position fournis par le serveur.
 - Companion Agents explique et pose des questions ; ils ne se déplacent qu'après une délégation explicite d'un tour.
 - L'« énergie » est une métaphore d'enseignement avec des preuves exactes, tactiques, de moteur, d'enseignant, de modèle et de métaphore séparément étiquetées.
-- Les parties ordinaires utilisent les règles de zone chinoises déclarées ; les variantes d'entraînement sont étiquetées.
+- Les parties normales, y compris le jeu sur goban complet 19×19, utilisent les règles déclarées de comptage chinois par aire avec superko positionnel ; les variantes d’entraînement sont étiquetées.
 
 ## Ce qui est inclus
 
@@ -118,4 +118,4 @@ Si vous utilisez Path of Influence dans l'enseignement ou la recherche, citez le
 
 ## Statut et portée
 
-Ceci est une application d'enseignement en production en cours de développement actif, pas une démo de jeu de société jetable. La source est sous licence MIT ; KataGo et les réseaux téléchargés conservent leurs licences en amont et ne sont pas engagés ici. Le défaut actuel est 9×9, tandis que 13×13 et 19×19 restent prévus, avec des ponts budgétés séparément.
+Ceci est une application d’enseignement en production en cours de développement actif, pas une démo de jeu de plateau jetable. Le code source est sous licence MIT ; KataGo et les réseaux téléchargés conservent leurs licences en amont et ne sont pas intégrés ici. Le format d’enseignement par défaut reste le 9×9 ; le jeu normal sur goban complet 19×19 est également pris en charge avec les règles déclarées de comptage chinois par aire et le superko positionnel.

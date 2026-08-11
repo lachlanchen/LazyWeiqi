@@ -3,6 +3,14 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+PUBLIC_BOARD_SIZES: tuple[int, ...] = (5, 7, 9, 19)
+DEFAULT_LESSON_BY_BOARD_SIZE: dict[int, str] = {
+    5: "breath-5",
+    7: "roads-7",
+    9: "opening-compass",
+    19: "full-landscape-19",
+}
+
 LESSONS: tuple[dict[str, Any], ...] = (
     {
         "id": "breath-5",
@@ -155,17 +163,26 @@ LESSONS: tuple[dict[str, Any], ...] = (
         "order": 8,
         "board_size": 19,
         "title": "The Full Landscape",
-        "subtitle": "Optional long-board study",
+        "subtitle": "A normal game on the full board",
         "estimated_minutes": 60,
         "variant": "go",
         "training_rule": None,
         "concepts": ["whole_board", "opening", "large_scale_strategy"],
-        "story_hook": "The full landscape waits until the smaller valleys feel readable.",
-        "objective": "Optional advanced journey; never the beginner default.",
-        "memory": "Board size changes scale, not the meaning of liberties and connection.",
+        "story_hook": (
+            "The full landscape opens. Corners, sides, and center now belong to one "
+            "connected journey."
+        ),
+        "objective": (
+            "Play a normal 19×19 game under Chinese area rules with positional superko, "
+            "from the opening through passes or resignation."
+        ),
+        "memory": (
+            "Board size changes scale, not the meaning of liberties, connection, or honest "
+            "counting."
+        ),
         "setup": {"black": [], "white": [], "to_play": "B"},
-        "featured_moves": [],
-        "available": False,
+        "featured_moves": ["D16", "Q16", "D4"],
+        "available": True,
     },
 )
 

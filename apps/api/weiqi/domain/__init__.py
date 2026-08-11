@@ -26,9 +26,11 @@ from .energy import (
     GroupMetric,
     GroupSafety,
     MoveImpact,
+    MoveTactics,
     PositionEnergy,
     analyze_energy,
     explain_move_impact,
+    explain_move_tactics,
     group_metrics,
 )
 from .rules import (
@@ -85,6 +87,7 @@ __all__ = [
     "Lesson",
     "Move",
     "MoveImpact",
+    "MoveTactics",
     "MoveKind",
     "ParsedSgf",
     "PositionEnergy",
@@ -101,6 +104,7 @@ __all__ = [
     "describe_candidate",
     "empty_regions",
     "explain_move_impact",
+    "explain_move_tactics",
     "export_sgf",
     "group_at",
     "game_state_token",

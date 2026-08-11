@@ -38,11 +38,13 @@ from ..domain import (
     candidate_for_action,
     chinese_area_score,
     explain_move_impact,
+    explain_move_tactics,
     group_at,
     gtp_to_vertex,
     legal_candidates,
     neighbors,
     new_game,
+    play,
     vertex_to_gtp,
 )
 from ..domain import (
@@ -58,7 +60,7 @@ from ..schemas import (
     PreviewRequest,
     RewindRequest,
 )
-from .curriculum import get_lesson, list_lessons
+from .curriculum import DEFAULT_LESSON_BY_BOARD_SIZE, PUBLIC_BOARD_SIZES, get_lesson, list_lessons
 from .providers import TeachingProviders
 from .serialization import impact_to_dict, state_from_dict, state_to_dict, vertex_to_dict
 
@@ -213,9 +215,7 @@ def _decode_coach_history_cursor(
 def _lesson_or_raise(lesson_id: str | None, board_size: int) -> dict[str, Any]:
     selected = lesson_id
     if selected is None:
-        selected = {5: "breath-5", 7: "roads-7", 9: "opening-compass"}.get(
-            board_size, "opening-compass"
-        )
+        selected = DEFAULT_LESSON_BY_BOARD_SIZE.get(board_size, "opening-compass")
     lesson = get_lesson(selected)
     if lesson is None:
         raise InvalidGameRequest("that lesson does not exist")
@@ -1282,12 +1282,12 @@ class GameService:
     def curriculum(self) -> dict[str, Any]:
         lessons = []
         for item in list_lessons():
-            if item["board_size"] not in {5, 7, 9}:
+            if item["board_size"] not in PUBLIC_BOARD_SIZES or not item["available"]:
                 continue
             lessons.append(
                 {
                     "id": item["id"],
-                    "order": item["order"] + 1,
+                    "order": len(lessons) + 1,
                     "title": item["title"],
                     "subtitle": item["subtitle"],
                     "story": item["story_hook"],
@@ -1485,7 +1485,8 @@ class GameService:
         self, state: GameState, *, rank_profile: str
     ) -> dict[str, Any] | None:
         # The pinned teaching network and process buffers are explicitly 9x9.
-        # Never decorate 5x5/7x7 lessons with estimates from an out-of-domain net.
+        # Never decorate another board size, including 19x19, with estimates
+        # from an out-of-domain net.
         if state.size != 9:
             return None
         network = getattr(getattr(self.katago, "_settings", None), "katago_model", None)
@@ -1659,11 +1660,11 @@ class GameService:
             center = (state.size - 1) / 2
             for candidate in legal:
                 try:
-                    after = apply_candidate(
-                        state,
-                        CandidateSelection(state.state_token, candidate.id, actor_id),
-                    )
-                    impact = explain_move_impact(state, after)
+                    # `candidate` was just produced by `legal_candidates` for
+                    # this exact state. `play` still rechecks rules and actor
+                    # authority without the O(N) candidate-ID re-resolution.
+                    after = play(state, candidate.vertex, actor_id=actor_id)
+                    impact = explain_move_tactics(state, after)
                 except (IllegalMoveError, ActorAuthorityError):
                     continue
                 assert candidate.vertex is not None

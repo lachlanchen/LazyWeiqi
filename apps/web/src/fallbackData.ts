@@ -29,7 +29,7 @@ export const FALLBACK_STATUS: ServiceStatus = {
     provider: 'Local companion',
     detail: 'Using authored lesson guidance.',
   },
-  supported_board_sizes: [5, 7, 9],
+  supported_board_sizes: [5, 7, 9, 19],
 }
 
 const lessons: LessonSummary[] = [
@@ -111,6 +111,19 @@ const lessons: LessonSummary[] = [
     difficulty: 'growing',
     status: 'available',
     memory_line: 'Attack to gain; killing is only one possible gain.',
+  },
+  {
+    id: 'full-landscape-19',
+    order: 8,
+    title: 'The Full Landscape',
+    subtitle: 'A normal game on the full board',
+    story: 'The full landscape opens. Corners, sides, and center now belong to one connected journey.',
+    board_size: 19,
+    duration_minutes: 60,
+    concepts: ['Whole board', 'Opening', 'Large-scale strategy'],
+    difficulty: 'growing',
+    status: 'available',
+    memory_line: 'Board size changes scale, not the meaning of liberties, connection, or honest counting.',
   },
 ]
 

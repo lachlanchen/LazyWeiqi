@@ -8,7 +8,7 @@
 
 [![Website](https://img.shields.io/badge/Website-Lazying.Art-0EA5E9)](https://lazying.art) [![License](https://img.shields.io/badge/License-MIT-green.svg)](../LICENSE) [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-lachlanchen-EA4AAA?logo=githubsponsors)](https://github.com/sponsors/lachlanchen)
 
-Path of Influence ist eine lokal-first Lehranwendung für Go/Weiqi. Sie bewegt sich von kurzen 5×5 und 7×7 Lektionen zu vollständigen 9×9 Spielen mit einem erklärenden Begleiter, begrenzten Spieleragenten, erzähltem Agententheater und einer wiederspielbaren Chronik. Exakte Regeln bleiben autoritativ, selbst wenn jeder Analyse- oder Sprachmodellanbieter offline ist.
+Path of Influence ist eine Local-First-Lehranwendung für Go/Weiqi. Sie führt von kurzen 5×5- und 7×7-Lektionen über vollständige 9×9-Partien bis zum regulären Spiel auf dem vollen 19×19-Brett, begleitet von einem erklärenden Begleiter, begrenzten Spieleragenten, erzähltem Agententheater und einer wiederspielbaren Chronik. Exakte Regeln bleiben autoritativ, selbst wenn jeder Analyse- oder Sprachmodellanbieter offline ist.
 
 | Donate | PayPal | Stripe |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ Das Brett hält exakte Freiheiten, Gruppen, Erfassungen, Ko und legale Züge vis
 - Player Agents wählt nur aus positionsgebundenen legalen Kandidaten-IDs, die vom Server bereitgestellt werden.
 - Companion Agents erklären und stellen Fragen; sie bewegen sich nur nach einer expliziten Ein-Zug-Delegation.
 - „Energie“ ist eine Lehrmetapher mit separat gekennzeichneten exakten, taktischen, Motor-, Lehrer-, Modell- und Metaphernbeweisen.
-- Ordentliche Spiele verwenden deklarierte chinesische Gebietregeln; Trainingsvarianten sind gekennzeichnet.
+- Reguläre Partien, einschließlich des Spiels auf dem vollen 19×19-Brett, verwenden deklarierte chinesische Flächenwertung mit positionalem Superko; Trainingsvarianten sind gekennzeichnet.
 
 ## Was ist enthalten
 
@@ -118,4 +118,4 @@ Wenn du Path of Influence im Unterricht oder in der Forschung verwendest, zitier
 
 ## Status und Umfang
 
-Dies ist eine Produktionslehranwendung unter aktiver Entwicklung, kein wegwerfbares Brettspiel-Demo. Der Quellcode ist MIT-lizenziert; KataGo und heruntergeladene Netzwerke behalten ihre upstream Lizenzen und sind hier nicht festgeschrieben. Der aktuelle Standard ist 9×9, während 13×13 und 19×19 geplant sind, separat budgetierte Brücken.
+Dies ist eine Produktionslehranwendung unter aktiver Entwicklung, kein wegwerfbares Brettspiel-Demo. Der Quellcode ist MIT-lizenziert; KataGo und heruntergeladene Netzwerke behalten ihre upstream Lizenzen und sind hier nicht festgeschrieben. Die Lehrvoreinstellung bleibt 9×9; reguläres Spiel auf dem vollen 19×19-Brett wird ebenfalls mit deklarierter chinesischer Flächenwertung und positionalem Superko unterstützt.

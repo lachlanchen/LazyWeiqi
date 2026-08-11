@@ -1,9 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_PREFERENCES, DEMO_FACETS } from '../fallbackData'
+import { App } from '../App'
+import { DEFAULT_PREFERENCES, DEMO_FACETS, FALLBACK_CURRICULUM } from '../fallbackData'
 import { I18nProvider } from '../i18n'
 import { Chronicle } from './Chronicle'
 import { CandidateCards } from './CandidateCards'
+import { Campaign } from './Campaign'
 import { CoachRail } from './CoachRail'
 import { EnergyLenses } from './EnergyLenses'
 import { ModePicker } from './ModePicker'
@@ -11,6 +13,59 @@ import { PowerTeacher } from './PowerTeacher'
 import { WeiqiBoard } from './WeiqiBoard'
 
 describe('accessible teaching surfaces', () => {
+  it('exposes the normal 19x19 lesson in both simple and full launchers', () => {
+    const simple = renderToStaticMarkup(
+      <I18nProvider initialLocale="en"><App /></I18nProvider>,
+    )
+    const full = renderToStaticMarkup(
+      <Campaign
+        lessons={FALLBACK_CURRICULUM.lessons}
+        boardSizes={[5, 7, 9, 19]}
+        selectedBoard={19}
+        onBoardChange={() => undefined}
+        onStartLesson={() => undefined}
+      />,
+    )
+
+    expect(simple).toContain('data-testid="simple-board-size-19"')
+    expect(simple).toContain('19×19')
+    expect(full).toContain('data-testid="board-size-19"')
+    expect(full).toContain('data-testid="lesson-full-landscape-19"')
+    expect(full).toContain('A normal game on the full board')
+    expect(full).toContain('data-testid="classic-full-board-rules"')
+    expect(full).toContain('Chinese area rules · Positional superko')
+    expect(full).not.toContain('data-testid="board-size-13"')
+  })
+
+  it('reloads a stored 19x19 selection into the simple launcher with the ordinary-game rules visible', () => {
+    const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        location: { pathname: '/' },
+        localStorage: {
+          getItem: () => JSON.stringify({ ...DEFAULT_PREFERENCES, board_size: 19 }),
+        },
+      },
+    })
+
+    try {
+      const html = renderToStaticMarkup(
+        <I18nProvider initialLocale="en"><App /></I18nProvider>,
+      )
+      const selector = html.match(/<button[^>]*aria-checked="true"[^>]*data-testid="simple-board-size-19"[^>]*>/)?.[0]
+
+      expect(selector).toBeDefined()
+      expect(html).toContain('<h1>The Full Landscape</h1>')
+      expect(html).toContain('data-testid="simple-full-board-rules"')
+      expect(html).toContain('A normal game on the full board · Chinese area rules · Positional superko')
+      expect(html).not.toContain('data-testid="simple-board-size-13"')
+    } finally {
+      if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
+      else Reflect.deleteProperty(globalThis, 'window')
+    }
+  })
+
   it('renders the SVG board as an accessible grid with stable state markers', () => {
     const html = renderToStaticMarkup(
       <WeiqiBoard
@@ -29,6 +84,26 @@ describe('accessible teaching surfaces', () => {
     expect(html).toContain('C3, black stone')
     expect(html).toContain('B4, empty, selected for preview')
     expect(html).toContain('data-board-size="5"')
+  })
+
+  it('renders a complete 19x19 coordinate grid with standard star points', () => {
+    const html = renderToStaticMarkup(
+      <WeiqiBoard
+        size={19}
+        stones={[]}
+        toPlay="black"
+        selected={null}
+        onSelect={() => undefined}
+        activeLenses={new Set()}
+        showCoordinates
+      />,
+    )
+
+    expect(html).toContain('data-board-size="19"')
+    expect(html).toContain('data-coordinate="T19"')
+    expect(html).toContain('data-coordinate="D16"')
+    expect(html.match(/role="gridcell"/g)).toHaveLength(361)
+    expect(html.match(/class="star-point"/g)).toHaveLength(9)
   })
 
   it('renders distinct agent modes and companion authority copy', () => {
@@ -210,6 +285,119 @@ describe('accessible teaching surfaces', () => {
     expect(html).toContain('Values are always Black perspective')
     expect(html).toContain('omitted cells are not neutral')
     expect(html).not.toContain('data-testid="stone-presence-cloud"')
+  })
+
+  it('renders genuinely supplied engine evidence on 19x19 without a size gate', () => {
+    const ownership = Array.from({ length: 361 }, (_, index) => ({
+      x: index % 19,
+      y: Math.floor(index / 19),
+      value: index % 2 ? -0.32 : 0.41,
+      variation: 0.14,
+    }))
+    const candidate = {
+      id: 'm_19191919191919191919191919191919',
+      point: { x: 3, y: 3 },
+      coordinate: 'D16',
+      intent: 'claim' as const,
+      title: 'Take a full-board corner direction',
+      summary: 'Begin in a corner while reading the whole-board direction.',
+      score: {
+        before: -7.5,
+        after: -7.1,
+        delta: 0.4,
+        perspective: 'black' as const,
+        evidence: 'engine' as const,
+      },
+      evaluation: {
+        perspective: 'black' as const,
+        evidence: 'engine' as const,
+        order: 0,
+        visits: 300,
+      },
+      ownership_after: ownership,
+      ownership_delta: ownership.map((cell) => ({ ...cell, value: cell.value * 0.1 })),
+      legal_verified: true,
+      engine_analyzed: true,
+      verified: true,
+    }
+    const board = renderToStaticMarkup(
+      <WeiqiBoard
+        size={19}
+        stones={[]}
+        toPlay="black"
+        selected={null}
+        onSelect={() => undefined}
+        candidatePreview={candidate}
+        activeLenses={new Set(['cloud'])}
+        showCoordinates
+      />,
+    )
+    const cards = renderToStaticMarkup(
+      <CandidateCards
+        boardSize={19}
+        toPlay="black"
+        candidates={[candidate]}
+        inspectedCandidateId={candidate.id}
+        onInspect={() => undefined}
+        onSelect={() => undefined}
+      />,
+    )
+
+    expect(board).toContain('data-engine-field="true"')
+    expect(board).toContain('data-testid="candidate-ownership-after"')
+    expect(cards).toContain(`data-testid="candidate-score-${candidate.id}"`)
+    expect(cards).toContain(`data-testid="candidate-evaluation-${candidate.id}"`)
+    expect(cards).not.toContain('candidate-small-board-honesty')
+  })
+
+  it('labels the ordinary 19x19 authored shortlist without implying a KataGo result', () => {
+    const candidate = {
+      id: 'm_19authored19authored19authored19',
+      point: { x: 3, y: 3 },
+      coordinate: 'D16',
+      intent: 'claim' as const,
+      intent_evidence: 'teacher' as const,
+      title: 'Begin near a full-board corner',
+      summary: 'A teacher hypothesis is to begin a base while keeping an open direction.',
+      main_line_reply: 'Examine White at Q16.',
+      risk: 'The corner is not settled territory.',
+      legal_verified: true,
+      engine_analyzed: false,
+      verified: false,
+    }
+    const cards = renderToStaticMarkup(
+      <CandidateCards
+        boardSize={19}
+        toPlay="black"
+        candidates={[candidate]}
+        inspectedCandidateId={candidate.id}
+        suggestedCandidateId={candidate.id}
+        onInspect={() => undefined}
+        onSelect={() => undefined}
+      />,
+    )
+    const teacher = renderToStaticMarkup(
+      <PowerTeacher
+        size={19}
+        stones={[]}
+        toPlay="black"
+        selected={null}
+        preview={null}
+        activeCandidate={candidate}
+        candidates={[candidate]}
+        lastMove={null}
+        ownershipAvailable={false}
+      />,
+    )
+
+    expect(cards).toContain('data-suggestion-source="teacher"')
+    expect(cards).toContain('Suggested first stone · teacher fallback')
+    expect(cards).toContain('Reply to examine')
+    expect(cards).toContain('No engine support is claimed')
+    expect(cards).not.toContain('KataGo order')
+    expect(cards).not.toContain('candidate-small-board-honesty')
+    expect(teacher).toContain('Rules + teacher interpretation · no candidate engine claim')
+    expect(teacher).not.toContain('Engine estimate')
   })
 
   it('labels a small-board candidate as location and exact shape without an engine forecast claim', () => {
@@ -784,6 +972,34 @@ $$
     expect(html).not.toContain('<blockquote>What changed?</blockquote>')
     expect(html).toContain('data-testid="reveal-coach-history"')
     expect(html).toContain('Reveal conversation history')
+  })
+
+  it('keeps a persisted 19x19 game visible and resumable in the chronicle', () => {
+    const html = renderToStaticMarkup(
+      <Chronicle
+        games={[{
+          id: 'game-full-board',
+          title: 'The Full Landscape',
+          mode: 'human_companion',
+          board_size: 19,
+          phase: 'playing',
+          move_count: 42,
+          updated_at: '2026-08-12T00:00:00Z',
+          lesson_id: 'full-landscape-19',
+          lesson_title: 'The Full Landscape',
+          concepts: ['Whole board', 'Opening'],
+        }]}
+        onOpen={() => undefined}
+        onResume={() => undefined}
+      />,
+    )
+
+    expect(html).toContain('class="history-board board-19"')
+    expect(html).toContain('19×19')
+    expect(html).toContain('The Full Landscape')
+    expect(html).toContain('42 moves · playing')
+    expect(html).toContain('class="history-resume"')
+    expect(html).toContain(' Revisit</button>')
   })
 
   it('shows an accessible older-history retry without replacing visible games', () => {
