@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { I18nProvider, LanguageSelect, useI18n } from './i18n'
+import { I18nProvider, LanguageSelect, LOCALE_NAMES, SUPPORTED_LOCALES, useI18n } from './i18n'
 
 function LocaleProbe() {
   const { locale, t } = useI18n()
@@ -14,6 +14,21 @@ function LocaleProbe() {
 }
 
 describe('locale provider rendering', () => {
+  it('renders every allowlisted language in the selector', () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale="ar"><LocaleProbe /></I18nProvider>,
+    )
+
+    expect(html).toContain('data-locale="ar"')
+    expect(html).toContain('<option value="ar" selected="">العربية</option>')
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(html).toContain(`value="${locale}"`)
+      expect(html).toContain(LOCALE_NAMES[locale])
+    }
+    expect((html.match(/<option /g) ?? [])).toHaveLength(11)
+    expect(html).toContain('لا تحفظ الرقعة.')
+  })
+
   it('renders the reviewed Simplified Chinese interface catalog', () => {
     const html = renderToStaticMarkup(
       <I18nProvider initialLocale="zh-Hans"><LocaleProbe /></I18nProvider>,

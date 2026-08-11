@@ -23,6 +23,35 @@ const knownCandidate: CandidateMove = {
 }
 
 describe('deterministic candidate localization', () => {
+  it('localizes the reviewed candidate scaffolding in every non-English locale', () => {
+    const expectedTitles = {
+      ar: 'فكرة قتالية محتملة',
+      es: 'Posible idea de lucha',
+      fr: 'Idée de combat possible',
+      ja: '戦いの候補',
+      ko: '가능한 전투 구상',
+      vi: 'Ý tưởng chiến đấu khả dĩ',
+      'zh-Hans': '可能的战斗手段',
+      'zh-Hant': '可能的戰鬥構想',
+      de: 'Mögliche Kampfidee',
+      ru: 'Возможная идея для борьбы',
+    } as const
+
+    for (const [locale, expectedTitle] of Object.entries(expectedTitles)) {
+      const localized = localizeCandidate(knownCandidate, locale as keyof typeof expectedTitles)
+      expect(localized.title, locale).toBe(expectedTitle)
+      expect(localized.summary, locale).not.toBe(knownCandidate.summary)
+      expect(localized.main_line_reply, locale).not.toBe(knownCandidate.main_line_reply)
+      expect(localized.risk, locale).not.toBe(knownCandidate.risk)
+      expect(localized.why_here, locale).not.toBe(knownCandidate.why_here)
+      expect(localized.what_changes, locale).not.toBe(knownCandidate.what_changes)
+      expect(localized.next_calculation, locale).not.toBe(knownCandidate.next_calculation)
+      expect(localized.coordinate).toBe('C3')
+      expect(localized.intent).toBe('pressure')
+      expect(localized.legal_verified).toBe(true)
+    }
+  })
+
   it('localizes the complete reviewed Chinese template while preserving protocol and provenance fields', () => {
     const localized = localizeCandidate(knownCandidate, 'zh-Hans')
 
@@ -131,5 +160,33 @@ describe('deterministic candidate localization', () => {
     expect(localized.teaching?.main_line_reply).toBe('白棋 D4')
     expect(localized.coach_prompt).toContain('落子前先说出意图')
     expect(preview.candidates[0].title).toBe('Possible fighting idea')
+  })
+
+  it('localizes every deterministic preview prompt and preserves an unknown provider prompt', () => {
+    const base: MovePreview = {
+      game_id: DEMO_GAME.id,
+      revision: DEMO_GAME.revision,
+      point: { x: 2, y: 2 },
+      coordinate: 'C3',
+      legal: false,
+      captures: [],
+      resulting_liberties: null,
+      facets: [],
+      candidates: [],
+      coach_prompt: 'Choose an intersection inside the board lines.',
+    }
+    const deterministicPrompts = [
+      'Choose an intersection inside the board lines.',
+      'Try another intersection and compare its liberties.',
+      'Name the intention before committing: build, fight, escape, or connect?',
+    ]
+    const providerPrompt = 'Provider prompt :: Keep EXACT bytes / C3.'
+
+    for (const locale of ['ar', 'es', 'fr', 'ja', 'ko', 'vi', 'zh-Hans', 'zh-Hant', 'de', 'ru'] as const) {
+      for (const prompt of deterministicPrompts) {
+        expect(localizeMovePreview({ ...base, coach_prompt: prompt }, locale).coach_prompt, `${locale}:${prompt}`).not.toBe(prompt)
+      }
+      expect(localizeMovePreview({ ...base, coach_prompt: providerPrompt }, locale).coach_prompt, locale).toBe(providerPrompt)
+    }
   })
 })

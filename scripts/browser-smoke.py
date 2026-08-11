@@ -87,6 +87,19 @@ MAX_API_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_GAME_LIST_PAGES = 100
 MAX_BACKGROUND_LOG_BYTES = 4 * 1024 * 1024
 CRASHPAD_LAUNCH_WINDOW_SECONDS = 60
+EXPECTED_LOCALE_OPTIONS = [
+    ["en", "English"],
+    ["ar", "العربية"],
+    ["es", "Español"],
+    ["fr", "Français"],
+    ["ja", "日本語"],
+    ["ko", "한국어"],
+    ["vi", "Tiếng Việt"],
+    ["zh-Hans", "简体中文"],
+    ["zh-Hant", "繁體中文"],
+    ["de", "Deutsch"],
+    ["ru", "Русский"],
+]
 
 
 def _prepare_runtime_dir() -> None:
@@ -888,6 +901,86 @@ def run() -> dict[str, Any]:
             and page.get_by_test_id("simple-launcher").is_visible()
             and not created_game_ids
         )
+        locale_select = page.get_by_test_id("locale-select").first
+        checks["localeOptions"] = locale_select.locator("option").evaluate_all(
+            "options => options.map(option => [option.value, option.textContent ?? ''])"
+        )
+        locale_metadata: list[dict[str, Any]] = []
+        for locale, _label in EXPECTED_LOCALE_OPTIONS:
+            locale_select.select_option(locale)
+            page.wait_for_function(
+                "locale => document.documentElement.lang === locale", arg=locale
+            )
+            metadata = page.evaluate(
+                """locale => ({
+                  locale,
+                  lang: document.documentElement.lang,
+                  dir: document.documentElement.dir,
+                  title: document.title,
+                  description: document.querySelector('meta[name="description"]')?.content ?? '',
+                })""",
+                locale,
+            )
+            locale_metadata.append(metadata)
+        checks["localeMetadata"] = locale_metadata
+        checks["localeMetadataValid"] = all(
+            item["lang"] == item["locale"]
+            and item["dir"] == ("rtl" if item["locale"] == "ar" else "ltr")
+            and item["title"].startswith("Weiqi · ")
+            and bool(item["description"].strip())
+            for item in locale_metadata
+        )
+        locale_select.select_option("ar")
+        page.wait_for_function("document.documentElement.dir === 'rtl'")
+        arabic_launcher_text = page.get_by_test_id("simple-launcher").inner_text()
+        checks["arabicAuthoredLessonLocalized"] = not any(
+            english in arabic_launcher_text
+            for english in (
+                "Choose a Promise",
+                "Your first real 9×9 opening",
+                "A first move is a promise",
+                "Choose any legal opening",
+            )
+        )
+        screenshot(page, timestamp, "simple-launcher-arabic-desktop", screenshots)
+        arabic_cdp = context.new_cdp_session(page)
+        try:
+            arabic_cdp.send(
+                "Emulation.setDeviceMetricsOverride",
+                {
+                    "width": 390,
+                    "height": 844,
+                    "deviceScaleFactor": 1,
+                    "mobile": True,
+                },
+            )
+            page.wait_for_timeout(350)
+            checks["arabicMobileFitsViewport"] = page.evaluate(
+                """() => {
+                  const root = document.documentElement;
+                  const select = document.querySelector('[data-testid="locale-select"]');
+                  if (!(select instanceof HTMLElement)) return false;
+                  const rect = select.getBoundingClientRect();
+                  return root.lang === 'ar' && root.dir === 'rtl' &&
+                    root.scrollWidth === root.clientWidth &&
+                    rect.width > 0 && rect.height >= 44 && rect.bottom <= innerHeight;
+                }"""
+            )
+            screenshot(page, timestamp, "simple-launcher-arabic-mobile", screenshots)
+        finally:
+            arabic_cdp.send("Emulation.clearDeviceMetricsOverride")
+            arabic_cdp.detach()
+            page.wait_for_timeout(350)
+        page.reload(wait_until="networkidle")
+        locale_select = page.get_by_test_id("locale-select").first
+        checks["localePersistence"] = (
+            locale_select.input_value() == "ar"
+            and page.locator("html").get_attribute("lang") == "ar"
+            and page.locator("html").get_attribute("dir") == "rtl"
+            and not created_game_ids
+        )
+        locale_select.select_option("en")
+        page.wait_for_function("document.documentElement.lang === 'en'")
         page.goto(f"{APP_URL}simple/", wait_until="networkidle")
         root = page.get_by_test_id("app-root")
         root.wait_for(state="visible")
@@ -989,6 +1082,28 @@ def run() -> dict[str, Any]:
             )
         )
         screenshot(page, timestamp, "five-by-five-preview", screenshots)
+        play_locale_select = page.get_by_test_id("locale-select").first
+        play_locale_select.select_option("ar")
+        page.wait_for_function("document.documentElement.lang === 'ar'")
+        arabic_teacher_text = page.get_by_test_id("power-teacher").inner_text()
+        arabic_candidate_text = page.locator(".candidate-card").first.inner_text()
+        checks["arabicDeterministicTeachingLocalized"] = not any(
+            english in f"{arabic_teacher_text}\n{arabic_candidate_text}"
+            for english in (
+                "Play",
+                "Because",
+                "Changes",
+                "Opponent",
+                "Then check",
+                "Principle",
+                "Possible ",
+                "Teacher hypothesis",
+                "Rules:",
+            )
+        )
+        screenshot(page, timestamp, "five-by-five-preview-arabic", screenshots)
+        play_locale_select.select_option("en")
+        page.wait_for_function("document.documentElement.lang === 'en'")
         commit.click()
         wait_for_move_count(page, 2)
         checks["humanAndAgentMoves"] = page.locator(".timeline-track > span").count()
@@ -1547,6 +1662,12 @@ def run() -> dict[str, Any]:
         "title": "Weiqi · Path of Influence",
         "initialView": "journey",
         "engine": "ready",
+        "simpleDefaultRoute": True,
+        "localeOptions": EXPECTED_LOCALE_OPTIONS,
+        "localeMetadataValid": True,
+        "localePersistence": True,
+        "arabicAuthoredLessonLocalized": True,
+        "arabicMobileFitsViewport": True,
         "simpleDirectRoute": True,
         "simpleLauncherFitsViewport": True,
         "simpleHistoryAccessible": True,
@@ -1565,6 +1686,7 @@ def run() -> dict[str, Any]:
         "previewVerified": True,
         "smallBoardNoEngineField": True,
         "powerTeacherConcrete": True,
+        "arabicDeterministicTeachingLocalized": True,
         "turnStartDecisionField": True,
         "candidateHoverSwitch": True,
         "candidateFocusOverridesHover": True,

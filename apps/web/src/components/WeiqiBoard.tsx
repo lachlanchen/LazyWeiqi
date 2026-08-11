@@ -12,6 +12,7 @@ import {
   stoneMap,
   teachingPresenceField,
 } from '../board'
+import { localizeAuthoredTemplate, localizeAuthoredText } from '../authoredCopy'
 import { localizeRulesReason, useI18n, type Locale } from '../i18n'
 import type { BoardSize, CandidateMove, MovePreview, MoveRecord, OwnershipCell, Point, Stone, StoneColor } from '../types'
 
@@ -43,6 +44,8 @@ const PADDING = 48
 const GRID_SPAN = BOARD_EDGE - PADDING * 2
 
 function authored(locale: Locale, english: string, chinese: string, japanese: string): string {
+  const translated = localizeAuthoredText(locale, english)
+  if (translated !== english) return translated
   return locale === 'zh-Hans' ? chinese : locale === 'ja' ? japanese : english
 }
 
@@ -77,6 +80,7 @@ export function WeiqiBoard({
   operationStatus = 'idle',
 }: WeiqiBoardProps) {
   const { locale, t } = useI18n()
+  const toPlayName = toPlay === 'black' ? t('board.black') : t('board.white')
   const instanceId = useId().replace(/:/g, '')
   const step = GRID_SPAN / (size - 1)
   const occupied = useMemo(() => stoneMap(stones), [stones])
@@ -592,7 +596,7 @@ export function WeiqiBoard({
               {candidateLiberties != null && (
                 <g className="candidate-liberty-count" transform={`translate(${step * 0.32} ${-step * 0.34})`}>
                   <circle cx={x} cy={y} r={step * 0.15} />
-                  <text x={x} y={y + 3.2} textAnchor="middle">{authored(locale, `L${candidateLiberties}`, `气${candidateLiberties}`, `ダ${candidateLiberties}`)}</text>
+                  <text x={x} y={y + 3.2} textAnchor="middle">{localizeAuthoredTemplate(locale, 'L{count}', { count: candidateLiberties })}</text>
                 </g>
               )}
             </g>
@@ -613,7 +617,7 @@ export function WeiqiBoard({
             >
               <circle cx={at.x} cy={at.y} r={step * 0.62} className="opening-suggestion-pulse" />
               <rect x={labelX} y={labelY} width={labelWidth} height="28" rx="14" />
-              <text x={labelX + labelWidth / 2} y={labelY + 18} textAnchor="middle">{authored(locale, `Suggested first: ${candidatePreview?.coordinate}`, `建议第一手：${candidatePreview?.coordinate}`, `第一候補：${candidatePreview?.coordinate}`)}</text>
+              <text x={labelX + labelWidth / 2} y={labelY + 18} textAnchor="middle">{locale === 'en' ? `Suggested first: ${candidatePreview?.coordinate}` : `${t('candidate.suggested')}: ${candidatePreview?.coordinate}`}</text>
             </g>
           )
         })()}
@@ -699,16 +703,26 @@ export function WeiqiBoard({
       <div className="board-live-status sr-only" aria-live="polite">
         {candidatePreview
           ? candidatePreviewMode === 'suggested-first-stone'
-            ? authored(locale, `Suggested first stone: ${candidatePreview.coordinate}. Nothing has been placed. Click this point or any legal empty intersection to analyze what would happen before deciding.`, `建议的第一手：${candidatePreview.coordinate}。尚未落子。单击此点或任何合法空点，在决定前分析后果。`, `おすすめの第一手：${candidatePreview.coordinate}。まだ石は打たれていません。この点または合法な空交点を選び、決定前に結果を分析します。`)
+            ? locale === 'en'
+              ? `Suggested first stone: ${candidatePreview.coordinate}. Nothing has been placed. Click this point or any legal empty intersection to analyze what would happen before deciding.`
+              : `${t('candidate.suggested')}: ${candidatePreview.coordinate}. ${t('board.nothingPlaced')} ${t('candidate.interaction')}`
             : candidatePreviewMode === 'if-played'
-              ? authored(locale, `If ${toPlay} played ${candidatePreview.coordinate}, this non-committing analysis would apply. No stone has been placed.`, `如果${toPlay === 'black' ? '黑棋' : '白棋'}下在 ${candidatePreview.coordinate}，将应用这份不落子分析。尚未落子。`, `${toPlay === 'black' ? '黒' : '白'}が ${candidatePreview.coordinate} に打った場合の未着手分析です。石はまだ打たれていません。`)
+              ? locale === 'en'
+                ? `If ${toPlay} played ${candidatePreview.coordinate}, this non-committing analysis would apply. No stone has been placed.`
+                : `${t('board.ifPlays', { color: toPlayName, coordinate: candidatePreview.coordinate })}. ${t('play.previewHint')} ${t('board.nothingPlaced')}`
               : candidateEngineField
-            ? authored(locale, `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing engine candidate forecast.`, `正在查看 ${candidatePreview.coordinate}，${candidatePreview.title}。这是不落子的引擎候选预测。`, `${candidatePreview.coordinate}（${candidatePreview.title}）を確認中です。着手しないエンジン候補予測です。`)
+            ? locale === 'en'
+              ? `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing engine candidate forecast.`
+              : `${candidatePreview.coordinate}, ${candidatePreview.title}. ${t('candidate.engineRanked')}. ${t('board.nothingPlaced')}`
             : candidateIsPass
-              ? authored(locale, `Inspecting pass, ${candidatePreview.title}. This is a non-committing pass preview; no stone is placed and no engine ownership map is supplied.`, `正在查看停一手，${candidatePreview.title}。这是不落子的停一手预览；不放置棋子，也未提供引擎归属图。`, `パス（${candidatePreview.title}）を確認中です。着手しないパスプレビューで、石もエンジン帰属図もありません。`)
-              : authored(locale, `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing location and exact-shape preview; no engine ownership map is supplied.`, `正在查看 ${candidatePreview.coordinate}，${candidatePreview.title}。这是不落子的位置与确定棋形预览；未提供引擎归属图。`, `${candidatePreview.coordinate}（${candidatePreview.title}）を確認中です。着手しない場所と正確な形のプレビューで、エンジン帰属図はありません。`)
+              ? locale === 'en'
+                ? `Inspecting pass, ${candidatePreview.title}. This is a non-committing pass preview; no stone is placed and no engine ownership map is supplied.`
+                : `${t('play.pass')}, ${candidatePreview.title}. ${t('board.noPassMap')}`
+              : locale === 'en'
+                ? `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing location and exact-shape preview; no engine ownership map is supplied.`
+                : `${candidatePreview.coordinate}, ${candidatePreview.title}. ${t('board.noMoveMap')}`
           : selected
-          ? `${pointToCoordinate(selected, size)} ${authored(locale, 'selected.', '已选中。', 'を選択中。')} ${preview ? (preview.legal ? t('board.moveLegal') : t('board.moveIllegal', { reason: localizeRulesReason(preview.reason, locale) ?? t('board.unknownReason') })) : t('board.checkingConsequences')}`
+          ? `${t('board.empty', { coordinate: pointToCoordinate(selected, size), selected: t('board.selected') })} ${preview ? (preview.legal ? t('board.moveLegal') : t('board.moveIllegal', { reason: localizeRulesReason(preview.reason, locale) ?? t('board.unknownReason') })) : t('board.checkingConsequences')}`
           : t('board.toPlay', { color: toPlay === 'black' ? t('board.black') : t('board.white') })}
       </div>
       </div>
@@ -718,13 +732,19 @@ export function WeiqiBoard({
           className="candidate-field-key"
           aria-label={candidateEngineField
             ? candidatePreviewMode === 'suggested-first-stone'
-              ? authored(locale, `Suggested first stone ${candidatePreview.coordinate} with if-played engine forecast`, `建议第一手 ${candidatePreview.coordinate}，带“如果下在此处”的引擎预测`, `おすすめの第一手 ${candidatePreview.coordinate}、着手時のエンジン予測付き`)
+              ? locale === 'en'
+                ? `Suggested first stone ${candidatePreview.coordinate} with if-played engine forecast`
+                : `${t('candidate.suggested')}: ${candidatePreview.coordinate}. ${t('candidate.afterOwnership')}`
               : candidatePreviewMode === 'if-played'
-                ? authored(locale, `Unconfirmed analysis if ${toPlay} plays ${candidatePreview.coordinate}`, `${toPlay === 'black' ? '黑棋' : '白棋'}下在 ${candidatePreview.coordinate} 的未确认分析`, `${toPlay === 'black' ? '黒' : '白'}が ${candidatePreview.coordinate} に打つ場合の未確定分析`)
-                : authored(locale, `Engine forecast after candidate ${candidatePreview.coordinate}`, `候选着 ${candidatePreview.coordinate} 后的引擎预测`, `候補手 ${candidatePreview.coordinate} 後のエンジン予測`)
+                ? locale === 'en'
+                  ? `Unconfirmed analysis if ${toPlay} plays ${candidatePreview.coordinate}`
+                  : `${t('board.ifPlays', { color: toPlayName, coordinate: candidatePreview.coordinate })}. ${t('play.previewHint')}`
+                : locale === 'en'
+                  ? `Engine forecast after candidate ${candidatePreview.coordinate}`
+                  : `${t('candidate.afterOwnership')}: ${candidatePreview.coordinate}`
             : candidateIsPass
-              ? authored(locale, 'Pass preview with no stone placement and no ownership map', '停一手预览：不落子，也没有归属图', 'パスプレビュー：着手と帰属図はありません')
-              : authored(locale, `Location and exact-shape preview for candidate ${candidatePreview.coordinate}`, `候选着 ${candidatePreview.coordinate} 的位置与确定棋形预览`, `候補手 ${candidatePreview.coordinate} の場所と正確な形のプレビュー`)}
+              ? locale === 'en' ? 'Pass preview with no stone placement and no ownership map' : t('board.noPassMap')
+              : locale === 'en' ? `Location and exact-shape preview for candidate ${candidatePreview.coordinate}` : t('board.noMoveMap')}
           aria-live="polite"
           data-testid="candidate-field-key"
           data-candidate-id={candidatePreview.id}
@@ -734,41 +754,41 @@ export function WeiqiBoard({
           <div className="candidate-field-title">
             <div>
               <small>{candidatePreviewMode === 'suggested-first-stone'
-                ? authored(locale, 'Suggested first stone · nothing placed', '建议的第一手 · 尚未落子', 'おすすめの第一手 · 未着手')
+                ? locale === 'en' ? 'Suggested first stone · nothing placed' : `${t('candidate.suggested')} · ${t('board.nothingPlaced')}`
                 : candidatePreviewMode === 'if-played'
-                  ? authored(locale, 'If played · still unconfirmed', '如果下在此处 · 仍未确认', 'ここに打った場合 · まだ未確定')
-                  : authored(locale, 'Inspecting without placing', '只观察，不落子', '着手せずに調べる')}</small>
+                  ? locale === 'en' ? 'If played · still unconfirmed' : `${t('energy.ifPlayed')} · ${t('play.previewHint')}`
+                  : locale === 'en' ? 'Inspecting without placing' : `${t('candidate.boardField')} · ${t('board.nothingPlaced')}`}</small>
               <strong>{candidateEngineField
                 ? candidatePreviewMode === 'suggested-first-stone'
-                  ? authored(locale, `${candidatePreview.coordinate} · suggested opening with if-played forecast`, `${candidatePreview.coordinate} · 建议开局与着后预测`, `${candidatePreview.coordinate} · おすすめ序盤手と着手後予測`)
+                  ? locale === 'en' ? `${candidatePreview.coordinate} · suggested opening with if-played forecast` : `${candidatePreview.coordinate} · ${t('candidate.suggested')}`
                   : candidatePreviewMode === 'if-played'
-                    ? authored(locale, `${candidatePreview.coordinate} · board if ${toPlay} played here`, `${candidatePreview.coordinate} · ${toPlay === 'black' ? '黑棋' : '白棋'}下在此处后的棋盘`, `${candidatePreview.coordinate} · ${toPlay === 'black' ? '黒' : '白'}がここに打った盤面`)
-                    : authored(locale, `${candidatePreview.coordinate} · engine forecast after this candidate`, `${candidatePreview.coordinate} · 候选着后的引擎预测`, `${candidatePreview.coordinate} · 候補手後のエンジン予測`)
+                    ? locale === 'en' ? `${candidatePreview.coordinate} · board if ${toPlay} played here` : t('board.ifPlays', { color: toPlayName, coordinate: candidatePreview.coordinate })
+                    : locale === 'en' ? `${candidatePreview.coordinate} · engine forecast after this candidate` : `${candidatePreview.coordinate} · ${t('candidate.afterOwnership')}`
                 : candidateIsPass
-                  ? authored(locale, 'Pass · no stone is placed', '停一手 · 不落子', 'パス · 石は打たれない')
-                  : authored(locale, `${candidatePreview.coordinate} · location and exact-shape preview`, `${candidatePreview.coordinate} · 位置与确定棋形预览`, `${candidatePreview.coordinate} · 場所と正確な形のプレビュー`)}</strong>
+                  ? locale === 'en' ? 'Pass · no stone is placed' : `${t('play.pass')} · ${t('board.nothingPlaced')}`
+                  : locale === 'en' ? `${candidatePreview.coordinate} · location and exact-shape preview` : `${candidatePreview.coordinate} · ${t('candidate.boardField')}`}</strong>
             </div>
             <span className={`evidence-badge ${candidateEngineField ? 'engine' : 'metaphor'}`}>
               {candidateEngineField
                 ? t('evidence.engine')
                 : size < 9
-                  ? authored(locale, `Authored ${size}×${size} view`, `人工编写的 ${size}×${size} 视图`, `教材用の ${size}×${size} 表示`)
+                  ? locale === 'en' ? `Authored ${size}×${size} view` : `${size}×${size} · ${t('source.lesson')}`
                   : candidateIsPass
-                    ? authored(locale, 'Pass preview · no map supplied', '停一手预览 · 未提供分布图', 'パスプレビュー · 図なし')
-                    : authored(locale, 'Location preview · no field supplied', '位置预览 · 未提供分布场', '場所プレビュー · 分布なし')}
+                    ? locale === 'en' ? 'Pass preview · no map supplied' : `${t('play.pass')} · ${t('board.unreported')}`
+                    : locale === 'en' ? 'Location preview · no field supplied' : `${t('candidate.boardField')} · ${t('board.unreported')}`}
             </span>
           </div>
 
           {candidateEngineField ? (
-            <div className="candidate-field-modes" role="list" aria-label={authored(locale, 'Candidate field modes', '候选着分布图模式', '候補手の分布モード')}>
+            <div className="candidate-field-modes" role="list" aria-label={locale === 'en' ? 'Candidate field modes' : t('candidate.boardField')}>
               {candidateOwnershipVisible && (
                 <span role="listitem" data-field-mode="after-candidate">
-                  <i className="field-after" /><span><b>{authored(locale, 'After this move', '这手之后', 'この手の後')}</b>{authored(locale, `Ownership forecast after ${candidatePreview.coordinate}`, `${candidatePreview.coordinate} 后的归属预测`, `${candidatePreview.coordinate} 後の帰属予測`)}</span>
+                  <i className="field-after" /><span><b>{locale === 'en' ? 'After this move' : t('candidate.afterOwnership')}</b>{candidatePreview.coordinate}</span>
                 </span>
               )}
               {candidateDelta.length > 0 && (
                 <span role="listitem" data-field-mode="change-vs-current">
-                  <i className="field-delta" /><span><b>{authored(locale, 'Forecast difference after this move vs current', '这手后与当前局面的预测差异', '着手後と現在局面の予測差')}</b>{authored(locale, 'Strongest displayed signed changes · blue toward Black, orange toward White', '显示最强的带符号变化 · 蓝色偏向黑，橙色偏向白', '表示される最大の符号付き変化 · 青は黒寄り、オレンジは白寄り')}</span>
+                  <i className="field-delta" /><span><b>{locale === 'en' ? 'Forecast difference after this move vs current' : t('candidate.deltaOwnership')}</b>{authored(locale, 'Strongest displayed signed changes · blue toward Black, orange toward White', '显示最强的带符号变化 · 蓝色偏向黑，橙色偏向白', '表示される最大の符号付き変化 · 青は黒寄り、オレンジは白寄り')}</span>
                 </span>
               )}
               <span role="listitem">
@@ -865,20 +885,30 @@ export function WeiqiBoard({
         >
           <strong>
             {operationStatus === 'previewing' && !preview
-              ? authored(locale, `Analyzing if ${toPlay} plays ${pointToCoordinate(selected, size)}…`, `正在分析${toPlay === 'black' ? '黑棋' : '白棋'}下在 ${pointToCoordinate(selected, size)} 后的局面…`, `${toPlay === 'black' ? '黒' : '白'}が ${pointToCoordinate(selected, size)} に打った場合を解析中…`)
+              ? locale === 'en'
+                ? `Analyzing if ${toPlay} plays ${pointToCoordinate(selected, size)}…`
+                : t('play.analyzingAt', { color: toPlayName, coordinate: pointToCoordinate(selected, size) })
               : preview?.legal
-                ? authored(locale, `If ${toPlay} plays ${pointToCoordinate(selected, size)} · analysis ready`, `${toPlay === 'black' ? '黑棋' : '白棋'}若下在 ${pointToCoordinate(selected, size)} · 分析已就绪`, `${toPlay === 'black' ? '黒' : '白'}が ${pointToCoordinate(selected, size)} に打つ場合 · 解析準備完了`)
+                ? locale === 'en'
+                  ? `If ${toPlay} plays ${pointToCoordinate(selected, size)} · analysis ready`
+                  : `${t('board.ifPlays', { color: toPlayName, coordinate: pointToCoordinate(selected, size) })} · ${t('play.verified')}`
                 : preview
-                  ? authored(locale, `${pointToCoordinate(selected, size)} cannot be played now`, `${pointToCoordinate(selected, size)} 当前不能下`, `${pointToCoordinate(selected, size)} には現在打てません`)
-                  : authored(locale, `Analyzing ${pointToCoordinate(selected, size)}…`, `正在分析 ${pointToCoordinate(selected, size)}…`, `${pointToCoordinate(selected, size)} を解析中…`)}
+                  ? locale === 'en' ? `${pointToCoordinate(selected, size)} cannot be played now` : `${pointToCoordinate(selected, size)} · ${t('play.notLegal')}`
+                  : locale === 'en' ? `Analyzing ${pointToCoordinate(selected, size)}…` : t('play.analyzingAt', { color: toPlayName, coordinate: pointToCoordinate(selected, size) })}
           </strong>
           <span>
             {operationStatus === 'previewing' && !preview
-              ? authored(locale, 'No stone has been placed. Waiting for exact consequences and any after-move ownership and score forecast.', '尚未落子。正在等待确定后果，以及可能的着后归属和目数预测。', '石は打たれていません。正確な結果と、提供される場合は着手後の帰属・得点予測を待っています。')
+              ? locale === 'en'
+                ? 'No stone has been placed. Waiting for exact consequences and any after-move ownership and score forecast.'
+                : `${t('board.nothingPlaced')} ${t('board.checkingConsequences')}`
               : preview?.legal && candidateEngineField
-                ? authored(locale, 'The if-played field and explanation are visible above. Nothing changes until you separately choose Place stone.', '上方已显示“如果下在此处”的分布与解释。在你另行选择“确认落子”前，棋盘不会改变。', '「ここに打った場合」の分布と説明は上に表示されています。別途「石を打つ」を選ぶまで盤面は変わりません。')
+                ? locale === 'en'
+                  ? 'The if-played field and explanation are visible above. Nothing changes until you separately choose Place stone.'
+                  : `${t('candidate.afterOwnership')} · ${t('board.nothingPlaced')} ${t('play.previewHint')}`
               : preview?.legal
-                  ? authored(locale, 'The move is legal and exact consequences are shown, but no after-move ownership map was supplied. Nothing has been placed.', '着法合法且已显示确定后果，但未提供着后归属图。尚未落子。', '合法手で正確な結果が表示されていますが、着手後の帰属図は提供されていません。まだ着手していません。')
+                  ? locale === 'en'
+                    ? 'The move is legal and exact consequences are shown, but no after-move ownership map was supplied. Nothing has been placed.'
+                    : `${t('board.moveLegal')} ${t('board.noMoveMap')} ${t('board.nothingPlaced')}`
                   : preview
                     ? `${localizeRulesReason(preview.reason, locale) ?? t('coach.notLegalNow')} ${t('board.nothingPlaced')}`
                     : t('board.nothingPlaced')}

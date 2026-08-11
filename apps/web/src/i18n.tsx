@@ -1,4 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import arCatalog from './locales/ar.json'
+import deCatalog from './locales/de.json'
+import esCatalog from './locales/es.json'
+import frCatalog from './locales/fr.json'
+import koCatalog from './locales/ko.json'
+import ruCatalog from './locales/ru.json'
+import viCatalog from './locales/vi.json'
+import zhHantCatalog from './locales/zh-Hant.json'
+import {
+  isAuthoredLocale,
+  localizeAuthoredTemplate,
+  localizeAuthoredText,
+  type AuthoredLocale,
+} from './authoredCopy'
+import {
+  deterministicActsAdditional,
+  knownNamesAdditional,
+  lessonTranslationsAdditional,
+} from './lessonTranslations.additional'
 import type {
   CandidateMove,
   CurriculumResponse,
@@ -10,15 +29,24 @@ import type {
   MoveTeachingEvidence,
 } from './types'
 
-export const SUPPORTED_LOCALES = ['en', 'zh-Hans', 'ja'] as const
+export const SUPPORTED_LOCALES = ['en', 'ar', 'es', 'fr', 'ja', 'ko', 'vi', 'zh-Hans', 'zh-Hant', 'de', 'ru'] as const
 export type Locale = (typeof SUPPORTED_LOCALES)[number]
+type TeachingLocale = AuthoredLocale
 
 const LOCALE_KEY = 'weiqi.path.locale.v1'
 
 export const LOCALE_NAMES: Record<Locale, string> = {
   en: 'English',
-  'zh-Hans': '简体中文',
+  ar: 'العربية',
+  es: 'Español',
+  fr: 'Français',
   ja: '日本語',
+  ko: '한국어',
+  vi: 'Tiếng Việt',
+  'zh-Hans': '简体中文',
+  'zh-Hant': '繁體中文',
+  de: 'Deutsch',
+  ru: 'Русский',
 }
 
 const en = {
@@ -462,8 +490,8 @@ const zhHans: Catalog = {
   'doctrine.balanced': '均衡', 'doctrine.territory': '实地', 'doctrine.influence': '外势', 'doctrine.fighting': '战斗', 'doctrine.light': '轻灵', 'style.socratic': '苏格拉底式提问', 'style.encouraging': '温暖鼓励', 'style.concise': '安静简洁',
   'play.trainingFocus': '练习重点：', 'play.sceneComplete': '本局完成', 'play.endedPasses': '对局结束 · 连续两次停一手', 'play.openReflection': '打开复盘', 'play.teachingGame': '教学局', 'play.moves': '{count} 手', 'play.move': '第 {count} 手', 'play.gameComplete': '对局完成', 'play.scoreNotSettled': '对局结束 · 胜负未定', 'play.toPlay': '轮到 {name}', 'play.currentPurpose': '当前目标', 'play.komi': '贴目 {value}', 'play.analyzingAt': '正在分析 {color} 下在 {coordinate} 后的局面…', 'play.findingFirst': '正在寻找建议的第一手…', 'play.comparing': '正在比较下一手选择…', 'play.backSuggestions': '返回建议', 'play.rewind': '悔棋', 'play.pauseTheatre': '暂停对弈', 'play.watch': '连续观看', 'play.oneTurn': '走一手并解说', 'play.cancel': '取消', 'play.previewHint': '预览中 · 右键棋盘或按 Esc 取消选择', 'play.verified': '已验证', 'play.notLegal': '不合法', 'play.checking': '检查中…', 'play.placeStone': '确认落子', 'play.chooseAnother': '选择其他点', 'play.analysisFirst': '先看分析 · 落子仍锁定', 'play.candidatePinned': '已固定候选 · 右键棋盘或按 Esc 返回智能体建议。', 'play.selectEmpty': '选择空交叉点，预览它带来的后果。', 'play.pass': '停一手', 'play.resign': '认输', 'play.timeline': '着法时间线', 'play.storySoFar': '目前的对局', 'play.firstChronicle': '第一手将开启棋谱。', 'play.areaUnsettled': '地盘与死子尚未确定，因此不宣布最终比分。', 'rules.positionalSuperko': '禁全同局', 'rules.situationalSuperko': '禁同局同方', 'rules.simpleKo': '单劫规则', 'rules.reasonOccupied': '该交叉点已有棋子', 'rules.reasonSuicide': '着法不能让自己的棋块没有气', 'rules.reasonSuperko': '这手棋会重复之前的盘面局面', 'rules.reasonFinished': '对局已经结束', 'rules.reasonOutside': '该交叉点位于 {size} 棋盘之外',
   'coach.narrator': '解说者', 'coach.lantern': '灯笼', 'coach.companion': '陪伴者', 'coach.lessonGuide': '课程向导', 'coach.compass': '罗盘', 'coach.authority': '智能体权限', 'coach.authorityTheatre': '解说只说明双方棋风；只有两个棋手智能体能落子。', 'coach.authorityCompanion': '灯笼站在你这边，但不会替你落子，除非你明确委托这一手。', 'coach.authorityHuman': '河只从教学服务已验证的合法候选中选择。', 'coach.intention': '你的意图', 'coach.optional': '可选，但很有帮助', 'coach.moveIntention': '着法意图', 'intent.unsure': '不确定', 'intent.claim': '占地', 'intent.connect': '连接', 'intent.pressure': '施压', 'intent.escape': '逃出', 'intent.settle': '安定', 'intent.sacrifice': '取舍', 'intent.cut': '切断', 'intent.invade': '打入', 'intent.reduce': '消减', 'intent.endgame': '官子', 'coach.revealHistory': '展开对话历史', 'coach.loadingEarlier': '正在加载更早消息…', 'coach.tryEarlier': '重试加载更早消息', 'coach.loadEarlier': '加载更早消息', 'coach.recentOnly': '只显示最近消息', 'coach.visibleStillHere': '当前可见对话仍在。', 'coach.learnerQuestion': '学习者提问', 'coach.you': '你', 'coach.evidence': '依据来源', 'coach.empty': '向导正安静观察。选一个点，或提一个问题。', 'coach.otherCandidates': '其他候选思路', 'coach.candidateIntentions': '候选着法意图', 'coach.notLegalNow': '这个点当前不合法。', 'coach.hint': '分级提示', 'coach.compare': '比较', 'coach.hintQuestion': '我落子前应该先注意什么？', 'coach.compareQuestion': '请解释这些候选着之间最关键的差别。', 'coach.ask': '询问教练', 'coach.askDoctrine': '询问任一方的棋风…', 'coach.askChanged': '询问改变了什么…', 'coach.invite': '邀请灯笼只代下这一手', 'coach.oneTurnOnly': '仅此一手。', 'coach.keepTurn': '保留我的回合', 'coach.chooseOnce': '只代选这一手',
-  'candidate.empty': '选择一个空点来比较后果。', 'candidate.list': '候选着法比较', 'candidate.suggested': '建议的第一手', 'candidate.teacherFallback': '教师备用建议', 'candidate.intentProvenance': '教师假设 · 可能任务', 'candidate.replyEngine': '引擎主变中的回应（非必然）', 'candidate.replyExamine': '需检查的回应', 'candidate.risk': '风险：', 'candidate.noEngine': '此处不声称有引擎支持。', 'candidate.why': '为什么下这里', 'candidate.changes': '改变了什么', 'candidate.next': '下一步计算', 'candidate.teacherInterpretation': '教师解读', 'candidate.rulesFacts': '规则事实', 'candidate.exact': '确定', 'candidate.scoreComparison': '目数预测比较', 'candidate.supportsComparison': '这只用于比较，不是地盘事实。', 'candidate.boardField': '棋盘分布', 'candidate.afterOwnership': '着后归属概率', 'candidate.deltaOwnership': '归属变化形状', 'candidate.readNext': '继续阅读', 'candidate.interaction': '悬停或聚焦以查看。点按、单击或按 Enter 保留不落子的预览；右键棋盘或按 Esc 返回智能体建议。',
-  'evidence.exact': '确定事实', 'evidence.tactical': '战术读取', 'evidence.engine': '引擎估计', 'evidence.model': '模型解释', 'evidence.teacher': '教师指导', 'evidence.metaphor': '比喻', 'energy.views': '棋盘视图', 'energy.title': '切换清晰的单个图层', 'energy.noMagic': '没有神秘总分', 'energy.overlays': '棋盘教学图层', 'energy.ifPlayed': '如果下在此处', 'energy.current': '当前局面', 'lens.cloud': '存在感示意', 'lens.cloudTerm': '距离比喻', 'lens.breath': '气', 'lens.liberties': '气', 'lens.bonds': '连结', 'lens.connections': '连接', 'lens.shelter': '安定', 'lens.eyeSpace': '眼位', 'lens.forecast': '预测', 'lens.ownership': '归属倾向', 'lens.strong': '强预测', 'lens.threshold': '仅用于显示的归属阈值', 'lens.area': '盘面计数', 'lens.areaTerm': '棋子与空交叉点', 'lens.turn': '回合', 'lens.side': '轮到哪方', 'lens.pressure': '压力', 'lens.atari': '假设着法造成的叫吃',
+  'candidate.empty': '选择一个空点来比较后果。', 'candidate.list': '候选着法比较', 'candidate.suggested': '建议的第一手', 'candidate.teacherFallback': '教师备用建议', 'candidate.intentProvenance': '教师假设 · 可能任务', 'candidate.replyEngine': '引擎主变中的回应（非必然）', 'candidate.replyExamine': '需检查的回应', 'candidate.risk': '风险：', 'candidate.noEngine': '此处不声称有引擎支持。', 'candidate.why': '为什么下这里', 'candidate.changes': '改变了什么', 'candidate.next': '下一步计算', 'candidate.teacherInterpretation': '教师解读', 'candidate.rulesFacts': '规则事实', 'candidate.exact': '确定', 'candidate.scoreComparison': '目数预测比较', 'candidate.supportsComparison': '这仅用于比较，不是地盘事实。', 'candidate.boardField': '棋盘分布', 'candidate.afterOwnership': '着后归属预测', 'candidate.deltaOwnership': '归属变化形状', 'candidate.readNext': '继续阅读', 'candidate.interaction': '悬停或聚焦以查看。点按、单击或按 Enter 保留不落子的预览；右键棋盘或按 Esc 返回智能体建议。',
+  'evidence.exact': '确定事实', 'evidence.tactical': '战术读取', 'evidence.engine': '引擎估计', 'evidence.model': '模型解释', 'evidence.teacher': '教师指导', 'evidence.metaphor': '比喻', 'energy.views': '棋盘视图', 'energy.title': '切换清晰的单个图层', 'energy.noMagic': '没有神秘总分', 'energy.overlays': '棋盘教学图层', 'energy.ifPlayed': '如果下在此处', 'energy.current': '当前局面', 'lens.cloud': '存在感示意', 'lens.cloudTerm': '距离比喻', 'lens.breath': '呼吸', 'lens.liberties': '气', 'lens.bonds': '连结', 'lens.connections': '连接', 'lens.shelter': '安定', 'lens.eyeSpace': '眼位', 'lens.forecast': '预测', 'lens.ownership': '归属倾向', 'lens.strong': '强预测', 'lens.threshold': '仅用于显示的归属阈值', 'lens.area': '盘面计数', 'lens.areaTerm': '棋子与空交叉点', 'lens.turn': '回合', 'lens.side': '轮到哪方', 'lens.pressure': '压力', 'lens.atari': '假设着法造成的叫吃',
   'power.eyebrow': '按逻辑思考这一手', 'power.title': '从选择到下一步计算', 'power.remember': '记住：', 'power.memory': '确定规则事实、引擎预测和教师解读回答的是不同问题。预测不是已属于你的地盘。', 'power.play': '下在哪里', 'power.because': '为什么', 'power.changes': '改变', 'power.opponent': '对手回应', 'power.thenCheck': '然后检查', 'power.principle': '原则', 'source.exactRules': '确定规则', 'source.engine': '引擎估计', 'source.lesson': '课程指导', 'source.teacher': '教师解读',
   'chronicle.eyebrow': '你的棋谱', 'chronicle.title': '对局会成为可重温的故事', 'chronicle.description': '历史把主线、悔棋分支、意图、解释与引擎来源放在一起。', 'chronicle.ended': '对局结束 · 胜负未定', 'chronicle.revisit': '重温', 'chronicle.unavailableTitle': '暂时无法读取历史。', 'chronicle.unavailableText': '你的对局没有被示例数据替换。重新连接本地服务后再试。', 'chronicle.emptyTitle': '第一局棋会出现在这里。', 'chronicle.emptyText': '每个完成的课程都会留下一个值得记住的时刻。', 'chronicle.loadingOlder': '正在加载更早对局…', 'chronicle.tryOlder': '重试加载更早对局', 'chronicle.loadOlder': '加载更早对局', 'chronicle.reviewHall': '复盘室', 'chronicle.inProgress': '对局进行中', 'chronicle.promise': '起意', 'chronicle.crisis': '危机', 'chronicle.resolution': '收束', 'chronicle.noSummary': '尚未记录这局棋的专属故事摘要。着法历史依然完整保留，不会虚构解读。', 'chronicle.selectGame': '选择一局棋', 'chronicle.selectText': '查看它的起意、危机、收束，以及一条值得带走的原则。', 'chronicle.recently': '最近',
   'board.black': '黑棋', 'board.white': '白棋', 'board.lastMove': '，最后一手', 'board.selected': '，已选中预览', 'board.moveLegal': '着法合法。', 'board.checkingConsequences': '正在检查后果。', 'board.openingSketch': '开局效率示意', 'board.distanceSketch': '当前棋子距离示意', 'board.analogy': '初学者比喻 · 不代表着法质量', 'board.corner': '角', 'board.cornerText': '只需关闭较少方向', 'board.side': '边', 'board.sideText': '易与附近棋子联系', 'board.center': '中腹', 'board.centerText': '延伸远，围空慢', 'board.nearby': '附近存在感', 'board.violet': '紫色', 'board.bothClose': '双方都很近', 'board.sketchDisclaimer': '这个初学示意只表示与当前棋子的距离。它不给候选着排名，也不是物理场、地盘、归属或比分。', 'board.smallBoardDisclaimer': '这是人工编写的 {size}×{size} 教学视图；已安装的 KataGo 依据仅适用于 9×9。', 'board.separateEstimate': '另一层方格渐变是 KataGo 的归属估计。', 'board.currentBoard': '当前棋盘', 'board.noTerritory': '对局进行中没有已定地盘。请用上方已标注的归属云图和目数预测比较未来可能的控制。',
@@ -500,7 +528,51 @@ const ja: Catalog = {
   'board.black': '黒', 'board.white': '白', 'board.lastMove': '、最終手', 'board.selected': '、プレビュー選択中', 'board.moveLegal': '合法手です。', 'board.checkingConsequences': '結果を確認中。', 'board.openingSketch': '序盤の効率スケッチ', 'board.distanceSketch': '現在の石からの距離スケッチ', 'board.analogy': '初心者向けのたとえ · 手の質ではない', 'board.corner': '隅', 'board.cornerText': '閉じる方向が少ない', 'board.side': '辺', 'board.sideText': '近くの石とつながる', 'board.center': '中央', 'board.centerText': '遠くまで届くが囲うのは遅い', 'board.nearby': '近くの存在感', 'board.violet': '紫', 'board.bothClose': '両方が近い', 'board.sketchDisclaimer': 'この初心者向けスケッチは、現在の石からの距離だけを表します。候補手の順位、物理、地、帰属、得点ではありません。', 'board.smallBoardDisclaimer': 'これは教材用に作成された {size}×{size} 表示です。インストール済み KataGo の根拠は 9×9 のみです。', 'board.separateEstimate': '別の四角い濃淡は KataGo の帰属予測です。', 'board.currentBoard': '現在の盤', 'board.noTerritory': '対局中に確定した地はありません。上の帰属クラウドと得点予測を使い、将来の支配を比較します。',
 }
 
-const catalogs: Record<Locale, Catalog> = { en, 'zh-Hans': zhHans, ja }
+const ar: Catalog = arCatalog
+const de: Catalog = deCatalog
+const es: Catalog = esCatalog
+const fr: Catalog = frCatalog
+const ko: Catalog = koCatalog
+const ru: Catalog = ruCatalog
+const vi: Catalog = viCatalog
+const zhHant: Catalog = zhHantCatalog
+
+const catalogs: Record<Locale, Catalog> = {
+  en,
+  ar,
+  es,
+  fr,
+  ja,
+  ko,
+  vi,
+  'zh-Hans': zhHans,
+  'zh-Hant': zhHant,
+  de,
+  ru,
+}
+
+export const MESSAGE_KEYS = Object.freeze(Object.keys(en) as MessageKey[])
+
+export function messagesForLocale(locale: Locale): Readonly<Catalog> {
+  return catalogs[locale]
+}
+
+export function localeDirection(locale: Locale): 'ltr' | 'rtl' {
+  return locale === 'ar' ? 'rtl' : 'ltr'
+}
+
+export function documentLocale(locale: Locale) {
+  return {
+    lang: locale,
+    dir: localeDirection(locale),
+    title: `Weiqi · ${translate(locale, 'app.name')}`,
+    description: translate(locale, 'hero.description'),
+  } as const
+}
+
+function isTeachingLocale(locale: Locale): locale is TeachingLocale {
+  return isAuthoredLocale(locale)
+}
 
 // These reviewed phrases replace literal Sino-Japanese wording that is valid
 // as data but unnatural in a learner-facing Japanese interface.
@@ -578,15 +650,13 @@ export function I18nProvider({ children, initialLocale }: { children: ReactNode;
     translate(locale, key, values), [locale])
 
   useEffect(() => {
-    document.documentElement.lang = locale
-    document.title = locale === 'zh-Hans' ? '围棋 · 形势之路' : locale === 'ja' ? '囲碁 · 影響の道' : 'Weiqi · Path of Influence'
+    const metadata = documentLocale(locale)
+    document.documentElement.lang = metadata.lang
+    document.documentElement.dir = metadata.dir
+    document.title = metadata.title
     document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute(
       'content',
-      locale === 'zh-Hans'
-        ? '通过故事、依据与引导对局学习围棋。'
-        : locale === 'ja'
-          ? '物語、根拠、ガイド付き対局で囲碁を学びます。'
-          : 'Learn Weiqi through story, evidence, and guided play.',
+      metadata.description,
     )
     try {
       window.localStorage.setItem(LOCALE_KEY, locale)
@@ -629,7 +699,8 @@ interface LessonTranslation {
   concepts: string[]
 }
 
-const lessonTranslations: Record<Exclude<Locale, 'en'>, Record<string, LessonTranslation>> = {
+const lessonTranslations: Record<TeachingLocale, Record<string, LessonTranslation>> = {
+  ...lessonTranslationsAdditional,
   'zh-Hans': {
     'breath-5': { title: '最后一口气', subtitle: '先看气，再看战斗', story: '一枚孤子只剩一条路。在包围合拢前，找到它的出路。', objective: '让 C3 的黑子拥有不止一口气。', memory: '一块棋被叫吃时，问：长、连、吃，还是有意舍弃？', concepts: ['气', '叫吃', '逃出'] },
     'bridge-5': { title: '桥', subtitle: '连接能共享气', story: '两枚友军彼此可见，但中间还隔着一个开放交叉点。', objective: '连起 B3 与 D3 的黑子。', memory: '“连接”指沿棋盘线直接相邻，不只是看起来很近。', concepts: ['连接', '断点', '棋形'] },
@@ -661,8 +732,8 @@ const lessonTranslations: Record<Exclude<Locale, 'en'>, Record<string, LessonTra
 }
 
 export function localizeLesson(lesson: LessonSummary, locale: Locale): LessonSummary {
-  if (locale === 'en') return lesson
-  const translated = lessonTranslations[locale][lesson.id]
+  if (!isTeachingLocale(locale)) return lesson
+  const translated = lessonTranslations[locale]?.[lesson.id]
   if (!translated) return lesson
   return {
     ...lesson,
@@ -683,17 +754,17 @@ export function localizeCurriculum(curriculum: CurriculumResponse, locale: Local
   }
 }
 
-const deterministicActs: Record<string, { 'zh-Hans': string; ja: string }> = {
-  'Resolution · Read the finished landscape': { 'zh-Hans': '收束 · 读懂完成的全局', ja: '収束 · 完了した盤全体を読む' },
-  'Arrival · Make the first promise': { 'zh-Hans': '抵达 · 许下第一个承诺', ja: '到着 · 最初の約束を作る' },
-  'Opening · Give each stone a purpose': { 'zh-Hans': '布局 · 让每枚棋子都有任务', ja: '序盤 · それぞれの石に役割を与える' },
-  'Contact · Build, fight, escape, or connect': { 'zh-Hans': '接触 · 建造、战斗、逃出或连接', ja: '接触 · 作る、戦う、逃げる、つなぐ' },
-  'Contact · Two groups are taking shape': { 'zh-Hans': '接触 · 两块棋正在成形', ja: '接触 · 二つの一団が形になり始める' },
-  'Settlement · Turn potential into readable ground': { 'zh-Hans': '安定 · 把潜力变成可读的地盘', ja: '安定 · 可能性を読める地に変える' },
+const deterministicActs: Record<string, Record<TeachingLocale, string>> = {
+  'Resolution · Read the finished landscape': { ...deterministicActsAdditional['Resolution · Read the finished landscape'], 'zh-Hans': '收束 · 读懂完成的全局', ja: '収束 · 完了した盤全体を読む' },
+  'Arrival · Make the first promise': { ...deterministicActsAdditional['Arrival · Make the first promise'], 'zh-Hans': '抵达 · 许下第一个承诺', ja: '到着 · 最初の約束を作る' },
+  'Opening · Give each stone a purpose': { ...deterministicActsAdditional['Opening · Give each stone a purpose'], 'zh-Hans': '布局 · 让每枚棋子都有任务', ja: '序盤 · それぞれの石に役割を与える' },
+  'Contact · Build, fight, escape, or connect': { ...deterministicActsAdditional['Contact · Build, fight, escape, or connect'], 'zh-Hans': '接触 · 建造、战斗、逃出或连接', ja: '接触 · 作る、戦う、逃げる、つなぐ' },
+  'Contact · Two groups are taking shape': { ...deterministicActsAdditional['Contact · Two groups are taking shape'], 'zh-Hans': '接触 · 两块棋正在成形', ja: '接触 · 二つの一団が形になり始める' },
+  'Settlement · Turn potential into readable ground': { ...deterministicActsAdditional['Settlement · Turn potential into readable ground'], 'zh-Hans': '安定 · 把潜力变成可读的地盘', ja: '安定 · 可能性を読める地に変える' },
 }
 
 function localizeKnownCoachMessage(game: GameState, message: GameState['coach_messages'][number], locale: Locale) {
-  if (locale === 'en') return message
+  if (!isTeachingLocale(locale)) return message
   const lesson = game.lesson_id ? lessonTranslations[locale][game.lesson_id] : undefined
   if (lesson && message.id === 'authored-opening') {
     return { ...message, speaker: localizeKnownName(message.speaker, locale), text: lesson.story, prompt: lesson.objective }
@@ -705,17 +776,13 @@ function localizeKnownCoachMessage(game: GameState, message: GameState['coach_me
     const evidence = new Set(message.evidence ?? [])
     const generated = evidence.has('teacher') || evidence.has('model')
       ? localizeGeneratedCoachText(message.text, locale, evidence.has('teacher'), lesson?.memory)
-      : message.text
-    return { ...message, speaker: localizeKnownName(message.speaker, locale), text: generated }
-  }
-  const known: Record<string, { 'zh-Hans': string; ja: string }> = {
-    'The second consecutive pass ended play. Review unsettled groups before calling a final score.': { 'zh-Hans': '连续第二次停一手结束了对局。在宣布最终比分前，请检查未定的棋块。', ja: '2 回目の連続パスで終局しました。最終得点を宣言する前に未確定の一団を確認します。' },
-    'You passed, so the opponent has the move. One more consecutive pass would end play.': { 'zh-Hans': '你停了一手，现在轮到对手。再连续停一手就会结束对局。', ja: 'パスしたので相手の手番です。もう 1 回連続でパスすると終局します。' },
-    'The expedition ends by resignation. The chronicle remains available for review.': { 'zh-Hans': '对局以认输结束；棋谱仍可用于复盘。', ja: '投了で対局が終わりました。棋譜は振り返りに使えます。' },
-    'The pressured group found another road. Recount its current liberties after the extension.': { 'zh-Hans': '受压的棋块找到了新出路。长出后，请重新数它现在的气。', ja: '圧力を受けていた一団に新しい道ができました。伸びた後のダメを数え直しましょう。' },
-    'Two friendly groups now share their liberties. Connection changed their options immediately.': { 'zh-Hans': '两块友军现在共享气。连接立即改变了它们的选择。', ja: '二つの味方の一団がダメを共有しました。連絡により選択肢がすぐに変わりました。' },
-    'The opponent now has a group with one liberty. Check the reply before celebrating the pressure.': { 'zh-Hans': '对手现在有一块只剩一口气。别急着庆祝，先检查对手的回应。', ja: '相手の一団が残り 1 ダメです。圧力を喜ぶ前に応手を確認します。' },
-    'The stone changes local presence, but presence is only potential until borders become secure.': { 'zh-Hans': '这枚棋子改变了局部存在感，但在边界稳固前，存在感只是潜力。', ja: 'この石は局所の存在感を変えますが、境界が安定するまでそれは可能性にすぎません。' },
+      : localizeAuthoredText(locale, message.text)
+    return {
+      ...message,
+      speaker: localizeKnownName(message.speaker, locale),
+      text: generated,
+      prompt: message.prompt == null ? message.prompt : localizeAuthoredText(locale, message.prompt),
+    }
   }
   let moveText = message.text
   let choicePrefix = ''
@@ -723,99 +790,60 @@ function localizeKnownCoachMessage(game: GameState, message: GameState['coach_me
   if (choice) {
     const chooser = localizeKnownName(choice[1], locale)
     const source = localizeChoiceSource(choice[2], locale)
-    const invitation = choice[3]
-      ? reviewedText(locale, '（由学习者明确委托这一手）', '（学習者がこの一手だけ明示的に委譲）')
-      : ''
-    choicePrefix = locale === 'zh-Hans'
-      ? `${chooser}通过${source}${invitation}走了这手。`
-      : `${chooser}が${source}${invitation}でこの手を選びました。`
+    const template = choice[3]
+      ? '{chooser} chose this move through {source} by explicit one-move invitation.'
+      : '{chooser} chose this move through {source}.'
+    choicePrefix = `${localizeAuthoredTemplate(locale, template, { chooser, source })}${
+      locale === 'zh-Hans' || locale === 'zh-Hant' || locale === 'ja' ? '' : ' '
+    }`
     moveText = choice[4]
   }
-  let text = known[moveText]?.[locale] ?? moveText
+  let text = localizeAuthoredText(locale, moveText)
   const captured = /^That move captured (\d+) stone\(s\)\. Count the liberties that vanished\.$/.exec(moveText)
-  if (captured) text = locale === 'zh-Hans' ? `这手提掉了 ${captured[1]} 枚棋子。数一数哪些气消失了。` : `この手で ${captured[1]} 子を取りました。消えたダメを数えましょう。`
+  if (captured) {
+    text = localizeAuthoredTemplate(
+      locale,
+      'That move captured {count} stone(s). Count the liberties that vanished.',
+      { count: captured[1] },
+    )
+  }
   return { ...message, speaker: localizeKnownName(message.speaker, locale), text: `${choicePrefix}${text}`, prompt: lesson?.memory ?? message.prompt }
 }
 
-function localizeChoiceSource(source: string, locale: Exclude<Locale, 'en'>): string {
-  const known: Record<string, [string, string]> = {
-    deterministic: ['确定性选择', '決定論的な選択'],
-    learner: ['学习者指定', '学習者の指定'],
-    localllm: ['本地模型', 'ローカルモデル'],
-    openai: ['OpenAI', 'OpenAI'],
-    'gpt-5.6-sol': ['GPT-5.6 Sol', 'GPT-5.6 Sol'],
-  }
-  const value = known[source.toLowerCase()]
-  return value ? value[locale === 'zh-Hans' ? 0 : 1] : source
+function localizeChoiceSource(source: string, locale: TeachingLocale): string {
+  const normalized = source.toLowerCase()
+  return normalized === 'openai' || normalized === 'gpt-5.6-sol'
+    ? normalized === 'openai' ? 'OpenAI' : 'GPT-5.6 Sol'
+    : localizeAuthoredText(locale, normalized)
 }
 
-function localizeKnownName(name: string, locale: Exclude<Locale, 'en'>): string {
-  const names: Record<string, { 'zh-Hans': string; ja: string }> = {
-    You: { 'zh-Hans': '你', ja: 'あなた' },
-    Mountain: { 'zh-Hans': '山', ja: 'マウンテン' },
-    River: { 'zh-Hans': '河', ja: 'リバー' },
-    Lantern: { 'zh-Hans': '灯笼', ja: 'ランタン' },
-    Narrator: { 'zh-Hans': '解说者', ja: '解説者' },
-    'Lantern · Narrator': { 'zh-Hans': '灯笼 · 解说者', ja: 'ランタン · 解説者' },
-    Black: { 'zh-Hans': '黑棋', ja: '黒' },
-    White: { 'zh-Hans': '白棋', ja: '白' },
+export function localizeKnownName(name: string, locale: Locale): string {
+  if (!isTeachingLocale(locale)) return name
+  const names: Record<string, Record<TeachingLocale, string>> = {
+    You: { ...knownNamesAdditional.You, 'zh-Hans': '你', ja: 'あなた' },
+    Mountain: { ...knownNamesAdditional.Mountain, 'zh-Hans': '山', ja: 'マウンテン' },
+    River: { ...knownNamesAdditional.River, 'zh-Hans': '河', ja: 'リバー' },
+    Lantern: { ...knownNamesAdditional.Lantern, 'zh-Hans': '灯笼', ja: 'ランタン' },
+    Narrator: { ...knownNamesAdditional.Narrator, 'zh-Hans': '解说者', ja: '解説者' },
+    'Lantern · Narrator': { ...knownNamesAdditional['Lantern · Narrator'], 'zh-Hans': '灯笼 · 解说者', ja: 'ランタン · 解説者' },
+    Black: { ...knownNamesAdditional.Black, 'zh-Hans': '黑棋', ja: '黒' },
+    White: { ...knownNamesAdditional.White, 'zh-Hans': '白棋', ja: '白' },
   }
   return names[name]?.[locale] ?? name
 }
 
-function reviewedText(locale: Exclude<Locale, 'en'>, chinese: string, japanese: string): string {
-  return locale === 'zh-Hans' ? chinese : japanese
-}
-
-const candidateTitles: Record<string, [string, string]> = {
-  'Possible end-of-game judgment': ['可能的终局判断', '終局判断の候補'],
-  'Possible fighting idea': ['可能的战斗手段', '戦いの候補'],
-  'Possible escape idea': ['可能的逃出手段', '脱出の候補'],
-  'Possible connection idea': ['可能的连接手段', '連絡の候補'],
-  'Possible base-building idea': ['可能的根据地构想', '根拠地作りの候補'],
-  'Possible influence-building idea': ['可能的外势构想', '外勢作りの候補'],
-  'Possible flexible-development idea': ['可能的灵活展开', '柔軟な展開の候補'],
-}
-
-const candidateSummaries: Record<string, [string, string]> = {
-  'Passing places no stone. The two-consecutive-pass ending rule applies.': ['停一手不会落子；连续两次停一手的终局规则仍适用。', 'パスでは石を打ちません。2 回連続パスの終局規則が適用されます。'],
-  'Give the pressured group another road before the ring closes.': ['在包围合拢前，给受压棋块增加一条出路。', '包囲が閉じる前に、圧力を受けた一団へ別の道を与えます。'],
-  'Join friendly stones so they share breath and options.': ['连接友军棋子，让它们共享气与选择。', '味方の石をつなぎ、ダメと選択肢を共有させます。'],
-  'Apply concrete pressure by leaving an opposing group one liberty.': ['让对方棋块只剩一口气，施加具体压力。', '相手の一団を残り 1 ダメにして、具体的な圧力をかけます。'],
-  'A teacher hypothesis is to begin a base near the edge while keeping a road toward open space.': ['教师的假设是：在边上开始建立根据地，同时保留通往开阔处的道路。', '教師の仮説は、辺で根拠地を作り始めながら、広い場所への道を残すことです。'],
-  'A teacher hypothesis is to develop central reach; the open area is not territory yet.': ['教师的假设是发展中腹影响；开阔区域还不是地盘。', '教師の仮説は中央への広がりを育てることです。空いた場所はまだ地ではありません。'],
-  'A teacher hypothesis is to keep several future directions open.': ['教师的假设是保留多个后续方向。', '教師の仮説は、将来の方向をいくつか残すことです。'],
-}
-
-const candidateRisks: Record<string, [string, string]> = {
-  'The opponent may still have a valuable move; passing does not prove the board is settled.': ['对手可能仍有价值很高的着法；停一手并不证明全盘已经定型。', '相手にはまだ価値の高い手があるかもしれません。パスしても盤全体が確定した証明にはなりません。'],
-  'The resulting group has only one liberty; read the immediate reply.': ['着后的棋块只有一口气；请计算对手的立即回应。', '着手後の一団は 1 ダメしかありません。直後の応手を読みます。'],
-  'Early ground can become small if the opponent takes the wider direction.': ['如果对手抢到更宽广的方向，早期实地可能会显得很小。', '相手がより広い方向を取ると、早い段階の地は小さくなることがあります。'],
-  'Influence is potential, so it still needs a useful target or conversion.': ['外势只是潜力，仍需要有用的目标或切实的转化。', '外勢は可能性なので、有用な目標か具体的な転換先が必要です。'],
-  'A flexible move may be too quiet if a nearby group currently has very few liberties.': ['如果附近棋块当前的气很少，灵活的着法可能过于缓慢。', '近くの一団のダメが少ないなら、柔軟な手では遅すぎることがあります。'],
-}
-
-function translatedKnownText(
-  text: string,
-  locale: Exclude<Locale, 'en'>,
-  known: Record<string, [string, string]>,
-): string {
-  const translation = known[text]
-  return translation ? translation[locale === 'zh-Hans' ? 0 : 1] : text
-}
-
-function localizeCandidateSummary(text: string, locale: Exclude<Locale, 'en'>): string {
-  const known = translatedKnownText(text, locale, candidateSummaries)
+function localizeCandidateSummary(text: string, locale: TeachingLocale): string {
+  const known = localizeAuthoredText(locale, text)
   if (known !== text) return known
   const capture = /^Capture (\d+) stone\(s\) and change the liberty balance now\.$/.exec(text)
   return capture
-    ? reviewedText(locale, `立即提掉 ${capture[1]} 枚棋子，并改变气的平衡。`, `すぐに ${capture[1]} 子を取り、ダメの均衡を変えます。`)
+    ? localizeAuthoredTemplate(locale, 'Capture {count} stone(s) and change the liberty balance now.', { count: capture[1] })
     : text
 }
 
-function localizeCandidateChanges(text: string, locale: Exclude<Locale, 'en'>): string {
+function localizeCandidateChanges(text: string, locale: TeachingLocale): string {
   if (text === 'Rules: pass places no stone or captures; the two-consecutive-pass ending rule applies.') {
-    return reviewedText(locale, '规则：停一手不会落子或提子；连续两次停一手的终局规则仍适用。', 'ルール：パスでは石を打たず、取りもありません。2 回連続パスの終局規則が適用されます。')
+    return localizeAuthoredText(locale, text)
   }
   const body = /^Rules: (.+)\.$/.exec(text)?.[1]
   if (!body) return text
@@ -823,62 +851,56 @@ function localizeCandidateChanges(text: string, locale: Exclude<Locale, 'en'>): 
   for (const segment of body.split('; ')) {
     let match: RegExpExecArray | null
     if ((match = /^captures (\d+) stone\(s\)$/.exec(segment))) {
-      translated.push(reviewedText(locale, `提掉 ${match[1]} 枚棋子`, `${match[1]} 子を取る`))
+      translated.push(localizeAuthoredTemplate(locale, 'captures {count} stone(s)', { count: match[1] }))
     } else if ((match = /^joins (\d+) friendly groups$/.exec(segment))) {
-      translated.push(reviewedText(locale, `连接 ${match[1]} 块友军`, `${match[1]} 組の味方をつなぐ`))
+      translated.push(localizeAuthoredTemplate(locale, 'joins {count} friendly groups', { count: match[1] }))
     } else if ((match = /^takes (\d+) friendly group\(s\) out of atari$/.exec(segment))) {
-      translated.push(reviewedText(locale, `让 ${match[1]} 块友军逃出叫吃`, `${match[1]} 組の味方をアタリから逃がす`))
+      translated.push(localizeAuthoredTemplate(locale, 'takes {count} friendly group(s) out of atari', { count: match[1] }))
     } else if ((match = /^puts (\d+) opposing group\(s\) in atari$/.exec(segment))) {
-      translated.push(reviewedText(locale, `使 ${match[1]} 块对方棋被叫吃`, `${match[1]} 組の相手をアタリにする`))
+      translated.push(localizeAuthoredTemplate(locale, 'puts {count} opposing group(s) in atari', { count: match[1] }))
     } else if (segment === 'occupies a shared connection point between opposing groups') {
-      translated.push(reviewedText(locale, '占据对方棋块之间共享的连接点', '相手の一団どうしの共有連絡点を占める'))
+      translated.push(localizeAuthoredText(locale, segment))
     } else if ((match = /^leaves a (\d+)-stone group with (\d+) liberties$/.exec(segment))) {
-      translated.push(reviewedText(locale, `形成 ${match[1]} 子棋块并有 ${match[2]} 口气`, `${match[1]} 子の一団に ${match[2]} ダメを残す`))
+      translated.push(localizeAuthoredTemplate(locale, 'leaves a {stones}-stone group with {liberties} liberties', { stones: match[1], liberties: match[2] }))
     } else {
       // Translate only when the complete deterministic template is known.
       return text
     }
   }
-  return reviewedText(locale, `规则：${translated.join('；')}。`, `ルール：${translated.join('、')}。`)
+  const separator = locale === 'ja' ? '、' : locale === 'zh-Hans' || locale === 'zh-Hant' ? '；' : locale === 'ar' ? '؛ ' : '; '
+  const colon = locale === 'ja' || locale === 'zh-Hans' || locale === 'zh-Hant' ? '：' : ': '
+  return `${localizeAuthoredText(locale, 'Rules')}${colon}${translated.join(separator)}${localizedPeriod(locale)}`
 }
 
-function localizeCandidateReply(text: string, locale: Exclude<Locale, 'en'>): string {
+function localizeCandidateReply(text: string, locale: TeachingLocale): string {
   const match = /^(Black|White) (pass|[A-HJ-T]\d{1,2})$/i.exec(text)
   if (!match) return text
   const black = match[1].toLowerCase() === 'black'
-  const color = locale === 'zh-Hans' ? (black ? '黑棋' : '白棋') : (black ? '黒' : '白')
+  const color = translate(locale, black ? 'board.black' : 'board.white')
   const move = match[2].toLowerCase() === 'pass'
-    ? reviewedText(locale, '停一手', 'パス')
+    ? translate(locale, 'play.pass')
     : match[2].toUpperCase()
   return `${color} ${move}`
 }
 
 function localizeGeneratedCoachText(
   text: string,
-  locale: Exclude<Locale, 'en'>,
+  locale: TeachingLocale,
   deterministicFallback: boolean,
   lessonMemory?: string,
 ): string {
   const modelChoice = text.split('\n\n').some((line) => line.startsWith('Model explanation: '))
   const translatedLines = text.split('\n\n').map((line) => {
     if (line === 'Local-model explanation — not an exact board fact. Verify factual claims against the labeled Energy facets below.') {
-      return reviewedText(
-        locale,
-        '本地模型解释——不是确定的棋盘事实。请用下方已标注的能量分项核对事实性说法。',
-        'ローカルモデルの説明です。正確な盤面事実ではありません。事実に関する主張は、下の根拠付き表示で確認してください。',
-      )
+      return localizeAuthoredText(locale, line)
     }
     if (line === 'GPT-5.6 Sol was unavailable; opt-in local prose was used and is labeled as model-generated.') {
-      return reviewedText(
-        locale,
-        'GPT-5.6 Sol 暂不可用；已使用需要主动启用的本地文字，并标注为模型生成。',
-        'GPT-5.6 Sol を利用できなかったため、明示的に有効化されたローカル文章を使用し、モデル生成と表示しています。',
-      )
+      return localizeAuthoredText(locale, line)
     }
 
     if (deterministicFallback) {
       if (line === 'Exact board check — there are no stone groups to compare') {
-        return reviewedText(locale, '确定盘面检查——目前没有棋块可比较。', '正確な盤面確認 — 比較できる石の一団はまだありません。')
+        return localizeAuthoredText(locale, line)
       }
       const least = /^Exact board check — fewest current liberties: (.+)$/.exec(line)
       if (least) {
@@ -886,77 +908,95 @@ function localizeGeneratedCoachText(
         for (const item of least[1].split('; ')) {
           const match = /^(Black|White) at ([A-HJ-T]\d{1,2}) has (\d+) libert(?:y|ies)$/.exec(item)
           if (!match) return line
-          const color = locale === 'zh-Hans'
-            ? match[1] === 'Black' ? '黑棋' : '白棋'
-            : match[1] === 'Black' ? '黒' : '白'
-          groups.push(locale === 'zh-Hans'
-            ? `${color} ${match[2]} 有 ${match[3]} 口气`
-            : `${color} ${match[2]} は ${match[3]} ダメ`)
+          const color = translate(locale, match[1] === 'Black' ? 'board.black' : 'board.white')
+          groups.push(localizeAuthoredTemplate(locale, '{color} at {coordinate} has {count} liberties', {
+            color,
+            coordinate: match[2],
+            count: match[3],
+          }))
         }
-        return locale === 'zh-Hans'
-          ? `确定盘面检查——当前最少的气：${groups.join('；')}。`
-          : `正確な盤面確認 — 現在最少のダメ：${groups.join('、')}。`
+        const separator = locale === 'ja' ? '、' : locale === 'zh-Hans' || locale === 'zh-Hant' ? '；' : locale === 'ar' ? '؛ ' : '; '
+        return localizeAuthoredTemplate(locale, 'Exact board check — fewest current liberties: {groups}', {
+          groups: groups.join(separator),
+        })
       }
       const candidate = /^(KataGo order candidate|Rules-verified legal candidate): (.+)\.$/.exec(line)
       if (candidate) {
         const source = candidate[1] === 'KataGo order candidate'
-          ? reviewedText(locale, 'KataGo 排序候选', 'KataGo の順位候補')
-          : reviewedText(locale, '规则验证的合法候选', 'ルール検証済みの合法候補')
+          ? localizeAuthoredText(locale, 'KataGo order candidate')
+          : localizeAuthoredText(locale, 'Rules-verified legal candidate')
         const coordinate = /^pass$/i.test(candidate[2])
-          ? reviewedText(locale, '停一手', 'パス')
+          ? translate(locale, 'play.pass')
           : candidate[2]
-        return `${source}：${coordinate}。`
+        return localizedLabel(locale, source, coordinate, true)
       }
       const hypothesis = /^Teacher hypothesis \(not KataGo's reason\): (.+)$/.exec(line)
       if (hypothesis) {
-        return `${reviewedText(locale, '教师假设（不是 KataGo 的理由）', '教師の仮説（KataGo の理由ではありません）')}：${localizeCandidateSummary(hypothesis[1], locale)}`
+        return localizedLabel(
+          locale,
+          localizeAuthoredText(locale, "Teacher hypothesis (not KataGo's reason)"),
+          localizeCandidateSummary(hypothesis[1], locale),
+        )
       }
       const reply = /^KataGo reply in one main line \(not forced\): (.+)$/.exec(line)
       if (reply) {
-        return `${reviewedText(locale, 'KataGo 一条主变化中的回应（非必然）', 'KataGo の主変化 1 本にある応手（強制ではありません）')}：${localizeCandidateReply(reply[1], locale)}`
+        return localizedLabel(
+          locale,
+          localizeAuthoredText(locale, 'KataGo reply in one main line (not forced)'),
+          localizeCandidateReply(reply[1], locale),
+        )
       }
       const risk = /^Teacher risk hypothesis: (.+)$/.exec(line)
       if (risk) {
-        return `${reviewedText(locale, '教师风险假设', '教師によるリスクの仮説')}：${translatedKnownText(risk[1], locale, candidateRisks)}`
+        return localizedLabel(
+          locale,
+          localizeAuthoredText(locale, 'Teacher risk hypothesis'),
+          localizeAuthoredText(locale, risk[1]),
+        )
       }
       if (line.startsWith('Remember: ')) {
         const memory = lessonMemory ?? line.slice('Remember: '.length)
-        return `${reviewedText(locale, '请记住', '覚えておくこと')}：${memory}`
+        return localizedLabel(locale, localizeAuthoredText(locale, 'Remember'), memory)
       }
       if (line === 'The model companion was unavailable. This fallback separates exact board facts from authored teacher guidance.') {
-        return reviewedText(
-          locale,
-          '模型陪伴者暂不可用。此备用说明会把确定盘面事实与教师编写的指导分开。',
-          'モデルのコンパニオンは利用できません。この代替説明では、正確な盤面事実と教師による指導を分けて示します。',
-        )
+        return localizeAuthoredText(locale, line)
       }
     }
 
-    const prefixes: Array<[string, string, string]> = [
-      ['Now: ', '现在：', '現在：'],
-      ['What changed: ', '改变了什么：', '変わったこと：'],
-      ['Why: ', '为什么：', '理由：'],
-      ['Candidate coordinate: ', '候选坐标：', '候補の座標：'],
-      ['Model explanation: ', '模型解释：', 'モデルの説明：'],
-      ['Teacher hypothesis: ', '教师假设：', '教師の仮説：'],
-      ['Then watch: ', '接着观察：', '次に見ること：'],
-      ['Remember: ', '请记住：', '覚えておくこと：'],
-      ['Model uncertainty: ', '模型不确定性：', 'モデルの不確かさ：'],
+    const prefixes = [
+      'Now',
+      'What changed',
+      'Why',
+      'Candidate coordinate',
+      'Model explanation',
+      'Teacher hypothesis',
+      'Then watch',
+      'Remember',
+      'Model uncertainty',
     ]
-    const prefix = prefixes.find(([english]) => line.startsWith(english))
+    const prefix = prefixes.find((english) => line.startsWith(`${english}: `))
     if (!prefix) return line
-    let body = line.slice(prefix[0].length)
-    if (prefix[0] === 'Teacher hypothesis: ') body = localizeCandidateSummary(body, locale)
-    if (prefix[0] === 'Candidate coordinate: ' && /^pass\.?$/i.test(body)) {
-      body = `${reviewedText(locale, '停一手', 'パス')}${body.endsWith('.') ? '。' : ''}`
+    let body = line.slice(`${prefix}: `.length)
+    if (prefix === 'Teacher hypothesis') body = localizeCandidateSummary(body, locale)
+    if (prefix === 'Candidate coordinate' && /^pass\.?$/i.test(body)) {
+      body = `${translate(locale, 'play.pass')}${body.endsWith('.') ? localizedPeriod(locale) : ''}`
     }
-    if (prefix[0] === 'Then watch: ' && !modelChoice) {
+    if (prefix === 'Then watch' && !modelChoice) {
       const reply = localizeCandidateReply(body, locale)
-      body = reply === body ? translatedKnownText(body, locale, candidateRisks) : reply
+      body = reply === body ? localizeAuthoredText(locale, body) : reply
     }
-    return `${locale === 'zh-Hans' ? prefix[1] : prefix[2]}${body}`
+    return localizedLabel(locale, localizeAuthoredText(locale, prefix), body)
   })
   return translatedLines.join('\n\n')
+}
+
+function localizedPeriod(locale: TeachingLocale): string {
+  return locale === 'ja' || locale === 'zh-Hans' || locale === 'zh-Hant' ? '。' : '.'
+}
+
+function localizedLabel(locale: TeachingLocale, label: string, body: string, period = false): string {
+  const colon = locale === 'ja' || locale === 'zh-Hans' || locale === 'zh-Hant' ? '：' : ': '
+  return `${label}${colon}${body}${period ? localizedPeriod(locale) : ''}`
 }
 
 type LocalizableCandidate = {
@@ -975,9 +1015,9 @@ type LocalizableCandidate = {
 }
 
 function localizeCandidateFields<T extends LocalizableCandidate>(candidate: T, locale: Locale): T {
-  if (locale === 'en') return candidate
+  if (!isTeachingLocale(locale)) return candidate
   const localizedCoordinate = candidate.kind === 'pass' || /^pass$/i.test(candidate.coordinate)
-    ? reviewedText(locale, '停一手', 'パス')
+    ? translate(locale, 'play.pass')
     : candidate.coordinate
   return {
     ...candidate,
@@ -985,14 +1025,14 @@ function localizeCandidateFields<T extends LocalizableCandidate>(candidate: T, l
     // Intent remains a stable protocol ID; every UI presentation resolves it
     // through intent.* catalog keys instead of changing game semantics.
     intent: candidate.intent,
-    title: translatedKnownText(candidate.title, locale, candidateTitles),
+    title: localizeAuthoredText(locale, candidate.title),
     summary: candidate.summary == null ? candidate.summary : localizeCandidateSummary(candidate.summary, locale),
     main_line_reply: candidate.main_line_reply == null ? candidate.main_line_reply : localizeCandidateReply(candidate.main_line_reply, locale),
-    risk: candidate.risk == null ? candidate.risk : translatedKnownText(candidate.risk, locale, candidateRisks),
+    risk: candidate.risk == null ? candidate.risk : localizeAuthoredText(locale, candidate.risk),
     facets: candidate.facets?.map((facet) => localizeEnergyFacet(facet, locale)),
     why_here: candidate.why_here == null ? candidate.why_here : localizeCandidateSummary(candidate.why_here, locale),
     what_changes: candidate.what_changes == null ? candidate.what_changes : localizeCandidateChanges(candidate.what_changes, locale),
-    next_calculation: candidate.next_calculation == null ? candidate.next_calculation : translatedKnownText(candidate.next_calculation, locale, candidateRisks),
+    next_calculation: candidate.next_calculation == null ? candidate.next_calculation : localizeAuthoredText(locale, candidate.next_calculation),
   } as T
 }
 
@@ -1002,9 +1042,10 @@ export function localizeCandidate(candidate: CandidateMove, locale: Locale): Can
 
 export function localizeMovePreview(preview: MovePreview, locale: Locale): MovePreview {
   if (locale === 'en') return preview
+  if (!isTeachingLocale(locale)) return preview
   return {
     ...preview,
-    coordinate: /^pass$/i.test(preview.coordinate) ? reviewedText(locale, '停一手', 'パス') : preview.coordinate,
+    coordinate: /^pass$/i.test(preview.coordinate) ? translate(locale, 'play.pass') : preview.coordinate,
     reason: localizeRulesReason(preview.reason, locale),
     facets: preview.facets.map((facet) => localizeEnergyFacet(facet, locale)),
     candidate_facets: preview.candidate_facets?.map((facet) => localizeEnergyFacet(facet, locale)),
@@ -1014,74 +1055,78 @@ export function localizeMovePreview(preview: MovePreview, locale: Locale): MoveP
     teaching: preview.teaching
       ? localizeCandidateFields<MoveTeachingEvidence>(preview.teaching, locale)
       : preview.teaching,
-    coach_prompt: preview.coach_prompt === 'Name the intention before committing: build, fight, escape, or connect?'
-      ? reviewedText(locale, '落子前先说出意图：建立、战斗、逃出，还是连接？', '着手を確定する前に意図を言葉にします。作る、戦う、逃げる、それともつなぐ？')
-      : preview.coach_prompt,
+    coach_prompt: preview.coach_prompt == null
+      ? preview.coach_prompt
+      : localizeAuthoredText(locale, preview.coach_prompt),
   }
 }
 
-function localizeFacetBody(facet: EnergyFacet, locale: Exclude<Locale, 'en'>): Pick<EnergyFacet, 'value' | 'explanation'> {
+function localizeFacetBody(facet: EnergyFacet, locale: TeachingLocale): Pick<EnergyFacet, 'value' | 'explanation'> {
   let value = facet.value
   let explanation = facet.explanation
   let match: RegExpExecArray | null
 
   if ((match = /^(\d+) group\(s\) in atari$/.exec(value))) {
-    value = reviewedText(locale, `${match[1]} 块棋被叫吃`, `アタリの一団 ${match[1]} 組`)
+    value = localizeAuthoredTemplate(locale, '{count} group(s) in atari', { count: match[1] })
   } else if ((match = /^Black (\d+) · White (\d+)$/.exec(value))) {
-    value = reviewedText(locale, `黑棋 ${match[1]} · 白棋 ${match[2]}`, `黒 ${match[1]} · 白 ${match[2]}`)
+    value = localizeAuthoredTemplate(locale, 'Black {black} · White {white}', { black: match[1], white: match[2] })
   } else if (value === 'Not yet settled') {
-    value = reviewedText(locale, '尚未定型', 'まだ確定していません')
+    value = localizeAuthoredText(locale, value)
   } else if (value === 'Read in review') {
-    value = reviewedText(locale, '在复盘中解读', '振り返りで読みます')
+    value = localizeAuthoredText(locale, value)
   } else if ((match = /^(\d+) low-liberty point\(s\)$/.exec(value))) {
-    value = reviewedText(locale, `${match[1]} 个低气点`, `ダメの少ない点 ${match[1]} 個`)
+    value = localizeAuthoredTemplate(locale, '{count} low-liberty point(s)', { count: match[1] })
   } else if (facet.id === 'reach' && facet.evidence === 'engine' && value === 'Engine ownership field') {
-    value = reviewedText(locale, '引擎归属图', 'エンジン帰属図')
+    value = localizeAuthoredText(locale, value)
   } else if (facet.id === 'reach' && facet.evidence === 'metaphor' && value === 'Distance-based presence') {
-    value = reviewedText(locale, '基于距离的存在感', '距離にもとづく存在感')
+    value = localizeAuthoredText(locale, value)
   } else if ((match = /^Black (\d+) stones? · White (\d+) stones?$/.exec(value))) {
-    value = reviewedText(locale, `黑棋 ${match[1]} 枚 · 白棋 ${match[2]} 枚`, `黒 ${match[1]} 子 · 白 ${match[2]} 子`)
+    value = localizeAuthoredTemplate(locale, 'Black {black} stones · White {white} stones', { black: match[1], white: match[2] })
   } else if ((match = /^(Black|White) to move$/.exec(value))) {
-    value = locale === 'zh-Hans'
-      ? `轮到${match[1] === 'Black' ? '黑棋' : '白棋'}`
-      : `${match[1] === 'Black' ? '黒' : '白'}の手番`
+    value = localizeAuthoredTemplate(locale, '{color} to move', {
+      color: translate(locale, match[1] === 'Black' ? 'board.black' : 'board.white'),
+    })
   } else if (value === 'Ko point present') {
-    value = reviewedText(locale, '存在劫点', 'コウの点があります')
+    value = localizeAuthoredText(locale, value)
   } else if (value === 'Unresolved possibilities') {
-    value = reviewedText(locale, '尚未消除的可能性', '未解決の可能性')
+    value = localizeAuthoredText(locale, value)
   } else if ((match = /^(\d+) liberties$/.exec(value))) {
-    value = reviewedText(locale, `${match[1]} 口气`, `${match[1]} ダメ`)
+    value = localizeAuthoredTemplate(locale, '{count} liberties', { count: match[1] })
   } else if (value === 'No stone placed') {
-    value = reviewedText(locale, '没有落子', '石は打たれていません')
+    value = localizeAuthoredText(locale, value)
   } else if ((match = /^Joins (\d+) groups$/.exec(value))) {
-    value = reviewedText(locale, `连接 ${match[1]} 个棋块`, `${match[1]} 組の一団をつなぎます`)
+    value = localizeAuthoredTemplate(locale, 'Joins {count} groups', { count: match[1] })
   } else if (value === 'No new connection') {
-    value = reviewedText(locale, '没有新连接', '新しい連絡はありません')
+    value = localizeAuthoredText(locale, value)
   } else if ((match = /^(\d+) new atari$/.exec(value))) {
-    value = reviewedText(locale, `${match[1]} 块对手棋新被叫吃`, `新たなアタリ ${match[1]} 組`)
+    value = localizeAuthoredTemplate(locale, '{count} new atari', { count: match[1] })
   }
 
-  const knownExplanations: Record<string, [string, string]> = {
-    'A group in atari has exactly one distinct liberty.': ['被叫吃的棋块只有一口不重复的气。', 'アタリの一団には、異なるダメが正確に 1 つあります。'],
-    'Orthogonally connected stones form one group and share liberties.': ['沿棋盘线直接相连的棋子形成一个棋块，并共享气。', '盤線上で直交方向につながる石は一つの一団となり、ダメを共有します。'],
-    'A group needs reliable eye space or enough room to escape; this is not a final life claim.': ['棋块需要可靠的眼位或足够的逃出空间；这不是最终活棋判定。', '一団には信頼できる眼形か、逃げる十分な空間が必要です。これは最終的な活きの判定ではありません。'],
-    'These are stones or liberties belonging to groups with at most two liberties; this count alone does not decide move priority.': ['这些是属于最多两口气棋块的棋子或气；仅凭此数量不能决定着法优先级。', 'これらはダメが 2 つ以下の一団に属する石またはダメです。この数だけで着手の優先度は決まりません。'],
-    'KataGo estimates future ownership; it is not territory already owned.': ['KataGo 估计未来归属；这不是已经拥有的地盘。', 'KataGo は将来の帰属を推定します。すでに確保した地ではありません。'],
-    'Presence and tension are deterministic teaching metaphors derived from stone distance and liberties; they are not territory, score, or physical energy.': ['存在感与紧张度是根据棋子距离和气确定计算的教学比喻；它们不是地盘、比分或物理能量。', '存在感と緊張度は、石の距離とダメから決定的に求める指導用のたとえです。地、得点、物理的なエネルギーではありません。'],
-    'The turn is exact; whether a reply is forced is a tactical judgment.': ['轮到哪方是确定事实；应手是否被强制则属于战术判断。', '手番は正確な事実です。応手が強制かどうかは戦術的な判断です。'],
-    'Aji names useful possibilities left in a position, not a numeric resource.': ['味指局面中留下的有用可能性，不是数值资源。', '味とは局面に残る有用な可能性であり、数値資源ではありません。'],
-    "The resulting connected string's distinct liberties are counted exactly.": ['着后连通棋串的不重复气数会被精确计算。', '着手後の連結した一団の異なるダメを正確に数えます。'],
-    "Pass does not create a string or change any group's liberties.": ['停一手不会形成棋串，也不会改变任何棋块的气。', 'パスは一団を作らず、どの一団のダメも変えません。'],
-    'Friendly stones connect only across shared board lines.': ['同色棋子只会沿共享的棋盘线直接连接。', '同色の石は共通の盤線で直接隣り合う場合だけ連絡します。'],
-    'Atari means an opposing group has exactly one liberty after the move.': ['叫吃意味着手后对方某个棋块恰好只有一口气。', 'アタリとは、着手後の相手の一団にダメが正確に 1 つある状態です。'],
-  }
+  const knownExplanations = new Set([
+    'A group in atari has exactly one distinct liberty.',
+    'Orthogonally connected stones form one group and share liberties.',
+    'A group needs reliable eye space or enough room to escape; this is not a final life claim.',
+    'These are stones or liberties belonging to groups with at most two liberties; this count alone does not decide move priority.',
+    'KataGo estimates future ownership; it is not territory already owned.',
+    'Presence and tension are deterministic teaching metaphors derived from stone distance and liberties; they are not territory, score, or physical energy.',
+    'The turn is exact; whether a reply is forced is a tactical judgment.',
+    'Aji names useful possibilities left in a position, not a numeric resource.',
+    "The resulting connected string's distinct liberties are counted exactly.",
+    "Pass does not create a string or change any group's liberties.",
+    'Friendly stones connect only across shared board lines.',
+    'Atari means an opposing group has exactly one liberty after the move.',
+  ])
   const reachExplanationMatchesEvidence = facet.id !== 'reach' ||
     (facet.evidence === 'engine' && facet.explanation === 'KataGo estimates future ownership; it is not territory already owned.') ||
     (facet.evidence === 'metaphor' && facet.explanation === 'Presence and tension are deterministic teaching metaphors derived from stone distance and liberties; they are not territory, score, or physical energy.')
-  if (reachExplanationMatchesEvidence && facet.explanation in knownExplanations) {
-    explanation = knownExplanations[facet.explanation][locale === 'zh-Hans' ? 0 : 1]
+  if (reachExplanationMatchesEvidence && knownExplanations.has(facet.explanation)) {
+    explanation = localizeAuthoredText(locale, facet.explanation)
   } else if ((match = /^(\d+) intersections are empty\. Territory and dead stones are not settled during live play; engine ownership is a separate forecast\.$/.exec(facet.explanation))) {
-    explanation = reviewedText(locale, `${match[1]} 个交叉点为空。实战中地盘与死子尚未确定；引擎归属是单独的预测。`, `${match[1]} 個の交点が空いています。対局中は地と死石が未確定で、エンジン帰属は別の予測です。`)
+    explanation = localizeAuthoredTemplate(
+      locale,
+      '{count} intersections are empty. Territory and dead stones are not settled during live play; engine ownership is a separate forecast.',
+      { count: match[1] },
+    )
   }
   return { value, explanation }
 }
@@ -1098,7 +1143,9 @@ export function localizeEnergyFacet(facet: EnergyFacet, locale: Locale): EnergyF
         ? ['lens.cloud', 'lens.cloudTerm'] as [MessageKey, MessageKey]
         : undefined
     : terms[facet.id]
-  const body = localizeFacetBody(facet, locale)
+  const body = isTeachingLocale(locale)
+    ? localizeFacetBody(facet, locale)
+    : { value: facet.value, explanation: facet.explanation }
   // Only known deterministic templates are translated above. Unknown engine
   // or model prose remains verbatim so the UI never upgrades a translation to
   // verified evidence.
@@ -1109,16 +1156,19 @@ export function localizeEnergyFacet(facet: EnergyFacet, locale: Locale): EnergyF
 
 export function localizeGame(game: GameState, locale: Locale): GameState {
   if (locale === 'en') return game
-  const lesson = game.lesson_id ? lessonTranslations[locale][game.lesson_id] : undefined
+  const teachingLocale = isTeachingLocale(locale)
+  const lesson = teachingLocale && game.lesson_id ? lessonTranslations[locale][game.lesson_id] : undefined
   return {
     ...game,
     title: lesson?.title ?? game.title,
     lesson_title: lesson?.title ?? game.lesson_title,
     objective: lesson?.objective ?? game.objective,
     concepts: lesson?.concepts ?? game.concepts,
-    act: game.act ? deterministicActs[game.act]?.[locale] ?? game.act : game.act,
+    act: teachingLocale && game.act ? deterministicActs[game.act]?.[locale] ?? game.act : game.act,
     rules: { ...game.rules, name: translate(locale, 'simple.chineseRules') },
-    actors: game.actors.map((actor) => ({ ...actor, name: localizeKnownName(actor.name, locale) })),
+    actors: teachingLocale
+      ? game.actors.map((actor) => ({ ...actor, name: localizeKnownName(actor.name, locale) }))
+      : game.actors,
     coach_messages: game.coach_messages.map((message) => localizeKnownCoachMessage(game, message, locale)),
     analysis: game.analysis ? {
       ...game.analysis,
@@ -1129,7 +1179,7 @@ export function localizeGame(game: GameState, locale: Locale): GameState {
 }
 
 export function localizeGameSummary(game: GameSummary, locale: Locale): GameSummary {
-  if (locale === 'en' || !game.lesson_id) return game
+  if (!isTeachingLocale(locale) || !game.lesson_id) return game
   const lesson = lessonTranslations[locale][game.lesson_id]
   return lesson ? { ...game, title: lesson.title, lesson_title: lesson.title, concepts: lesson.concepts } : game
 }

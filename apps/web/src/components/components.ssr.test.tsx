@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_PREFERENCES, DEMO_FACETS } from '../fallbackData'
+import { I18nProvider } from '../i18n'
 import { Chronicle } from './Chronicle'
 import { CandidateCards } from './CandidateCards'
 import { CoachRail } from './CoachRail'
@@ -488,6 +489,184 @@ describe('accessible teaching surfaces', () => {
     expect(html).toContain('First find the group with the fewest liberties')
     expect(html).toContain('Corners can be efficient, but urgency')
     expect(html).not.toContain('Engine estimate')
+  })
+
+  it.each(['ar', 'ko'] as const)('localizes dynamic PowerTeacher rule copy in %s', (locale) => {
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale={locale}>
+        <PowerTeacher
+          size={5}
+          stones={[{ x: 2, y: 2, color: 'black' }]}
+          toPlay="black"
+          selected={{ x: 2, y: 1 }}
+          preview={{
+            game_id: 'localized-preview',
+            revision: 0,
+            point: { x: 2, y: 1 },
+            coordinate: 'C4',
+            legal: true,
+            captures: [{ x: 2, y: 2 }],
+            resulting_liberties: 3,
+            facets: [],
+            candidates: [],
+          }}
+          candidates={[]}
+          lastMove={null}
+          ownershipAvailable={false}
+        />
+      </I18nProvider>,
+    )
+
+    expect(html).toContain('C4')
+    expect(html).toContain('3')
+    expect(html).toContain(locale === 'ar' ? 'أسود' : '흑')
+    expect(html).toContain(locale === 'ar' ? 'القواعد الدقيقة' : '정확한 규칙')
+    expect(html).not.toMatch(/>Play<|>Because<|>Changes<|>Opponent<|>Then check<|>Principle</)
+    expect(html).not.toContain('can legally play')
+    expect(html).not.toContain('Teacher interpretation')
+  })
+
+  it('uses a Chinese conjunction between multiple exact preview changes', () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale="zh-Hans">
+        <PowerTeacher
+          size={5}
+          stones={[{ x: 2, y: 2, color: 'white' }]}
+          toPlay="black"
+          selected={{ x: 2, y: 1 }}
+          preview={{
+            game_id: 'chinese-change-joiner',
+            revision: 0,
+            point: { x: 2, y: 1 },
+            coordinate: 'C4',
+            legal: true,
+            captures: [{ x: 2, y: 2 }],
+            resulting_liberties: 3,
+            facets: [],
+            candidates: [],
+          }}
+          candidates={[]}
+          lastMove={null}
+          ownershipAvailable={false}
+        />
+      </I18nProvider>,
+    )
+
+    expect(html).toContain('，并')
+    expect(html).not.toContain('، و')
+  })
+
+  it('shows the atari principle only when exact one-liberty evidence exists', () => {
+    const renderPreview = (resultingLiberties: number) => renderToStaticMarkup(
+      <PowerTeacher
+        size={5}
+        stones={[]}
+        toPlay="black"
+        selected={{ x: 2, y: 1 }}
+        preview={{
+          game_id: `principle-${resultingLiberties}`,
+          revision: 0,
+          point: { x: 2, y: 1 },
+          coordinate: 'C4',
+          legal: true,
+          captures: [],
+          resulting_liberties: resultingLiberties,
+          facets: [],
+          candidates: [],
+        }}
+        candidates={[]}
+        lastMove={null}
+        ownershipAvailable={false}
+      />,
+    )
+
+    const neutral = renderPreview(4)
+    expect(neutral).toContain("The resulting connected string&#x27;s distinct liberties are counted exactly.")
+    expect(neutral).not.toContain('Atari demands an immediate decision')
+    expect(renderPreview(1)).toContain('Atari demands an immediate decision')
+  })
+
+  it.each(['ar', 'ko'] as const)('localizes visible and ARIA board candidate copy in %s while preserving unknown titles', (locale) => {
+    const rawTitle = 'MODEL_CANDIDATE_RAW_7'
+    const ownership = Array.from({ length: 81 }, (_, index) => ({
+      x: index % 9,
+      y: Math.floor(index / 9),
+      value: index % 2 ? -0.25 : 0.35,
+    }))
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale={locale}>
+        <WeiqiBoard
+          size={9}
+          stones={[]}
+          toPlay="black"
+          selected={null}
+          onSelect={() => undefined}
+          candidatePreview={{
+            id: 'model-candidate-raw',
+            point: { x: 2, y: 2 },
+            coordinate: 'C7',
+            intent: 'claim',
+            title: rawTitle,
+            summary: 'MODEL_SUMMARY_RAW_8',
+            tactics: {
+              captures: [],
+              resulting_liberties: 4,
+              connects: [],
+              cuts: [],
+              friendly_groups_joined: 0,
+              opponent_groups_newly_in_atari: 0,
+              friendly_groups_escaped_atari: 0,
+              self_atari: false,
+              evidence: 'exact',
+            },
+            ownership_after: ownership,
+            ownership_delta: ownership,
+            ownership_perspective: 'black',
+            legal_verified: true,
+            engine_analyzed: true,
+            verified: true,
+          }}
+          candidatePreviewMode="pinned-candidate"
+          activeLenses={new Set(['cloud'])}
+          showCoordinates
+        />
+      </I18nProvider>,
+    )
+    const passHtml = renderToStaticMarkup(
+      <I18nProvider initialLocale={locale}>
+        <WeiqiBoard
+          size={9}
+          stones={[]}
+          toPlay="white"
+          selected={null}
+          onSelect={() => undefined}
+          candidatePreview={{
+            id: 'localized-pass',
+            kind: 'pass',
+            point: null,
+            coordinate: 'pass',
+            intent: 'endgame',
+            title: rawTitle,
+            summary: 'MODEL_SUMMARY_RAW_8',
+            legal_verified: true,
+            engine_analyzed: false,
+            verified: true,
+          }}
+          candidatePreviewMode="pinned-candidate"
+          activeLenses={new Set(['cloud'])}
+          showCoordinates
+        />
+      </I18nProvider>,
+    )
+
+    expect(html).toContain(rawTitle)
+    expect(html).toContain('C7')
+    expect(html).toContain(locale === 'ar' ? 'ح4' : '활4')
+    expect(html).toContain(locale === 'ar' ? 'عرض الرقعة' : '바둑판 전체 분포')
+    expect(html).not.toMatch(/Suggested first stone|Nothing has been placed|Inspecting|Candidate field modes|After this move|Forecast difference after this move|More Black ownership|More White ownership|Continuation variation was not supplied/)
+    expect(passHtml).toContain(rawTitle)
+    expect(passHtml).toContain(locale === 'ar' ? 'تمرير' : '패스')
+    expect(passHtml).not.toMatch(/\bPass\b|no stone placement|ownership map/)
   })
 
   it('turns a missing small-board reply line into an honest concrete watch instruction', () => {

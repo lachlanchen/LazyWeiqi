@@ -43,6 +43,7 @@ import {
   FALLBACK_STATUS,
 } from './fallbackData'
 import { appendOlderGames } from './history'
+import { localizeAuthoredText } from './authoredCopy'
 import {
   LanguageSelect,
   localizeCurriculum,
@@ -81,6 +82,21 @@ type NoticeState = {
   translatedValues?: Record<string, MessageKey>
   text?: string
   suffixKey?: MessageKey
+}
+
+const LESSON_OBJECTIVES: Record<string, string> = {
+  'breath-5': 'Give the black stone at C3 more than one liberty.',
+  'bridge-5': 'Connect the black stones at B3 and D3.',
+  'roads-7': 'Create room for the marked black group without making a second weak group.',
+  'opening-compass': 'Choose any legal opening and name the intention behind it.',
+  'first-expedition': 'Play until both sides pass, inspect the mechanical area snapshot, and identify unsettled groups before calling a final score.',
+  'shape-of-power': 'Use a strong outside position without overclaiming uncertain ground.',
+  'river-chronicle': "Complete and review a 9×9 game without requiring the engine's best move.",
+  'first-breath': 'See how a stone stays alive.',
+  'bridge-builders': 'Connect before the road closes.',
+  'two-lanterns': 'Build two independent eyes.',
+  'mist-and-ground': 'Tell influence from territory.',
+  'hunt-run-settle': 'Gain from attacking, not only from killing.',
 }
 
 const PREFERENCES_KEY = 'weiqi.path.preferences.v1'
@@ -175,7 +191,7 @@ function gameSummaryOf(game: GameState): GameSummary {
   }
 }
 
-function localGameForLesson(lesson: LessonSummary, mode: GameMode): GameState {
+export function localGameForLesson(lesson: LessonSummary, mode: GameMode): GameState {
   const size = lesson.board_size
   let stones: Stone[] = []
   if (size === 5) {
@@ -224,7 +240,7 @@ function localGameForLesson(lesson: LessonSummary, mode: GameMode): GameState {
     move_count: 0,
     revision: 1,
     actors,
-    objective: lesson.subtitle,
+    objective: LESSON_OBJECTIVES[lesson.id] ?? lesson.subtitle,
     concepts: lesson.concepts,
     rules: {
       ...DEMO_GAME.rules,
@@ -251,8 +267,11 @@ function localGameForLesson(lesson: LessonSummary, mode: GameMode): GameState {
   }
 }
 
-function authored(locale: Locale, english: string, chinese: string, japanese: string): string {
-  return locale === 'zh-Hans' ? chinese : locale === 'ja' ? japanese : english
+export function canonicalLessonForStart(
+  curriculum: CurriculumResponse,
+  displayedLesson: LessonSummary,
+): LessonSummary {
+  return curriculum.lessons.find((lesson) => lesson.id === displayedLesson.id) ?? displayedLesson
 }
 
 function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent, locale: Locale): MovePreview {
@@ -266,18 +285,18 @@ function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent, loc
     coordinate,
     legal: false,
     reason: empty
-      ? authored(locale, 'This is an authored question, not a legal reading. Reconnect the rules service to verify and commit it.', '这是人工编写的提问，不是合法性读取。重新连接规则服务后再验证并落子。', 'これは教材の問いであり、合法手の判定ではありません。ルールサービスに再接続し、検証後に着手してください。')
-      : authored(locale, 'That intersection is occupied.', '该交叉点已有棋子。', 'その交点には石があります。'),
+      ? localizeAuthoredText(locale, 'This is an authored question, not a legal reading. Reconnect the rules service to verify and commit it.')
+      : localizeAuthoredText(locale, 'That intersection is occupied.'),
     captures: [],
     resulting_liberties: null,
     facets: empty
       ? [{
           id: 'breath',
-          label: authored(locale, 'Breath question', '气的问题', 'ダメの問い'),
-          canonical_term: authored(locale, 'Liberties to verify', '待验证的气', '検証するダメ'),
-          value: authored(locale, 'Not yet read', '尚未读取', 'まだ読みなし'),
+          label: localizeAuthoredText(locale, 'Breath question'),
+          canonical_term: localizeAuthoredText(locale, 'Liberties to verify'),
+          value: localizeAuthoredText(locale, 'Not yet read'),
           evidence: 'metaphor',
-          explanation: authored(locale, 'Use this prompt to form a hypothesis; only the live rules service supplies exact consequences.', '用这个提示形成假设；只有实时规则服务才会给出确定后果。', 'この問いから仮説を作ります。正確な結果を出すのは実行中のルールサービスだけです。'),
+          explanation: localizeAuthoredText(locale, 'Use this prompt to form a hypothesis; only the live rules service supplies exact consequences.'),
         }]
       : [],
     candidates: empty
@@ -286,13 +305,13 @@ function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent, loc
           point,
           coordinate,
           intent,
-          title: intent === 'unsure' ? authored(locale, 'Explore this point', '探索此点', 'この点を探る') : `${authored(locale, 'Explore', '探索', '探る')} · ${translate(locale, `intent.${intent}` as MessageKey)}`,
-          summary: authored(locale, 'Authored prompt only. No legality, reply, or outcome is claimed while the service is offline.', '这只是人工编写的提示。服务离线时，不声称合法性、应手或结果。', '教材用の問いだけです。サービスがオフラインの間は、着手の可否、応手、結果を主張しません。'),
-          risk: authored(locale, 'Reconnect before treating this as a playable candidate.', '将它当作可下的候选前，请先重新连接。', '打てる候補として扱う前に再接続してください。'),
+          title: intent === 'unsure' ? localizeAuthoredText(locale, 'Explore this point') : `${localizeAuthoredText(locale, 'Explore')} · ${translate(locale, `intent.${intent}` as MessageKey)}`,
+          summary: localizeAuthoredText(locale, 'Authored prompt only. No legality, reply, or outcome is claimed while the service is offline.'),
+          risk: localizeAuthoredText(locale, 'Reconnect before treating this as a playable candidate.'),
           verified: false,
         }]
       : [],
-    coach_prompt: authored(locale, 'Name what you expect to change, then reconnect the service to test the hypothesis.', '先说出你预期什么会改变，再重连服务验证假设。', '何が変わると予想するかを言葉にし、サービスへ再接続して仮説を試します。'),
+    coach_prompt: localizeAuthoredText(locale, 'Name what you expect to change, then reconnect the service to test the hypothesis.'),
   }
 }
 
@@ -658,14 +677,15 @@ export function App() {
       setActiveGame(game)
       rememberGame(game)
     } catch (error) {
-      setActiveGame(localGameForLesson(lesson, preferences.mode))
+      const canonicalLesson = canonicalLessonForStart(curriculum, lesson)
+      setActiveGame(localGameForLesson(canonicalLesson, preferences.mode))
       setNotice({ ...noticeFromError(error), suffixKey: 'notice.previewFallbackSuffix' })
     } finally {
       setView('play')
       setOperation('idle')
       window.scrollTo({ top: 0, behavior: preferences.reduced_motion ? 'auto' : 'smooth' })
     }
-  }, [invalidatePreview, preferences, rememberGame])
+  }, [curriculum.lessons, invalidatePreview, preferences, rememberGame])
 
   const requestPreview = useCallback(async (
     point: Point,
@@ -842,12 +862,12 @@ export function App() {
       const localMessage: CoachMessage = {
         id: `local-coach-${Date.now()}`,
         speaker: activeGame.mode === 'agent_vs_agent'
-          ? authored(locale, 'Lantern · Narrator', '灯笼 · 解说者', 'ランタン · 解説者')
-          : authored(locale, 'Lantern', '灯笼', 'ランタン'),
+          ? 'Lantern · Narrator'
+          : 'Lantern',
         role: activeGame.mode === 'agent_vs_agent' ? 'narrator' : 'companion',
         text: kind === 'hint'
-          ? authored(locale, 'First ask which nearby string has the fewest liberties. Then look for a move that changes more than one relationship.', '先问附近哪块棋的气最少，再寻找一手能同时改变一种以上关系的棋。', 'まず近くのどの一団が最もダメが少ないかを問います。次に、複数の関係を変える手を探します。')
-          : authored(locale, 'The strongest contrast is usually not “good versus bad.” It is ground now versus options later. Select a point to make that trade visible.', '最关键的对比通常不是“好对坏”，而是“现在的实地”与“以后的选择”。选一个点，让这个取舍可见。', '最も重要な対比は、たいてい「良い対悪い」ではなく、「今の地」と「後の選択肢」です。点を選び、その取引を見えるようにします。'),
+          ? 'First ask which nearby string has the fewest liberties. Then look for a move that changes more than one relationship.'
+          : 'The strongest contrast is usually not “good versus bad.” It is ground now versus options later. Select a point to make that trade visible.',
         evidence: ['metaphor'],
         question,
       }

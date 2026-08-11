@@ -4,11 +4,13 @@ type: software
 title: "Path of Influence: A Local-First Weiqi Teaching Journey"
 version: 0.1.0
 date-released: 2026-08-10
+abstract: "A local-first, evidence-labeled Weiqi teaching application with deterministic rules and bounded analysis providers."
 authors:
   - family-names: Chen
     given-names: Lachlan
+    alias: lachlanchen
 repository-code: "https://github.com/lachlanchen/LazyWeiqi"
-url: "https://github.com/lachlanchen/LazyWeiqi"
+url: "https://lazying.art"
 license: MIT
 keywords:
   - Weiqi
