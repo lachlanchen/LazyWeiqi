@@ -36,7 +36,7 @@ html {
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   background:
     radial-gradient(circle at 4% 12%, rgba(133, 218, 190, 0.13), transparent 27rem),
@@ -216,6 +216,32 @@ blockquote {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.language-select {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.language-select select {
+  width: 106px;
+  min-height: 40px;
+  padding: 6px 26px 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: #496873;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.language-select.compact select {
+  width: 82px;
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: 0.62rem;
 }
 
 .engine-pill {
@@ -3409,6 +3435,7 @@ blockquote {
   .brand small { display: none; }
   .engine-pill span { display: none; }
   .engine-pill { width: 34px; justify-content: center; padding: 5px; }
+  .language-select select { width: 82px; }
   .nav-menu { display: grid; }
   .app-header nav {
     position: absolute;
@@ -3518,6 +3545,8 @@ blockquote {
   .brand strong { font-size: 0.86rem; }
   .brand-mark { width: 36px; height: 36px; }
   .settings-button, .nav-menu { width: 38px; height: 38px; }
+  .language-select select,
+  .language-select.compact select { width: 76px; min-height: 44px; padding-inline: 6px 18px; }
   .notice-bar { justify-content: flex-start; font-size: 0.7rem; }
   .hero { min-height: auto; }
   .hero-inner { width: min(100% - 28px, 1180px); min-height: auto; padding: 44px 0 52px; }
@@ -3629,7 +3658,7 @@ blockquote {
   .history-board { width: 50px; height: 50px; }
   .history-resume { min-height: 42px; border-top: 1px solid var(--line); border-left: 0; }
   .history-pagination button { width: 100%; min-height: 44px; }
-  .app.is-simple { min-width: 320px; }
+  .app.is-simple { min-width: 0; }
   .simple-header { min-height: 52px; gap: 6px; padding: 5px 8px; }
   .simple-header nav { justify-self: start; }
   .simple-header nav button { width: 34px; min-height: 32px; justify-content: center; padding: 4px; }
@@ -3709,12 +3738,25 @@ blockquote {
 }
 
 @media (max-width: 420px) {
+  .app:not(.is-simple) .app-header {
+    gap: 8px;
+    padding-inline: 10px;
+  }
+
+  .app:not(.is-simple) .header-actions { gap: 6px; min-width: 0; }
+
+  .app:not(.is-simple) .brand > span:last-child { display: none; }
+
   .app:not(.is-simple) .interface-route-link {
     width: 38px;
     padding: 5px;
   }
 
   .app:not(.is-simple) .interface-route-link span { display: none; }
+}
+
+@media (max-width: 360px) {
+  .app:not(.is-simple) .engine-pill { display: none; }
 }
 
 @media (max-height: 640px) {

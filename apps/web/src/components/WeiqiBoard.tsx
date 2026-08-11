@@ -12,6 +12,7 @@ import {
   stoneMap,
   teachingPresenceField,
 } from '../board'
+import { localizeRulesReason, useI18n, type Locale } from '../i18n'
 import type { BoardSize, CandidateMove, MovePreview, MoveRecord, OwnershipCell, Point, Stone, StoneColor } from '../types'
 
 export type EnergyLensId = 'cloud' | 'breath' | 'bonds' | 'shelter' | 'reach' | 'ground' | 'area' | 'beat' | 'pressure'
@@ -40,6 +41,10 @@ interface WeiqiBoardProps {
 const BOARD_EDGE = 540
 const PADDING = 48
 const GRID_SPAN = BOARD_EDGE - PADDING * 2
+
+function authored(locale: Locale, english: string, chinese: string, japanese: string): string {
+  return locale === 'zh-Hans' ? chinese : locale === 'ja' ? japanese : english
+}
 
 function starPoints(size: BoardSize): Point[] {
   if (size === 9) {
@@ -71,6 +76,7 @@ export function WeiqiBoard({
   reducedMotion = false,
   operationStatus = 'idle',
 }: WeiqiBoardProps) {
+  const { locale, t } = useI18n()
   const instanceId = useId().replace(/:/g, '')
   const step = GRID_SPAN / (size - 1)
   const occupied = useMemo(() => stoneMap(stones), [stones])
@@ -188,11 +194,11 @@ export function WeiqiBoard({
         className="weiqi-board"
         viewBox={`0 0 ${BOARD_EDGE} ${BOARD_EDGE}`}
         role="grid"
-        aria-label={`${size} by ${size} Weiqi board. ${toPlay} to play.`}
+        aria-label={t('board.grid', { size, color: toPlay === 'black' ? t('board.black') : t('board.white') })}
         aria-keyshortcuts={selectionClearable ? 'Escape' : undefined}
         data-testid="weiqi-board"
       >
-        <title>{`${size} by ${size} Weiqi board, ${toPlay} to play`}</title>
+        <title>{t('board.grid', { size, color: toPlay === 'black' ? t('board.black') : t('board.white') })}</title>
         <defs>
           <linearGradient id="board-wash" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#f7dda5" />
@@ -586,7 +592,7 @@ export function WeiqiBoard({
               {candidateLiberties != null && (
                 <g className="candidate-liberty-count" transform={`translate(${step * 0.32} ${-step * 0.34})`}>
                   <circle cx={x} cy={y} r={step * 0.15} />
-                  <text x={x} y={y + 3.2} textAnchor="middle">L{candidateLiberties}</text>
+                  <text x={x} y={y + 3.2} textAnchor="middle">{authored(locale, `L${candidateLiberties}`, `气${candidateLiberties}`, `ダ${candidateLiberties}`)}</text>
                 </g>
               )}
             </g>
@@ -607,7 +613,7 @@ export function WeiqiBoard({
             >
               <circle cx={at.x} cy={at.y} r={step * 0.62} className="opening-suggestion-pulse" />
               <rect x={labelX} y={labelY} width={labelWidth} height="28" rx="14" />
-              <text x={labelX + labelWidth / 2} y={labelY + 18} textAnchor="middle">Suggested first: {candidatePreview?.coordinate}</text>
+              <text x={labelX + labelWidth / 2} y={labelY + 18} textAnchor="middle">{authored(locale, `Suggested first: ${candidatePreview?.coordinate}`, `建议第一手：${candidatePreview?.coordinate}`, `第一候補：${candidatePreview?.coordinate}`)}</text>
             </g>
           )
         })()}
@@ -644,8 +650,8 @@ export function WeiqiBoard({
               const coordinate = pointToCoordinate(point, size)
               const selectedHere = samePoint(point, selected)
               const label = stone
-                ? `${coordinate}, ${stone.color} stone${samePoint(stone, lastMovePoint) ? ', last move' : ''}`
-                : `${coordinate}, empty${selectedHere ? ', selected for preview' : ''}`
+                ? t('board.stone', { coordinate, color: locale === 'en' ? stone.color : stone.color === 'black' ? t('board.black') : t('board.white'), last: samePoint(stone, lastMovePoint) ? t('board.lastMove') : '' })
+                : t('board.empty', { coordinate, selected: selectedHere ? t('board.selected') : '' })
               return (
                 <circle
                   key={`hit-${pointKey(point)}`}
@@ -693,17 +699,17 @@ export function WeiqiBoard({
       <div className="board-live-status sr-only" aria-live="polite">
         {candidatePreview
           ? candidatePreviewMode === 'suggested-first-stone'
-            ? `Suggested first stone: ${candidatePreview.coordinate}. Nothing has been placed. Click this point or any legal empty intersection to analyze what would happen before deciding.`
+            ? authored(locale, `Suggested first stone: ${candidatePreview.coordinate}. Nothing has been placed. Click this point or any legal empty intersection to analyze what would happen before deciding.`, `建议的第一手：${candidatePreview.coordinate}。尚未落子。单击此点或任何合法空点，在决定前分析后果。`, `おすすめの第一手：${candidatePreview.coordinate}。まだ石は打たれていません。この点または合法な空交点を選び、決定前に結果を分析します。`)
             : candidatePreviewMode === 'if-played'
-              ? `If ${toPlay} played ${candidatePreview.coordinate}, this non-committing analysis would apply. No stone has been placed.`
+              ? authored(locale, `If ${toPlay} played ${candidatePreview.coordinate}, this non-committing analysis would apply. No stone has been placed.`, `如果${toPlay === 'black' ? '黑棋' : '白棋'}下在 ${candidatePreview.coordinate}，将应用这份不落子分析。尚未落子。`, `${toPlay === 'black' ? '黒' : '白'}が ${candidatePreview.coordinate} に打った場合の未着手分析です。石はまだ打たれていません。`)
               : candidateEngineField
-            ? `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing engine candidate forecast.`
+            ? authored(locale, `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing engine candidate forecast.`, `正在查看 ${candidatePreview.coordinate}，${candidatePreview.title}。这是不落子的引擎候选预测。`, `${candidatePreview.coordinate}（${candidatePreview.title}）を確認中です。着手しないエンジン候補予測です。`)
             : candidateIsPass
-              ? `Inspecting pass, ${candidatePreview.title}. This is a non-committing pass preview; no stone is placed and no engine ownership map is supplied.`
-              : `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing location and exact-shape preview; no engine ownership map is supplied.`
+              ? authored(locale, `Inspecting pass, ${candidatePreview.title}. This is a non-committing pass preview; no stone is placed and no engine ownership map is supplied.`, `正在查看停一手，${candidatePreview.title}。这是不落子的停一手预览；不放置棋子，也未提供引擎归属图。`, `パス（${candidatePreview.title}）を確認中です。着手しないパスプレビューで、石もエンジン帰属図もありません。`)
+              : authored(locale, `Inspecting ${candidatePreview.coordinate}, ${candidatePreview.title}. This is a non-committing location and exact-shape preview; no engine ownership map is supplied.`, `正在查看 ${candidatePreview.coordinate}，${candidatePreview.title}。这是不落子的位置与确定棋形预览；未提供引擎归属图。`, `${candidatePreview.coordinate}（${candidatePreview.title}）を確認中です。着手しない場所と正確な形のプレビューで、エンジン帰属図はありません。`)
           : selected
-          ? `${pointToCoordinate(selected, size)} selected. ${preview ? (preview.legal ? 'Move is legal.' : `Move is not legal: ${preview.reason ?? 'unknown reason'}.`) : 'Checking consequences.'}`
-          : `${toPlay} to play.`}
+          ? `${pointToCoordinate(selected, size)} ${authored(locale, 'selected.', '已选中。', 'を選択中。')} ${preview ? (preview.legal ? t('board.moveLegal') : t('board.moveIllegal', { reason: localizeRulesReason(preview.reason, locale) ?? t('board.unknownReason') })) : t('board.checkingConsequences')}`
+          : t('board.toPlay', { color: toPlay === 'black' ? t('board.black') : t('board.white') })}
       </div>
       </div>
 
@@ -712,13 +718,13 @@ export function WeiqiBoard({
           className="candidate-field-key"
           aria-label={candidateEngineField
             ? candidatePreviewMode === 'suggested-first-stone'
-              ? `Suggested first stone ${candidatePreview.coordinate} with if-played engine forecast`
+              ? authored(locale, `Suggested first stone ${candidatePreview.coordinate} with if-played engine forecast`, `建议第一手 ${candidatePreview.coordinate}，带“如果下在此处”的引擎预测`, `おすすめの第一手 ${candidatePreview.coordinate}、着手時のエンジン予測付き`)
               : candidatePreviewMode === 'if-played'
-                ? `Unconfirmed analysis if ${toPlay} plays ${candidatePreview.coordinate}`
-                : `Engine forecast after candidate ${candidatePreview.coordinate}`
+                ? authored(locale, `Unconfirmed analysis if ${toPlay} plays ${candidatePreview.coordinate}`, `${toPlay === 'black' ? '黑棋' : '白棋'}下在 ${candidatePreview.coordinate} 的未确认分析`, `${toPlay === 'black' ? '黒' : '白'}が ${candidatePreview.coordinate} に打つ場合の未確定分析`)
+                : authored(locale, `Engine forecast after candidate ${candidatePreview.coordinate}`, `候选着 ${candidatePreview.coordinate} 后的引擎预测`, `候補手 ${candidatePreview.coordinate} 後のエンジン予測`)
             : candidateIsPass
-              ? 'Pass preview with no stone placement and no ownership map'
-              : `Location and exact-shape preview for candidate ${candidatePreview.coordinate}`}
+              ? authored(locale, 'Pass preview with no stone placement and no ownership map', '停一手预览：不落子，也没有归属图', 'パスプレビュー：着手と帰属図はありません')
+              : authored(locale, `Location and exact-shape preview for candidate ${candidatePreview.coordinate}`, `候选着 ${candidatePreview.coordinate} 的位置与确定棋形预览`, `候補手 ${candidatePreview.coordinate} の場所と正確な形のプレビュー`)}
           aria-live="polite"
           data-testid="candidate-field-key"
           data-candidate-id={candidatePreview.id}
@@ -728,96 +734,112 @@ export function WeiqiBoard({
           <div className="candidate-field-title">
             <div>
               <small>{candidatePreviewMode === 'suggested-first-stone'
-                ? 'Suggested first stone · nothing placed'
+                ? authored(locale, 'Suggested first stone · nothing placed', '建议的第一手 · 尚未落子', 'おすすめの第一手 · 未着手')
                 : candidatePreviewMode === 'if-played'
-                  ? 'If played · still unconfirmed'
-                  : 'Inspecting without placing'}</small>
+                  ? authored(locale, 'If played · still unconfirmed', '如果下在此处 · 仍未确认', 'ここに打った場合 · まだ未確定')
+                  : authored(locale, 'Inspecting without placing', '只观察，不落子', '着手せずに調べる')}</small>
               <strong>{candidateEngineField
                 ? candidatePreviewMode === 'suggested-first-stone'
-                  ? `${candidatePreview.coordinate} · suggested opening with if-played forecast`
+                  ? authored(locale, `${candidatePreview.coordinate} · suggested opening with if-played forecast`, `${candidatePreview.coordinate} · 建议开局与着后预测`, `${candidatePreview.coordinate} · おすすめ序盤手と着手後予測`)
                   : candidatePreviewMode === 'if-played'
-                    ? `${candidatePreview.coordinate} · board if ${toPlay} played here`
-                    : `${candidatePreview.coordinate} · engine forecast after this candidate`
+                    ? authored(locale, `${candidatePreview.coordinate} · board if ${toPlay} played here`, `${candidatePreview.coordinate} · ${toPlay === 'black' ? '黑棋' : '白棋'}下在此处后的棋盘`, `${candidatePreview.coordinate} · ${toPlay === 'black' ? '黒' : '白'}がここに打った盤面`)
+                    : authored(locale, `${candidatePreview.coordinate} · engine forecast after this candidate`, `${candidatePreview.coordinate} · 候选着后的引擎预测`, `${candidatePreview.coordinate} · 候補手後のエンジン予測`)
                 : candidateIsPass
-                  ? 'Pass · no stone is placed'
-                  : `${candidatePreview.coordinate} · location and exact-shape preview`}</strong>
+                  ? authored(locale, 'Pass · no stone is placed', '停一手 · 不落子', 'パス · 石は打たれない')
+                  : authored(locale, `${candidatePreview.coordinate} · location and exact-shape preview`, `${candidatePreview.coordinate} · 位置与确定棋形预览`, `${candidatePreview.coordinate} · 場所と正確な形のプレビュー`)}</strong>
             </div>
             <span className={`evidence-badge ${candidateEngineField ? 'engine' : 'metaphor'}`}>
               {candidateEngineField
-                ? 'Engine estimate'
+                ? t('evidence.engine')
                 : size < 9
-                  ? `Authored ${size}×${size} view`
+                  ? authored(locale, `Authored ${size}×${size} view`, `人工编写的 ${size}×${size} 视图`, `教材用の ${size}×${size} 表示`)
                   : candidateIsPass
-                    ? 'Pass preview · no map supplied'
-                    : 'Location preview · no field supplied'}
+                    ? authored(locale, 'Pass preview · no map supplied', '停一手预览 · 未提供分布图', 'パスプレビュー · 図なし')
+                    : authored(locale, 'Location preview · no field supplied', '位置预览 · 未提供分布场', '場所プレビュー · 分布なし')}
             </span>
           </div>
 
           {candidateEngineField ? (
-            <div className="candidate-field-modes" role="list" aria-label="Candidate field modes">
+            <div className="candidate-field-modes" role="list" aria-label={authored(locale, 'Candidate field modes', '候选着分布图模式', '候補手の分布モード')}>
               {candidateOwnershipVisible && (
                 <span role="listitem" data-field-mode="after-candidate">
-                  <i className="field-after" /><span><b>After this move</b>Ownership forecast after {candidatePreview.coordinate}</span>
+                  <i className="field-after" /><span><b>{authored(locale, 'After this move', '这手之后', 'この手の後')}</b>{authored(locale, `Ownership forecast after ${candidatePreview.coordinate}`, `${candidatePreview.coordinate} 后的归属预测`, `${candidatePreview.coordinate} 後の帰属予測`)}</span>
                 </span>
               )}
               {candidateDelta.length > 0 && (
                 <span role="listitem" data-field-mode="change-vs-current">
-                  <i className="field-delta" /><span><b>Forecast difference after this move vs current</b>Strongest displayed signed changes · blue toward Black, orange toward White</span>
+                  <i className="field-delta" /><span><b>{authored(locale, 'Forecast difference after this move vs current', '这手后与当前局面的预测差异', '着手後と現在局面の予測差')}</b>{authored(locale, 'Strongest displayed signed changes · blue toward Black, orange toward White', '显示最强的带符号变化 · 蓝色偏向黑，橙色偏向白', '表示される最大の符号付き変化 · 青は黒寄り、オレンジは白寄り')}</span>
                 </span>
               )}
               <span role="listitem">
-                <i className="field-black" /><span><b>Blue</b>More Black ownership tendency</span>
+                <i className="field-black" /><span><b>{authored(locale, 'Blue', '蓝色', '青')}</b>{authored(locale, 'More Black ownership tendency', '更偏向黑棋归属', '黒の帰属傾向が強い')}</span>
               </span>
               <span role="listitem">
-                <i className="field-white" /><span><b>Orange</b>More White ownership tendency</span>
+                <i className="field-white" /><span><b>{authored(locale, 'Orange', '橙色', 'オレンジ')}</b>{authored(locale, 'More White ownership tendency', '更偏向白棋归属', '白の帰属傾向が強い')}</span>
               </span>
               <span role="listitem">
-                <i className="field-variation" /><span><b>Violet</b>Contested or high variation across searched lines</span>
+                <i className="field-variation" /><span><b>{t('board.violet')}</b>{authored(locale, 'Contested or high variation across searched lines', '争夺激烈，或搜索变化间的差异较大', '競合または探索線間のばらつきが大きい')}</span>
               </span>
               {!candidateVariationAvailable && (
                 <span role="listitem">
-                  <i className="field-unknown" /><span><b>Gray</b>Continuation variation was not supplied</span>
+                  <i className="field-unknown" /><span><b>{authored(locale, 'Gray', '灰色', '灰色')}</b>{authored(locale, 'Continuation variation was not supplied', '未提供后续变化分散度', '続行変化のばらつきは提供されていない')}</span>
                 </span>
               )}
             </div>
           ) : (
             <p className="candidate-field-missing" role="note">
               {size < 9
-                ? `No KataGo map is claimed for this authored ${size}×${size} lesson. The ghost stone shows location only.`
+                ? t('board.noSmallBoardMap', { size })
                 : candidateIsPass
-                  ? 'No after-pass ownership field was supplied. Pass places no stone; no quality shape is invented.'
-                  : 'No after-move ownership field was supplied. The ghost stone shows location only; no quality shape is invented.'}
+                  ? t('board.noPassMap')
+                  : t('board.noMoveMap')}
             </p>
           )}
 
           <div className="candidate-field-facts">
             {candidatePreview.tactics && (
-              <span><b>Exact rules</b>{candidatePreview.kind === 'pass' || candidatePreview.point == null
+              <span><b>{t('source.exactRules')}</b>{candidatePreview.kind === 'pass' || candidatePreview.point == null
                 ? candidatePreview.tactics.ends_play
-                  ? 'This second consecutive pass places no stone, captures nothing, and ends play.'
-                  : 'Pass places no stone or captures; the opponent moves next, and another consecutive pass ends play.'
-                : `${candidatePreview.tactics.captures.length} captures · ${candidatePreview.tactics.resulting_liberties ?? 'unreported'} resulting liberties · ${candidatePreview.tactics.connects.length} connection anchors · ${candidatePreview.tactics.cuts.length} cut anchors`}</span>
+                  ? t('board.passEnds')
+                  : t('board.passContinues')
+                : t('board.tacticsFacts', {
+                    captures: candidatePreview.tactics.captures.length,
+                    liberties: candidatePreview.tactics.resulting_liberties ?? t('board.unreported'),
+                    connections: candidatePreview.tactics.connects.length,
+                    cuts: candidatePreview.tactics.cuts.length,
+                  })}</span>
             )}
             {candidateDelta.length > 0 && candidateEngineField && (
-              <span><b>Teacher interpretation</b>Use the wash like a weather forecast, not a force field. Liberties, connections, threats, and replies are the causes.</span>
+              <span><b>{t('source.teacher')}</b>{t('board.teacherWeather')}</span>
             )}
             {candidatePreview.variation?.length ? (
-              <span><b>Engine main line</b>Numbered stones show one searched line, not a forced reply.</span>
+              <span><b>{t('source.engine')}</b>{t('board.engineLine')}</span>
             ) : null}
             {candidatePreview.score && candidatePreview.engine_analyzed && (
               <span data-testid="if-played-score-forecast">
-                <b>Score forecast · Black perspective</b>
-                Before {candidatePreview.score.before.toFixed(1)} → if played {candidatePreview.score.after.toFixed(1)} · search difference {candidatePreview.score.delta >= 0 ? '+' : ''}{candidatePreview.score.delta.toFixed(1)}
-                {candidatePreview.score.mover_delta != null ? ` · for ${toPlay === 'black' ? 'Black' : 'White'} ${candidatePreview.score.mover_delta >= 0 ? '+' : ''}${candidatePreview.score.mover_delta.toFixed(1)}` : ''}
+                <b>{t('board.scoreForecastBlack')}</b>
+                {t('board.scoreForecastValues', {
+                  before: candidatePreview.score.before.toFixed(1),
+                  after: candidatePreview.score.after.toFixed(1),
+                  delta: `${candidatePreview.score.delta >= 0 ? '+' : ''}${candidatePreview.score.delta.toFixed(1)}`,
+                })}
+                {candidatePreview.score.mover_delta != null
+                  ? t('board.scoreForecastMover', {
+                      color: toPlay === 'black' ? t('board.black') : t('board.white'),
+                      delta: `${candidatePreview.score.mover_delta >= 0 ? '+' : ''}${candidatePreview.score.mover_delta.toFixed(1)}`,
+                    })
+                  : ''}
               </span>
             )}
           </div>
           <p className="candidate-field-disclaimer">
             {candidateEngineField
-              ? `Ownership colors are a forecast, not territory already secured. The delta layer shows only the strongest changes above its display cutoff; omitted cells are not neutral. ${candidateVariationAvailable ? 'Cell variation describes spread across searched continuations. On the delta wash, that spread belongs to the after-position, not to the subtraction itself.' : 'No continuation-variation map was supplied, so gray marks unknown variation and no stability claim is made.'} Values are always Black perspective, including when White is to play.`
+              ? candidateVariationAvailable
+                ? t('board.ownershipDisclaimerWithVariation')
+                : t('board.ownershipDisclaimerNoVariation')
               : candidateIsPass
-                ? 'This pass preview shows exact turn consequences but no stone location. It invents no ownership shape or territory map; any separate rank or score evidence remains separately labeled.'
-                : 'This board overlay shows only the proposed location and exact rules facts. It invents no ownership shape or territory map; any separate rank or score evidence remains separately labeled.'}
+                ? t('board.passOverlayDisclaimer')
+                : t('board.locationOverlayDisclaimer')}
           </p>
         </section>
       )}
@@ -843,68 +865,68 @@ export function WeiqiBoard({
         >
           <strong>
             {operationStatus === 'previewing' && !preview
-              ? `Analyzing if ${toPlay} plays ${pointToCoordinate(selected, size)}…`
+              ? authored(locale, `Analyzing if ${toPlay} plays ${pointToCoordinate(selected, size)}…`, `正在分析${toPlay === 'black' ? '黑棋' : '白棋'}下在 ${pointToCoordinate(selected, size)} 后的局面…`, `${toPlay === 'black' ? '黒' : '白'}が ${pointToCoordinate(selected, size)} に打った場合を解析中…`)
               : preview?.legal
-                ? `If ${toPlay} plays ${pointToCoordinate(selected, size)} · analysis ready`
+                ? authored(locale, `If ${toPlay} plays ${pointToCoordinate(selected, size)} · analysis ready`, `${toPlay === 'black' ? '黑棋' : '白棋'}若下在 ${pointToCoordinate(selected, size)} · 分析已就绪`, `${toPlay === 'black' ? '黒' : '白'}が ${pointToCoordinate(selected, size)} に打つ場合 · 解析準備完了`)
                 : preview
-                  ? `${pointToCoordinate(selected, size)} cannot be played now`
-                  : `Analyzing ${pointToCoordinate(selected, size)}…`}
+                  ? authored(locale, `${pointToCoordinate(selected, size)} cannot be played now`, `${pointToCoordinate(selected, size)} 当前不能下`, `${pointToCoordinate(selected, size)} には現在打てません`)
+                  : authored(locale, `Analyzing ${pointToCoordinate(selected, size)}…`, `正在分析 ${pointToCoordinate(selected, size)}…`, `${pointToCoordinate(selected, size)} を解析中…`)}
           </strong>
           <span>
             {operationStatus === 'previewing' && !preview
-              ? 'No stone has been placed. Waiting for exact consequences and any after-move ownership and score forecast.'
+              ? authored(locale, 'No stone has been placed. Waiting for exact consequences and any after-move ownership and score forecast.', '尚未落子。正在等待确定后果，以及可能的着后归属和目数预测。', '石は打たれていません。正確な結果と、提供される場合は着手後の帰属・得点予測を待っています。')
               : preview?.legal && candidateEngineField
-                ? 'The if-played field and explanation are visible above. Nothing changes until you separately choose Place stone.'
-                : preview?.legal
-                  ? 'The move is legal and exact consequences are shown, but no after-move ownership map was supplied. Nothing has been placed.'
+                ? authored(locale, 'The if-played field and explanation are visible above. Nothing changes until you separately choose Place stone.', '上方已显示“如果下在此处”的分布与解释。在你另行选择“确认落子”前，棋盘不会改变。', '「ここに打った場合」の分布と説明は上に表示されています。別途「石を打つ」を選ぶまで盤面は変わりません。')
+              : preview?.legal
+                  ? authored(locale, 'The move is legal and exact consequences are shown, but no after-move ownership map was supplied. Nothing has been placed.', '着法合法且已显示确定后果，但未提供着后归属图。尚未落子。', '合法手で正確な結果が表示されていますが、着手後の帰属図は提供されていません。まだ着手していません。')
                   : preview
-                    ? `${preview.reason ?? 'The rules service rejected this move.'} Nothing has been placed.`
-                    : 'No stone has been placed.'}
+                    ? `${localizeRulesReason(preview.reason, locale) ?? t('coach.notLegalNow')} ${t('board.nothingPlaced')}`
+                    : t('board.nothingPlaced')}
           </span>
           {preview?.legal && preview.current_area_snapshot && preview.if_played_area_snapshot && (
             <div className="position-bookkeeping-comparison" data-testid="if-played-position-comparison">
               <article data-testid="current-position-bookkeeping">
-                <small>Current board</small>
-                <strong>Stones · Black {preview.current_area_snapshot.black_stones} · White {preview.current_area_snapshot.white_stones}</strong>
-                <span>{size * size - preview.current_area_snapshot.black_stones - preview.current_area_snapshot.white_stones} empty intersections · {toPlay} to move</span>
+                <small>{t('board.currentBoard')}</small>
+                <strong>{t('board.stoneCount', { black: preview.current_area_snapshot.black_stones, white: preview.current_area_snapshot.white_stones })}</strong>
+                <span>{t('board.emptyTurn', { count: size * size - preview.current_area_snapshot.black_stones - preview.current_area_snapshot.white_stones, color: locale === 'en' ? toPlay : toPlay === 'black' ? t('board.black') : t('board.white') })}</span>
               </article>
               <span className="position-comparison-arrow" aria-hidden="true">→</span>
               <article data-testid="if-played-position-bookkeeping">
-                <small>If {toPlay} plays {preview.coordinate}</small>
-                <strong>Stones · Black {preview.if_played_area_snapshot.black_stones} · White {preview.if_played_area_snapshot.white_stones}</strong>
-                <span>{size * size - preview.if_played_area_snapshot.black_stones - preview.if_played_area_snapshot.white_stones} empty intersections · {preview.if_played_side_to_move ?? (toPlay === 'black' ? 'white' : 'black')} to move</span>
+                <small>{t('board.ifPlays', { color: toPlay === 'black' ? t('board.black') : t('board.white'), coordinate: preview.coordinate })}</small>
+                <strong>{t('board.stoneCount', { black: preview.if_played_area_snapshot.black_stones, white: preview.if_played_area_snapshot.white_stones })}</strong>
+                <span>{t('board.emptyTurn', { count: size * size - preview.if_played_area_snapshot.black_stones - preview.if_played_area_snapshot.white_stones, color: locale === 'en' ? preview.if_played_side_to_move ?? (toPlay === 'black' ? 'white' : 'black') : (preview.if_played_side_to_move ?? (toPlay === 'black' ? 'white' : 'black')) === 'black' ? t('board.black') : t('board.white') })}</span>
               </article>
-              <p>No territory is settled during live play. Use the labeled ownership cloud and score forecast above to compare likely future control.</p>
+              <p>{t('board.noTerritory')}</p>
             </div>
           )}
         </section>
       )}
 
       {presenceSketchVisible && (
-        <section className="power-cloud-key" aria-label="Beginner presence sketch explanation" data-testid="power-cloud-key">
+        <section className="power-cloud-key" aria-label={t('board.presenceExplanation')} data-testid="power-cloud-key">
           <div className="power-cloud-title">
-            <strong>{openingCloud ? 'Opening efficiency sketch' : 'Current-stone distance sketch'}</strong>
-            <span className="evidence-badge metaphor">Beginner analogy · not move quality</span>
+            <strong>{openingCloud ? t('board.openingSketch') : t('board.distanceSketch')}</strong>
+            <span className="evidence-badge metaphor">{t('board.analogy')}</span>
           </div>
           {openingCloud ? (
             <div className="power-cloud-items">
-              <span><i className="corner" /> <b>Corner</b> · fewer directions to close</span>
-              <span><i className="side" /> <b>Side</b> · links nearby stones</span>
-              <span><i className="center" /> <b>Center</b> · reaches far, encloses slowly</span>
+              <span><i className="corner" /> <b>{t('board.corner')}</b> · {t('board.cornerText')}</span>
+              <span><i className="side" /> <b>{t('board.side')}</b> · {t('board.sideText')}</span>
+              <span><i className="center" /> <b>{t('board.center')}</b> · {t('board.centerText')}</span>
             </div>
           ) : (
             <div className="power-cloud-items">
-              <span><i className="black" /> <b>Black</b> · nearby presence</span>
-              <span><i className="white" /> <b>White</b> · nearby presence</span>
-              <span><i className="contested" /> <b>Violet</b> · both are close</span>
+              <span><i className="black" /> <b>{t('board.black')}</b> · {t('board.nearby')}</span>
+              <span><i className="white" /> <b>{t('board.white')}</b> · {t('board.nearby')}</span>
+              <span><i className="contested" /> <b>{t('board.violet')}</b> · {t('board.bothClose')}</span>
             </div>
           )}
           <p>
-            This beginner sketch only shows distance from current stones. It does not rank candidates and is not physics, territory, ownership, or score.
+            {t('board.sketchDisclaimer')}
             {size < 9
-              ? ` This is an authored ${size}×${size} teaching view; the installed KataGo evidence is 9×9 only.`
+              ? ` ${t('board.smallBoardDisclaimer', { size })}`
               : engineLayerVisible
-                ? ' The separate square wash is a KataGo ownership estimate.'
+                ? ` ${t('board.separateEstimate')}`
                 : ''}
           </p>
         </section>

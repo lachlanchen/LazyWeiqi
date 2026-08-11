@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   candidateQualityComparison,
+  evaluationSummary,
   scoreImpactSummary,
   scoreVolatilitySummary,
 } from './candidateEvidence'
@@ -64,5 +65,17 @@ describe('candidate comparison language', () => {
     expect(summary).toContain('biased high')
     expect(summary).toContain('relative search volatility')
     expect(summary).not.toContain('confidence')
+  })
+
+  it('keeps Japanese engine visit evidence fully localized', () => {
+    const summary = evaluationSummary({
+      perspective: 'black',
+      evidence: 'engine',
+      winrate_after: 0.54,
+      visits: 900,
+    }, 'ja')
+
+    expect(summary).toContain('この分岐の訪問回数は 900 回')
+    expect(summary).not.toContain('visits')
   })
 })

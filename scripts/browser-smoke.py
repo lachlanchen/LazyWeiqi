@@ -1029,9 +1029,21 @@ def run() -> dict[str, Any]:
         page.get_by_test_id("mode-agent_vs_agent").click()
         start_first_visible_lesson(page, 9)
         checks["theatreMode"] = workspace.get_attribute("data-mode")
-        field_key = page.get_by_test_id("candidate-field-key")
-        first_field_id = field_key.get_attribute("data-candidate-id")
         candidate_cards = page.locator(".candidate-card")
+        # The shared visible pointer may happen to rest over a newly rendered
+        # card. Clear that incidental hover before recording the passive top
+        # suggestion, or a later right-click reset would correctly return to
+        # card 0 while the smoke incorrectly waits for the hovered card.
+        page.mouse.move(8, 8)
+        page.locator(".back-button").focus()
+        first_field_id = str(
+            candidate_cards.first.get_attribute("data-testid")
+        ).removeprefix("candidate-")
+        page.locator(
+            f'[data-testid="candidate-field-key"][data-candidate-id="{first_field_id}"]'
+            '[data-preview-mode="candidate-comparison"]'
+        ).wait_for(state="visible")
+        field_key = page.get_by_test_id("candidate-field-key")
         checks["turnStartDecisionField"] = bool(
             first_field_id
             and field_key.get_attribute("data-engine-field") == "true"
@@ -1107,6 +1119,11 @@ def run() -> dict[str, Any]:
         page.get_by_test_id("nav-journey").click()
         page.get_by_test_id("mode-human_companion").click()
         start_first_visible_lesson(page, 9)
+        # A pointer left over a candidate from the theatre review can
+        # intentionally switch the field into comparison mode. Neutralize
+        # hover/focus before asserting the passive opening suggestion.
+        page.mouse.move(8, 8)
+        page.locator(".back-button").focus()
         opening_suggestion = page.get_by_test_id("suggested-first-stone")
         opening_suggestion.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
         suggested_coordinate = opening_suggestion.get_attribute("data-coordinate")

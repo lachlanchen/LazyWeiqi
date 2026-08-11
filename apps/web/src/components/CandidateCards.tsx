@@ -9,6 +9,7 @@ import {
   tacticsSummary,
   variationSummary,
 } from '../candidateEvidence'
+import { useI18n, type MessageKey } from '../i18n'
 import type { BoardSize, CandidateMove, StoneColor } from '../types'
 
 interface CandidateCardsProps {
@@ -36,6 +37,7 @@ export function CandidateCards({
   onSelect,
   disabled = false,
 }: CandidateCardsProps) {
+  const { locale, t } = useI18n()
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [latestModality, setLatestModality] = useState<'pointer' | 'focus'>('pointer')
@@ -51,28 +53,28 @@ export function CandidateCards({
     return (
       <div className="candidate-empty" data-testid="candidate-empty">
         <Route size={18} aria-hidden="true" />
-        <span>Select an empty point to compare its consequences.</span>
+        <span>{t('candidate.empty')}</span>
       </div>
     )
   }
 
   return (
-    <div className="candidate-list" data-testid="candidate-list" data-density={compact ? 'compact' : 'full'} aria-label="Candidate move comparison">
+    <div className="candidate-list" data-testid="candidate-list" data-density={compact ? 'compact' : 'full'} aria-label={t('candidate.list')}>
       {candidates.slice(0, 3).map((candidate) => {
         const selected = selectedCandidateId === candidate.id
         const inspecting = inspectedCandidateId === candidate.id
         const suggested = suggestedCandidateId === candidate.id
         const suggestedRank = Number.isInteger(candidate.evaluation?.order) && (candidate.evaluation?.order ?? -1) >= 0
-          ? `KataGo order ${(candidate.evaluation?.order ?? 0) + 1}`
-          : 'KataGo-ranked'
+          ? t('candidate.engineOrder', { rank: (candidate.evaluation?.order ?? 0) + 1 })
+          : t('candidate.engineRanked')
         const expanded = !compact && (selected || inspecting || suggested)
-        const reasoning = candidateReasoning(candidate)
-        const pv = variationSummary(candidate, boardSize)
-        const evaluation = candidate.evaluation ? evaluationSummary(candidate.evaluation) : null
+        const reasoning = candidateReasoning(candidate, locale)
+        const pv = variationSummary(candidate, boardSize, locale)
+        const evaluation = candidate.evaluation ? evaluationSummary(candidate.evaluation, locale) : null
         const engineEvidenceAllowed = boardSize === 9 && candidate.engine_analyzed === true
         const engineRank = candidate.evaluation?.order != null ? candidate.evaluation.order + 1 : null
         const topCandidate = candidates.find((item) => item.evaluation?.order === 0)
-        const qualityComparison = candidateQualityComparison(candidate, topCandidate, toPlay)
+        const qualityComparison = candidateQualityComparison(candidate, topCandidate, toPlay, locale)
         const candidateVariationAvailable = Boolean(
           candidate.ownership_after?.length &&
           candidate.ownership_after.every((cell) => Number.isFinite(cell.variation ?? cell.uncertainty)),
@@ -104,7 +106,7 @@ export function CandidateCards({
             aria-pressed={selected}
             aria-expanded={expanded}
             aria-controls={analysisId}
-            aria-label={`${suggested ? 'Suggested first stone. ' : ''}${candidate.coordinate}, ${candidate.title}. Inspect this candidate; click or press Enter to select its non-committing move preview.`}
+            aria-label={t('candidate.inspectAria', { prefix: suggested ? `${t('candidate.suggested')}. ` : '', coordinate: candidate.coordinate, title: candidate.title })}
             data-testid={`candidate-${candidate.id}`}
             data-verified={candidate.verified}
             data-inspecting={inspecting}
@@ -116,24 +118,24 @@ export function CandidateCards({
             <span className="candidate-body">
               <span className="candidate-title-row">
                 <strong>{candidate.title}</strong>
-                <span className="intent-tag">{candidate.intent}</span>
-                {candidate.legal_verified === true && <CheckCircle2 size={14} aria-label="Rules-legal server candidate" />}
+                <span className="intent-tag">{t(`intent.${candidate.intent}` as MessageKey)}</span>
+                {candidate.legal_verified === true && <CheckCircle2 size={14} aria-label={t('candidate.rulesLegal')} />}
               </span>
               {suggested && (
                 <span className="candidate-suggestion-badge" data-testid="suggested-first-stone-card">
-                  Suggested first stone · {candidate.engine_analyzed ? suggestedRank : 'teacher fallback'}
+                  {t('candidate.suggestedBadge', { source: candidate.engine_analyzed ? suggestedRank : t('candidate.teacherFallback') })}
                 </span>
               )}
-              <span className="intent-provenance">Teacher hypothesis · possible job</span>
+              <span className="intent-provenance">{t('candidate.intentProvenance')}</span>
               <span className="candidate-summary">{candidate.summary}</span>
               {candidate.main_line_reply && (
-                <span className="candidate-detail"><ArrowRight size={13} aria-hidden="true" /> {candidate.engine_analyzed && boardSize === 9 ? 'Reply in one engine line (not forced)' : 'Reply to examine'}: {candidate.main_line_reply}</span>
+                <span className="candidate-detail"><ArrowRight size={13} aria-hidden="true" /> {candidate.engine_analyzed && boardSize === 9 ? t('candidate.replyEngine') : t('candidate.replyExamine')}: {candidate.main_line_reply}</span>
               )}
               {candidate.risk && (
-                <span className="candidate-detail risk"><ShieldAlert size={13} aria-hidden="true" /> Risk: {candidate.risk}</span>
+                <span className="candidate-detail risk"><ShieldAlert size={13} aria-hidden="true" /> {t('candidate.risk')} {candidate.risk}</span>
               )}
               {!candidate.engine_analyzed && (
-                <span className="candidate-detail"><ShieldAlert size={13} aria-hidden="true" /> No engine support is claimed.</span>
+                <span className="candidate-detail"><ShieldAlert size={13} aria-hidden="true" /> {t('candidate.noEngine')}</span>
               )}
 
               <span
@@ -143,14 +145,14 @@ export function CandidateCards({
                 data-visible={expanded}
                 aria-hidden={!expanded}
               >
-                <span className="candidate-reasoning-row"><b>Why here <em>Teacher interpretation</em></b><span>{reasoning.why}</span></span>
-                {!candidate.tactics && <span className="candidate-reasoning-row"><b>What changes <em>Teacher interpretation</em></b><span>{reasoning.changes}</span></span>}
-                <span className="candidate-reasoning-row"><b>Next calculation <em>Teacher interpretation</em></b><span>{reasoning.next}</span></span>
+                <span className="candidate-reasoning-row"><b>{t('candidate.why')} <em>{t('candidate.teacherInterpretation')}</em></b><span>{reasoning.why}</span></span>
+                {!candidate.tactics && <span className="candidate-reasoning-row"><b>{t('candidate.changes')} <em>{t('candidate.teacherInterpretation')}</em></b><span>{reasoning.changes}</span></span>}
+                <span className="candidate-reasoning-row"><b>{t('candidate.next')} <em>{t('candidate.teacherInterpretation')}</em></b><span>{reasoning.next}</span></span>
 
                 {candidate.tactics && (
                   <span className="candidate-evidence-block exact" data-testid={`candidate-tactics-${candidate.id}`}>
-                    <span><b>Rules facts</b><em>Exact</em></span>
-                    <span>{tacticsSummary(candidate.tactics, candidate.kind === 'pass' || candidate.point == null)}</span>
+                    <span><b>{t('candidate.rulesFacts')}</b><em>{t('candidate.exact')}</em></span>
+                    <span>{tacticsSummary(candidate.tactics, candidate.kind === 'pass' || candidate.point == null, locale)}</span>
                   </span>
                 )}
 
@@ -160,43 +162,43 @@ export function CandidateCards({
                     data-testid={`candidate-score-${candidate.id}`}
                     data-perspective={candidate.score.perspective}
                   >
-                    <span><b>Score forecast comparison</b><em>Engine estimate · {candidate.score.perspective} perspective</em></span>
-                    <span>{scoreImpactSummary(candidate.score, toPlay)}</span>
+                    <span><b>{t('candidate.scoreComparison')}</b><em>{t('candidate.enginePerspective', { color: locale === 'en' ? candidate.score.perspective : candidate.score.perspective === 'black' ? t('board.black') : t('board.white') })}</em></span>
+                    <span>{scoreImpactSummary(candidate.score, toPlay, locale)}</span>
                     {qualityComparison && <span>{qualityComparison}</span>}
-                    <small>{scoreVolatilitySummary(candidate.score)}</small>
+                    <small>{scoreVolatilitySummary(candidate.score, locale)}</small>
                   </span>
                 )}
 
                 {evaluation && engineEvidenceAllowed && (
                   <span className="candidate-evaluation" data-testid={`candidate-evaluation-${candidate.id}`}>
-                    {engineRank != null && <>KataGo ranks {candidate.coordinate} #{engineRank}{candidate.evaluation?.visits != null ? `; this child received ${candidate.evaluation.visits.toLocaleString()} visits` : ''}. </>}
-                    {evaluation} This supports comparison; it is not a territory fact.
+                    {engineRank != null && <>{t('candidate.rank', { coordinate: candidate.coordinate, rank: engineRank, visits: candidate.evaluation?.visits != null ? t('candidate.visits', { count: candidate.evaluation.visits.toLocaleString(locale) }) : '' })}</>}
+                    {evaluation} {t('candidate.supportsComparison')}
                   </span>
                 )}
 
                 {(candidate.ownership_after?.length || candidate.ownership_delta?.length) && engineEvidenceAllowed && (
                   <span className="candidate-field-status" data-testid={`candidate-field-status-${candidate.id}`}>
-                    <b>Board field</b>
+                    <b>{t('candidate.boardField')}</b>
                     <span>
-                      {candidate.ownership_after?.length ? 'After-move ownership' : ''}
+                      {candidate.ownership_after?.length ? t('candidate.afterOwnership') : ''}
                       {candidate.ownership_after?.length && candidate.ownership_delta?.length ? ' + ' : ''}
-                      {candidate.ownership_delta?.length ? 'Δ ownership shape' : ''}
+                      {candidate.ownership_delta?.length ? t('candidate.deltaOwnership') : ''}
                     </span>
                     <small>{candidateVariationAvailable
-                      ? 'Black-positive engine estimate; variation across searched continuations is shown cell by cell.'
-                      : 'Black-positive engine estimate; no continuation-variation map was supplied, so no stability claim is made.'}</small>
+                      ? t('candidate.variationSupplied')
+                      : t('candidate.variationMissing')}</small>
                   </span>
                 )}
 
                 {!engineEvidenceAllowed && (candidate.score || candidate.ownership_after?.length || candidate.ownership_delta?.length) && (
                   <span className="candidate-small-board-honesty" role="note">
-                    Engine comparison is hidden: this {boardSize}×{boardSize} lesson is an authored teaching view.
+                    {t('candidate.smallBoardHidden', { size: boardSize })}
                   </span>
                 )}
 
                 {pv && (
                   <span className="candidate-pv-text" data-testid={`candidate-pv-text-${candidate.id}`}>
-                    <b>Read next</b><span>{pv}</span>
+                    <b>{t('candidate.readNext')}</b><span>{pv}</span>
                   </span>
                 )}
               </span>
@@ -204,7 +206,7 @@ export function CandidateCards({
           </button>
         )
       })}
-      <p className="candidate-interaction-hint">Hover or focus to inspect. Tap, click, or press Enter to keep a non-committing preview. Right-click the board or press Esc to return to agent suggestions.</p>
+      <p className="candidate-interaction-hint">{t('candidate.interaction')}</p>
     </div>
   )
 }

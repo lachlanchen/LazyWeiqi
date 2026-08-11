@@ -6,7 +6,9 @@ Path of Influence is a local-first teaching game for people who know the basic
 rules of Go/Weiqi but still do not know how to begin, what to notice, or why a
 move matters. It starts with short 5×5 and 7×7 scenes, then opens into complete
 9×9 games with a companion, player agents, narrated agent-vs-agent theatre, and
-an honest review chronicle.
+an honest review chronicle. The interface is available in English, Simplified
+Chinese, and Japanese; the language selector preserves the active game and does
+not translate or relabel unconstrained model prose as verified evidence.
 
 The product has one strict rule: deterministic code owns the game. KataGo may
 analyze a position, and a language model may explain verified evidence, but
@@ -167,6 +169,16 @@ prose is labeled as model-generated and never receives an `Exact` badge; exact
 badges belong only to server-computed rules/facets. Model output is never stored
 as hidden reasoning; only the validated learner-facing explanation is persisted.
 
+### Language contract
+
+English is the default, with reviewed Simplified Chinese and Japanese catalogs.
+The header selector uses an allowlist, persists its choice locally, and updates
+the document language without restarting the lesson or changing the `/simple`
+route. Stable interface copy, deterministic rules explanations, and curriculum
+lessons are localized by catalog key or lesson ID. Unconstrained engine/model
+prose stays verbatim and keeps its evidence label; the client never presents a
+machine translation as verified Weiqi evidence.
+
 ## Dedicated visible browser
 
 For repeatable UI work, start the app first and then the isolated browser desktop:
@@ -248,3 +260,11 @@ GitHub reads [`CITATION.cff`](CITATION.cff) and exposes **Cite this repository**
   url = {https://github.com/lachlanchen/Weiqi}
 }
 ```
+
+## Support
+
+If this work is useful, you can support continued development through
+[GitHub Sponsors](https://github.com/sponsors/lachlanchen). More projects and
+contact links are available at [Lazying Art](https://lazying.art),
+[Lazying Chat](https://chat.lazying.art), and
+[OnlyIdeas.Art](https://onlyideas.art).

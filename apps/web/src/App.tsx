@@ -43,6 +43,18 @@ import {
   FALLBACK_STATUS,
 } from './fallbackData'
 import { appendOlderGames } from './history'
+import {
+  LanguageSelect,
+  localizeCurriculum,
+  localizeEnergyFacet,
+  localizeGame,
+  localizeGameSummary,
+  localizeMovePreview,
+  translate,
+  useI18n,
+  type Locale,
+  type MessageKey,
+} from './i18n'
 import type {
   AppPreferences,
   BoardSize,
@@ -63,6 +75,13 @@ import type {
 type AppView = 'journey' | 'play' | 'chronicle'
 type Operation = 'idle' | 'creating' | 'previewing' | 'moving' | 'agent' | 'coach' | 'rewinding' | 'loading-game'
 type InterfaceLayout = 'classic' | 'simple'
+type NoticeState = {
+  key?: MessageKey
+  values?: Record<string, string | number>
+  translatedValues?: Record<string, MessageKey>
+  text?: string
+  suffixKey?: MessageKey
+}
 
 const PREFERENCES_KEY = 'weiqi.path.preferences.v1'
 const HISTORY_PAGE_SIZE = 20
@@ -107,10 +126,29 @@ function readPreferences(): AppPreferences {
   }
 }
 
-function safeMessage(error: unknown): string {
+function safeMessage(error: unknown, fallback = 'Something interrupted the teaching flow.'): string {
   if (error instanceof ApiError) return error.message
   if (error instanceof Error) return error.message
-  return 'Something interrupted the teaching flow.'
+  return fallback
+}
+
+class CatalogNoticeError extends Error {
+  constructor(readonly key: MessageKey) {
+    super(key)
+  }
+}
+
+function noticeFromError(error: unknown, fallbackKey: MessageKey = 'notice.flowInterrupted'): NoticeState {
+  if (error instanceof CatalogNoticeError) return { key: error.key }
+  if (error instanceof ApiError || error instanceof Error) return { text: error.message }
+  return { key: fallbackKey }
+}
+
+function noticeWithDetail(key: MessageKey, error: unknown): NoticeState {
+  if (error instanceof ApiError || error instanceof Error) {
+    return { key, values: { detail: error.message } }
+  }
+  return { key, translatedValues: { detail: 'notice.flowInterrupted' } }
 }
 
 function newClientRequestId(prefix: string): string {
@@ -213,7 +251,11 @@ function localGameForLesson(lesson: LessonSummary, mode: GameMode): GameState {
   }
 }
 
-function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent): MovePreview {
+function authored(locale: Locale, english: string, chinese: string, japanese: string): string {
+  return locale === 'zh-Hans' ? chinese : locale === 'ja' ? japanese : english
+}
+
+function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent, locale: Locale): MovePreview {
   const occupied = stoneMap(game.stones)
   const empty = !occupied.has(pointKey(point))
   const coordinate = pointToCoordinate(point, game.board_size)
@@ -224,18 +266,18 @@ function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent): Mo
     coordinate,
     legal: false,
     reason: empty
-      ? 'This is an authored question, not a legal reading. Reconnect the rules service to verify and commit it.'
-      : 'That intersection is occupied.',
+      ? authored(locale, 'This is an authored question, not a legal reading. Reconnect the rules service to verify and commit it.', '这是人工编写的提问，不是合法性读取。重新连接规则服务后再验证并落子。', 'これは教材の問いであり、合法手の判定ではありません。ルールサービスに再接続し、検証後に着手してください。')
+      : authored(locale, 'That intersection is occupied.', '该交叉点已有棋子。', 'その交点には石があります。'),
     captures: [],
     resulting_liberties: null,
     facets: empty
       ? [{
           id: 'breath',
-          label: 'Breath question',
-          canonical_term: 'Liberties to verify',
-          value: 'Not yet read',
+          label: authored(locale, 'Breath question', '气的问题', 'ダメの問い'),
+          canonical_term: authored(locale, 'Liberties to verify', '待验证的气', '検証するダメ'),
+          value: authored(locale, 'Not yet read', '尚未读取', 'まだ読みなし'),
           evidence: 'metaphor',
-          explanation: 'Use this prompt to form a hypothesis; only the live rules service supplies exact consequences.',
+          explanation: authored(locale, 'Use this prompt to form a hypothesis; only the live rules service supplies exact consequences.', '用这个提示形成假设；只有实时规则服务才会给出确定后果。', 'この問いから仮説を作ります。正確な結果を出すのは実行中のルールサービスだけです。'),
         }]
       : [],
     candidates: empty
@@ -244,17 +286,19 @@ function makeLocalPreview(game: GameState, point: Point, intent: MoveIntent): Mo
           point,
           coordinate,
           intent,
-          title: intent === 'unsure' ? 'Explore this point' : `Explore · ${intent}`,
-          summary: 'Authored prompt only. No legality, reply, or outcome is claimed while the service is offline.',
-          risk: 'Reconnect before treating this as a playable candidate.',
+          title: intent === 'unsure' ? authored(locale, 'Explore this point', '探索此点', 'この点を探る') : `${authored(locale, 'Explore', '探索', '探る')} · ${translate(locale, `intent.${intent}` as MessageKey)}`,
+          summary: authored(locale, 'Authored prompt only. No legality, reply, or outcome is claimed while the service is offline.', '这只是人工编写的提示。服务离线时，不声称合法性、应手或结果。', '教材用の問いだけです。サービスがオフラインの間は、着手の可否、応手、結果を主張しません。'),
+          risk: authored(locale, 'Reconnect before treating this as a playable candidate.', '将它当作可下的候选前，请先重新连接。', '打てる候補として扱う前に再接続してください。'),
           verified: false,
         }]
       : [],
-    coach_prompt: 'Name what you expect to change, then reconnect the service to test the hypothesis.',
+    coach_prompt: authored(locale, 'Name what you expect to change, then reconnect the service to test the hypothesis.', '先说出你预期什么会改变，再重连服务验证假设。', '何が変わると予想するかを言葉にし、サービスへ再接続して仮説を試します。'),
   }
 }
 
 export function App() {
+  const { locale, t } = useI18n()
+  const translateRef = useRef(t)
   const [interfaceLayout, setInterfaceLayout] = useState<InterfaceLayout>(
     () => interfaceLayoutForPath(typeof window === 'undefined' ? '/' : window.location.pathname),
   )
@@ -281,7 +325,7 @@ export function App() {
   const [intent, setIntent] = useState<MoveIntent>('unsure')
   const [activeLenses, setActiveLenses] = useState<Set<EnergyLensId>>(() => new Set(['cloud', 'breath', 'bonds', 'area']))
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<NoticeState | null>(null)
   const [navOpen, setNavOpen] = useState(false)
   const [theatreAutoPlay, setTheatreAutoPlay] = useState(false)
   const previewAbort = useRef<AbortController | null>(null)
@@ -301,6 +345,43 @@ export function App() {
   const serviceLive = bootstrap === 'ready'
   const engineAvailable = serviceStatus.engine.status === 'ready'
   const isBusy = operation !== 'idle' && operation !== 'previewing'
+  const displayCurriculum = useMemo(() => localizeCurriculum(curriculum, locale), [curriculum, locale])
+  const displayHistory = useMemo(
+    () => history.map((game) => localizeGameSummary(game, locale)),
+    [history, locale],
+  )
+  const displayGame = useMemo(
+    () => activeGame ? localizeGame(activeGame, locale) : null,
+    [activeGame, locale],
+  )
+  const displayReviewGame = useMemo(
+    () => reviewGame ? localizeGame(reviewGame, locale) : null,
+    [reviewGame, locale],
+  )
+  const noticeText = useMemo(() => {
+    if (!notice) return null
+    const translatedValues = Object.fromEntries(
+      Object.entries(notice.translatedValues ?? {}).map(([name, key]) => [name, t(key)]),
+    )
+    const main = notice.key
+      ? t(notice.key, { ...notice.values, ...translatedValues })
+      : notice.text ?? ''
+    const suffix = notice.suffixKey ? t(notice.suffixKey) : ''
+    return [main, suffix].filter(Boolean).join(' ')
+  }, [notice, t])
+  const displayPreview = useMemo(
+    () => preview ? localizeMovePreview(preview, locale) : null,
+    [preview, locale],
+  )
+
+  useEffect(() => {
+    translateRef.current = t
+  }, [t])
+
+  useEffect(() => {
+    if (!activeGame?.id.startsWith('local-') || !selected) return
+    setPreview(makeLocalPreview(activeGame, selected, intent, locale))
+  }, [activeGame, intent, locale, selected])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -370,7 +451,7 @@ export function App() {
       setHistoryStatus('unavailable')
     }
     setBootstrap(ready ? 'ready' : 'fallback')
-    if (!ready) setNotice('The app is showing its authored lesson preview while the local teaching service starts.')
+    if (!ready) setNotice({ key: 'notice.authoredPreview' })
   }, [])
 
   useEffect(() => {
@@ -439,7 +520,7 @@ export function App() {
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
         if (controller.signal.aborted || requestEpoch !== analysisEpoch.current) return
-        setNotice(`Next-move comparison is unavailable. ${safeMessage(error)}`)
+        setNotice(noticeWithDetail('notice.analysisUnavailable', error))
       })
       .finally(() => {
         if (analysisAbort.current === controller && requestEpoch === analysisEpoch.current) {
@@ -499,7 +580,7 @@ export function App() {
       )
       if (controller.signal.aborted || requestEpoch !== historyPageEpoch.current) return
       if (page.next_cursor === requestedCursor) {
-        throw new Error('The teaching service repeated the same history page.')
+        throw new Error(translateRef.current('notice.historyPageRepeated'))
       }
       setHistory((current) => appendOlderGames(current, page.games))
       setHistoryCursor(page.next_cursor)
@@ -507,14 +588,14 @@ export function App() {
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
       if (controller.signal.aborted || requestEpoch !== historyPageEpoch.current) return
-      setHistoryPageError(`Older games could not be loaded. ${safeMessage(error)}`)
+      setHistoryPageError(t('notice.olderGamesFailed', { detail: safeMessage(error, t('notice.flowInterrupted')) }))
     } finally {
       if (historyPageAbort.current === controller && requestEpoch === historyPageEpoch.current) {
         historyPageAbort.current = null
         setHistoryPageLoading(false)
       }
     }
-  }, [historyCursor, historyPageLoading])
+  }, [historyCursor, historyPageLoading, t])
 
   const loadOlderCoachHistory = useCallback(async () => {
     const requestedCursor = activeGame?.coach_history_next_cursor
@@ -535,7 +616,7 @@ export function App() {
       )
       if (controller.signal.aborted || requestEpoch !== coachHistoryEpoch.current) return
       if (page.next_cursor === requestedCursor) {
-        throw new Error('The teaching service repeated the same conversation page.')
+        throw new Error(translateRef.current('notice.conversationPageRepeated'))
       }
       setActiveGame((current) => {
         if (!current || current.id !== gameId || current.revision !== gameRevision) return current
@@ -548,7 +629,7 @@ export function App() {
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
       if (controller.signal.aborted || requestEpoch !== coachHistoryEpoch.current) return
-      setCoachHistoryError(`Earlier conversation could not be loaded. ${safeMessage(error)}`)
+      setCoachHistoryError(t('notice.earlierConversationFailed', { detail: safeMessage(error, t('notice.flowInterrupted')) }))
     } finally {
       if (
         coachHistoryAbort.current === controller &&
@@ -558,7 +639,7 @@ export function App() {
         setCoachHistoryLoading(false)
       }
     }
-  }, [activeGame, coachHistoryLoading])
+  }, [activeGame, coachHistoryLoading, t])
 
   const startLesson = useCallback(async (lesson: LessonSummary) => {
     invalidatePreview()
@@ -578,7 +659,7 @@ export function App() {
       rememberGame(game)
     } catch (error) {
       setActiveGame(localGameForLesson(lesson, preferences.mode))
-      setNotice(`${safeMessage(error)} Showing a non-committing authored preview.`)
+      setNotice({ ...noticeFromError(error), suffixKey: 'notice.previewFallbackSuffix' })
     } finally {
       setView('play')
       setOperation('idle')
@@ -604,7 +685,7 @@ export function App() {
     setOperation('previewing')
     try {
       if (activeGame.id.startsWith('local-')) {
-        setPreview(makeLocalPreview(activeGame, point, requestedIntent))
+        setPreview(makeLocalPreview(activeGame, point, requestedIntent, locale))
       } else {
         const result = await api.previewMove(
           activeGame.id,
@@ -621,7 +702,7 @@ export function App() {
           result.revision !== gameRevision ||
           !samePoint(result.point, point)
         ) {
-          throw new Error('The preview no longer matches this board position. Please select the point again.')
+          throw new CatalogNoticeError('notice.previewMismatch')
         }
         if (controller.signal.aborted || requestEpoch !== previewEpoch.current) return
         setPreview(result)
@@ -629,19 +710,19 @@ export function App() {
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return
       if (controller.signal.aborted || requestEpoch !== previewEpoch.current) return
-      setPreview(makeLocalPreview(activeGame, point, requestedIntent))
-      setNotice(safeMessage(error))
+      setPreview(makeLocalPreview(activeGame, point, requestedIntent, locale))
+      setNotice(noticeFromError(error))
     } finally {
       if (previewAbort.current === controller && requestEpoch === previewEpoch.current) {
         previewAbort.current = null
         setOperation('idle')
       }
     }
-  }, [activeGame, intent])
+  }, [activeGame, intent, locale])
 
   const runAgentTurn = useCallback(async (game: GameState, delegated = false) => {
     if (game.id.startsWith('local-')) {
-      setNotice('The local rules service must be connected before any agent can place a stone.')
+      setNotice({ key: 'notice.localRulesRequired' })
       setTheatreAutoPlay(false)
       return
     }
@@ -657,7 +738,7 @@ export function App() {
       ? game.actors.find((candidate) => candidate.role === 'companion_agent')
       : game.actors.find((candidate) => candidate.role === 'player_agent' && candidate.color === game.to_play)
     if (delegated && (turnActor?.role !== 'human' || !actor)) {
-      setNotice('This position does not have a Human turn and Companion available for one-move delegation.')
+      setNotice({ key: 'notice.delegationUnavailable' })
       setOperation('idle')
       return
     }
@@ -686,16 +767,16 @@ export function App() {
         }
       }
     } catch (error) {
-      setNotice(safeMessage(error))
+      setNotice(noticeFromError(error))
       setTheatreAutoPlay(false)
     } finally {
       setOperation('idle')
     }
-  }, [invalidatePreview, rememberGame])
+  }, [invalidatePreview, rememberGame, t])
 
   const submitMove = useCallback(async (kind: 'play' | 'pass') => {
     if (!activeGame || activeGame.id.startsWith('local-')) {
-      setNotice('Reconnect the deterministic rules service to commit a move. The current board is a safe preview.')
+      setNotice({ key: 'notice.commitOffline' })
       return
     }
     if (operation !== 'idle' || activeGame.phase !== 'playing') return
@@ -727,15 +808,15 @@ export function App() {
         await runAgentTurn(updated)
       }
     } catch (error) {
-      setNotice(safeMessage(error))
+      setNotice(noticeFromError(error))
     } finally {
       setOperation('idle')
     }
-  }, [activeGame, intent, invalidatePreview, operation, preview, rememberGame, runAgentTurn, selected])
+  }, [activeGame, intent, invalidatePreview, operation, preview, rememberGame, runAgentTurn, selected, t])
 
   const rewind = useCallback(async () => {
     if (!activeGame || activeGame.id.startsWith('local-') || activeGame.move_count === 0) {
-      setNotice('There is no committed server move to rewind yet.')
+      setNotice({ key: 'notice.noMoveToRewind' })
       return
     }
     setOperation('rewinding')
@@ -748,11 +829,11 @@ export function App() {
       rememberGame(updated)
       invalidatePreview()
     } catch (error) {
-      setNotice(safeMessage(error))
+      setNotice(noticeFromError(error))
     } finally {
       setOperation('idle')
     }
-  }, [activeGame, invalidatePreview, rememberGame])
+  }, [activeGame, invalidatePreview, rememberGame, t])
 
   const askCoach = useCallback(async (question: string, kind: 'hint' | 'explain' = 'explain') => {
     if (!activeGame || coachLaneRef.current) return
@@ -760,11 +841,13 @@ export function App() {
     if (activeGame.id.startsWith('local-')) {
       const localMessage: CoachMessage = {
         id: `local-coach-${Date.now()}`,
-        speaker: activeGame.mode === 'agent_vs_agent' ? 'Lantern · Narrator' : 'Lantern',
+        speaker: activeGame.mode === 'agent_vs_agent'
+          ? authored(locale, 'Lantern · Narrator', '灯笼 · 解说者', 'ランタン · 解説者')
+          : authored(locale, 'Lantern', '灯笼', 'ランタン'),
         role: activeGame.mode === 'agent_vs_agent' ? 'narrator' : 'companion',
         text: kind === 'hint'
-          ? 'First ask which nearby string has the fewest liberties. Then look for a move that changes more than one relationship.'
-          : 'The strongest contrast is usually not “good versus bad.” It is ground now versus options later. Select a point to make that trade visible.',
+          ? authored(locale, 'First ask which nearby string has the fewest liberties. Then look for a move that changes more than one relationship.', '先问附近哪块棋的气最少，再寻找一手能同时改变一种以上关系的棋。', 'まず近くのどの一団が最もダメが少ないかを問います。次に、複数の関係を変える手を探します。')
+          : authored(locale, 'The strongest contrast is usually not “good versus bad.” It is ground now versus options later. Select a point to make that trade visible.', '最关键的对比通常不是“好对坏”，而是“现在的实地”与“以后的选择”。选一个点，让这个取舍可见。', '最も重要な対比は、たいてい「良い対悪い」ではなく、「今の地」と「後の選択肢」です。点を選び、その取引を見えるようにします。'),
         evidence: ['metaphor'],
         question,
       }
@@ -805,12 +888,12 @@ export function App() {
           : current)
       }
     } catch (error) {
-      setNotice(safeMessage(error))
+      setNotice(noticeFromError(error))
     } finally {
       coachLaneRef.current = false
       setOperation('idle')
     }
-  }, [activeGame, intent, selected])
+  }, [activeGame, intent, locale, selected])
 
   const loadReview = useCallback(async (id: string) => {
     gameLoadAbort.current?.abort()
@@ -826,14 +909,14 @@ export function App() {
     } catch (error) {
       if (controller.signal.aborted || requestEpoch !== gameLoadEpoch.current) return
       setReviewGame(null)
-      setNotice(`That game could not be opened: ${safeMessage(error)}`)
+      setNotice(noticeWithDetail('notice.openFailed', error))
     } finally {
       if (requestEpoch === gameLoadEpoch.current) {
         gameLoadAbort.current = null
         setOperation('idle')
       }
     }
-  }, [])
+  }, [t])
 
   const resumeGame = useCallback(async (summary: GameSummary) => {
     gameLoadAbort.current?.abort()
@@ -851,14 +934,14 @@ export function App() {
       setView('play')
     } catch (error) {
       if (controller.signal.aborted || requestEpoch !== gameLoadEpoch.current) return
-      setNotice(`That game could not be resumed: ${safeMessage(error)}`)
+      setNotice(noticeWithDetail('notice.resumeFailed', error))
     } finally {
       if (requestEpoch === gameLoadEpoch.current) {
         gameLoadAbort.current = null
         setOperation('idle')
       }
     }
-  }, [invalidatePreview, rememberGame])
+  }, [invalidatePreview, rememberGame, t])
 
   useEffect(() => {
     if (!theatreAutoPlay || !activeGame || activeGame.mode !== 'agent_vs_agent' || activeGame.phase !== 'playing' || operation !== 'idle') return
@@ -868,10 +951,10 @@ export function App() {
 
   const currentLesson = useMemo(
     () =>
-      curriculum.lessons.find(
+      displayCurriculum.lessons.find(
         (lesson) => lesson.status === 'current' && lesson.board_size === preferences.board_size,
-      ) ?? curriculum.lessons.find((lesson) => lesson.board_size === preferences.board_size) ?? curriculum.lessons[0],
-    [curriculum.lessons, preferences.board_size],
+      ) ?? displayCurriculum.lessons.find((lesson) => lesson.board_size === preferences.board_size) ?? displayCurriculum.lessons[0],
+    [displayCurriculum.lessons, preferences.board_size],
   )
 
   const setCurrentView = (next: AppView) => {
@@ -893,54 +976,55 @@ export function App() {
     >
       {simpleInterface && (
         <header className="simple-header" data-testid="simple-header">
-          <button type="button" className="simple-brand" onClick={() => setCurrentView('journey')} aria-label="Path of Influence simple home">
+          <button type="button" className="simple-brand" onClick={() => setCurrentView('journey')} aria-label={t('nav.simpleHome')}>
             <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
-            <span><strong>Path of Influence</strong><small>Simple board</small></span>
+            <span><strong>{t('app.name')}</strong><small>{t('app.simpleBoard')}</small></span>
           </button>
-          <nav aria-label="Simple navigation">
-            <button type="button" className={view === 'journey' ? 'active' : ''} aria-current={view === 'journey' ? 'page' : undefined} onClick={() => setCurrentView('journey')} data-testid="simple-nav-journey" aria-label="New lesson"><Compass size={16} /><span>Start</span></button>
-            <button type="button" className={view === 'play' ? 'active' : ''} aria-current={view === 'play' ? 'page' : undefined} onClick={() => activeGame && setCurrentView('play')} disabled={!activeGame} data-testid="simple-nav-play" aria-label="Current board"><CircleDot size={16} /><span>Board</span></button>
-            <button type="button" className={view === 'chronicle' ? 'active' : ''} aria-current={view === 'chronicle' ? 'page' : undefined} onClick={() => setCurrentView('chronicle')} data-testid="simple-nav-chronicle" aria-label="Game history"><History size={16} /><span>History</span></button>
+          <nav aria-label={t('nav.simple')}>
+            <button type="button" className={view === 'journey' ? 'active' : ''} aria-current={view === 'journey' ? 'page' : undefined} onClick={() => setCurrentView('journey')} data-testid="simple-nav-journey" aria-label={t('nav.newLesson')}><Compass size={16} /><span>{t('nav.start')}</span></button>
+            <button type="button" className={view === 'play' ? 'active' : ''} aria-current={view === 'play' ? 'page' : undefined} onClick={() => activeGame && setCurrentView('play')} disabled={!activeGame} data-testid="simple-nav-play" aria-label={t('nav.currentBoard')}><CircleDot size={16} /><span>{t('nav.board')}</span></button>
+            <button type="button" className={view === 'chronicle' ? 'active' : ''} aria-current={view === 'chronicle' ? 'page' : undefined} onClick={() => setCurrentView('chronicle')} data-testid="simple-nav-chronicle" aria-label={t('nav.gameHistory')}><History size={16} /><span>{t('nav.history')}</span></button>
           </nav>
           <div className="simple-header-actions">
             <span
               className={`simple-engine ${engineAvailable ? 'ready' : 'fallback'}`}
               role="status"
-              aria-label={bootstrap === 'loading' ? 'Local analysis engine starting' : engineAvailable ? 'KataGo analysis engine ready' : 'Using authored lesson fallback'}
+              aria-label={bootstrap === 'loading' ? t('status.analysisStarting') : engineAvailable ? t('status.analysisReady') : t('status.authoredFallback')}
               data-testid="simple-engine-status"
             >
               {bootstrap === 'loading' ? <LoaderCircle size={14} className="spin" /> : engineAvailable ? <Gauge size={14} /> : <WifiOff size={14} />}
-              <span>{bootstrap === 'loading' ? 'Starting' : engineAvailable ? 'Engine ready' : 'Fallback'}</span>
+              <span>{bootstrap === 'loading' ? t('status.starting') : engineAvailable ? t('status.engineReady') : t('status.fallback')}</span>
             </span>
-            <button type="button" className="simple-icon-button" aria-label="Toggle board coordinates" aria-pressed={preferences.coordinates} title="Toggle board coordinates" onClick={() => updatePreferences({ coordinates: !preferences.coordinates })}>
+            <LanguageSelect compact />
+            <button type="button" className="simple-icon-button" aria-label={t('action.coordinates')} aria-pressed={preferences.coordinates} title={t('action.coordinates')} onClick={() => updatePreferences({ coordinates: !preferences.coordinates })}>
               <Settings2 size={17} />
             </button>
-            <a href="/" className="interface-route-link" data-testid="ui-classic" title="Open the full learning view" onClick={(event) => {
+            <a href="/" className="interface-route-link" data-testid="ui-classic" title={t('nav.openFull')} onClick={(event) => {
               if (!shouldUseClientRouteSwitch(event)) return
               event.preventDefault()
               switchInterface('classic')
             }}>
-              <PanelsTopLeft size={16} /><span>Full guide</span>
+              <PanelsTopLeft size={16} /><span>{t('nav.fullGuide')}</span>
             </a>
           </div>
         </header>
       )}
 
       {!simpleInterface && <header className="app-header">
-        <button type="button" className="brand" onClick={() => setCurrentView('journey')} aria-label="Path of Influence home">
+        <button type="button" className="brand" onClick={() => setCurrentView('journey')} aria-label={t('nav.home')}>
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
-          <span><strong>Path of Influence</strong><small>Weiqi, taught as a living story</small></span>
+          <span><strong>{t('app.name')}</strong><small>{t('app.tagline')}</small></span>
         </button>
 
-        <nav className={navOpen ? 'open' : ''} aria-label="Primary navigation">
+        <nav className={navOpen ? 'open' : ''} aria-label={t('nav.primary')}>
           <button type="button" className={view === 'journey' ? 'active' : ''} onClick={() => setCurrentView('journey')} data-testid="nav-journey">
-            <Compass size={17} /> Journey
+            <Compass size={17} /> {t('nav.journey')}
           </button>
           <button type="button" className={view === 'play' ? 'active' : ''} onClick={() => activeGame && setCurrentView('play')} disabled={!activeGame} data-testid="nav-play">
-            <CircleDot size={17} /> Board
+            <CircleDot size={17} /> {t('nav.board')}
           </button>
           <button type="button" className={view === 'chronicle' ? 'active' : ''} onClick={() => setCurrentView('chronicle')} data-testid="nav-chronicle">
-            <History size={17} /> Chronicle
+            <History size={17} /> {t('nav.chronicle')}
           </button>
         </nav>
 
@@ -949,33 +1033,34 @@ export function App() {
             className={`engine-pill ${engineAvailable ? 'ready' : 'fallback'}`}
             data-testid="engine-status"
             role="status"
-            aria-label={bootstrap === 'loading' ? 'Local analysis engine starting' : engineAvailable ? 'KataGo analysis engine ready' : 'Using authored lesson fallback'}
+            aria-label={bootstrap === 'loading' ? t('status.analysisStarting') : engineAvailable ? t('status.analysisReady') : t('status.authoredFallback')}
           >
             {bootstrap === 'loading' ? <LoaderCircle size={14} className="spin" /> : engineAvailable ? <Gauge size={14} /> : <WifiOff size={14} />}
-            <span>{bootstrap === 'loading' ? 'Starting' : engineAvailable ? 'KataGo ready' : 'Lesson fallback'}</span>
+            <span>{bootstrap === 'loading' ? t('status.starting') : engineAvailable ? t('status.katagoReady') : t('status.lessonFallback')}</span>
           </div>
-          <button type="button" className="settings-button" aria-label="Toggle board coordinates" aria-pressed={preferences.coordinates} title="Toggle board coordinates" onClick={() => updatePreferences({ coordinates: !preferences.coordinates })}>
+          <LanguageSelect />
+          <button type="button" className="settings-button" aria-label={t('action.coordinates')} aria-pressed={preferences.coordinates} title={t('action.coordinates')} onClick={() => updatePreferences({ coordinates: !preferences.coordinates })}>
             <Settings2 size={18} />
           </button>
-          <a href="/simple" className="interface-route-link" data-testid="ui-simple" title="Open the simple full-screen view" onClick={(event) => {
+          <a href="/simple" className="interface-route-link" data-testid="ui-simple" title={t('nav.openSimple')} onClick={(event) => {
             if (!shouldUseClientRouteSwitch(event)) return
             event.preventDefault()
             switchInterface('simple')
           }}>
-            <PanelsTopLeft size={16} /><span>Simple view</span>
+            <PanelsTopLeft size={16} /><span>{t('nav.simpleView')}</span>
           </a>
-          <button type="button" className="nav-menu" aria-label="Toggle navigation" aria-expanded={navOpen} onClick={() => setNavOpen((open) => !open)}>
+          <button type="button" className="nav-menu" aria-label={t('nav.toggle')} aria-expanded={navOpen} onClick={() => setNavOpen((open) => !open)}>
             {navOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </header>}
 
-      {notice && (
-        <div className="notice-bar" role="status" data-testid="app-notice">
+      {noticeText && (
+        <div className="notice-bar" role="status" data-testid="app-notice" data-notice-key={notice?.key ?? 'raw'}>
           <WifiOff size={15} aria-hidden="true" />
-          <span>{notice}</span>
-          {bootstrap === 'fallback' && <button type="button" onClick={() => void loadFoundation()}>Try again</button>}
-          <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button>
+          <span>{noticeText}</span>
+          {bootstrap === 'fallback' && <button type="button" onClick={() => void loadFoundation()}>{t('action.tryAgain')}</button>}
+          <button type="button" aria-label={t('action.dismiss')} onClick={() => setNotice(null)}><X size={15} /></button>
         </div>
       )}
 
@@ -1014,7 +1099,7 @@ export function App() {
                 onCompanionChange={(companion) => updatePreferences({ companion })}
               />
               <Campaign
-                lessons={curriculum.lessons}
+                lessons={displayCurriculum.lessons}
                 selectedBoard={preferences.board_size}
                 onBoardChange={(board_size) => updatePreferences({ board_size })}
                 onStartLesson={(lesson) => void startLesson(lesson)}
@@ -1025,15 +1110,15 @@ export function App() {
           </div>
         )}
 
-        {view === 'play' && activeGame && (
+        {view === 'play' && activeGame && displayGame && (
           <PlayWorkspace
             layout={interfaceLayout}
-            game={activeGame}
+            game={displayGame}
             preferences={preferences}
             operation={operation}
             analysisLoading={analysisLoading}
             selected={selected}
-            preview={preview}
+            preview={displayPreview}
             intent={intent}
             activeLenses={activeLenses}
             selectedCandidateId={selectedCandidateId}
@@ -1083,8 +1168,8 @@ export function App() {
         {view === 'chronicle' && (
           <div className="content-width chronicle-view">
             <Chronicle
-              games={history}
-              selected={reviewGame}
+              games={displayHistory}
+              selected={displayReviewGame}
               loading={operation === 'loading-game'}
               unavailable={historyStatus === 'unavailable'}
               hasOlder={historyCursor !== null}
@@ -1166,14 +1251,15 @@ export function PlayWorkspace({
   onTheatreAutoPlay,
   onOpenReview,
 }: PlayWorkspaceProps) {
+  const { locale, t } = useI18n()
   const [inspectedCandidateId, setInspectedCandidateId] = useState<string | null>(null)
   const boardBusy = operation !== 'idle' && operation !== 'previewing'
   const busy = analysisLoading || boardBusy
   const currentActor = game.actors.find((actor) => actor.color === game.to_play && (actor.role === 'human' || actor.role === 'player_agent'))
   const humanTurn = currentActor?.role === 'human'
   const unsettledAreaLabel = game.area_snapshot
-    ? `Stones: Black ${game.area_snapshot.black_stones} · White ${game.area_snapshot.white_stones}. Territory and dead stones are not settled, so no final score is declared.`
-    : 'Territory and dead stones are not settled, so no final score is declared.'
+    ? t('play.areaStones', { black: game.area_snapshot.black_stones, white: game.area_snapshot.white_stones })
+    : t('play.areaUnsettled')
   const candidates = preview?.candidates ?? game.analysis?.candidates ?? []
   const inspectedCandidate = candidates.find((candidate) => candidate.id === inspectedCandidateId) ?? null
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null
@@ -1211,9 +1297,12 @@ export function PlayWorkspace({
           : passiveTheatreCandidate && visualCandidate?.id === passiveTheatreCandidate.id
             ? 'candidate-comparison'
             : null
-  const currentFacets = preview?.position_facets ?? game.analysis?.facets ?? []
-  const hypotheticalFacets = preview?.candidate_facets ?? preview?.facets ?? []
-  const ifPlayedPositionFacets = preview?.if_played_facets ?? []
+  const currentFacets = (preview?.position_facets ?? game.analysis?.facets ?? [])
+    .map((facet) => localizeEnergyFacet(facet, locale))
+  const hypotheticalFacets = (preview?.candidate_facets ?? preview?.facets ?? [])
+    .map((facet) => localizeEnergyFacet(facet, locale))
+  const ifPlayedPositionFacets = (preview?.if_played_facets ?? [])
+    .map((facet) => localizeEnergyFacet(facet, locale))
   // A preview may replace consequence readings such as liberties, but it must
   // never hide exact current-position facts such as the side to move.
   const facets = preview
@@ -1287,12 +1376,12 @@ export function PlayWorkspace({
       {game.rules.training_variant && (
         <div className="training-banner" data-testid="training-rules-banner">
           <GraduationCap size={16} />
-          <strong>Training focus:</strong>
+          <strong>{t('play.trainingFocus')}</strong>
           <span>{game.rules.training_variant === 'first_capture'
-            ? 'look for the first sound capture; completion follows the service-reported game state.'
+            ? t('play.training.firstCapture')
             : game.rules.training_variant === 'guided_position'
-              ? 'this scene begins from an authored teaching position; the live service still owns legality and completion.'
-              : 'practice extending from the wall; the live service remains the authority on legal play and completion.'}</span>
+              ? t('play.training.guided')
+              : t('play.training.wall')}</span>
         </div>
       )}
 
@@ -1300,33 +1389,33 @@ export function PlayWorkspace({
         <div className="completion-banner" data-testid={game.result ? 'game-complete' : 'play-ended-unsettled'} data-scored={Boolean(game.result)} role="status">
           {game.result ? <Trophy size={18} aria-hidden="true" /> : <CircleDot size={18} aria-hidden="true" />}
           <div>
-            <small>{game.result ? 'Scene complete' : 'Play ended · two consecutive passes'}</small>
+            <small>{game.result ? t('play.sceneComplete') : t('play.endedPasses')}</small>
             <strong>{game.result ?? unsettledAreaLabel}</strong>
           </div>
-          <button type="button" onClick={onOpenReview}>Open reflection <ArrowRight size={15} /></button>
+          <button type="button" onClick={onOpenReview}>{t('play.openReflection')} <ArrowRight size={15} /></button>
         </div>
       )}
 
       <header className="play-titlebar">
-        <button type="button" className="back-button" onClick={onBack}><ArrowLeft size={17} /> Journey</button>
+        <button type="button" className="back-button" onClick={onBack}><ArrowLeft size={17} /> {t('nav.journey')}</button>
         <div className="play-title">
-          <span className="eyebrow">{game.lesson_title ?? 'Teaching game'} · {game.board_size}×{game.board_size}</span>
+          <span className="eyebrow">{game.lesson_title ?? t('play.teachingGame')} · {game.board_size}×{game.board_size}</span>
           <h1>{game.title}</h1>
           <p>{game.act}</p>
         </div>
         <div className="turn-card">
           <span className={`turn-stone ${game.to_play}`} aria-hidden="true" />
           <div>
-            <small>{game.phase === 'finished' ? `${game.move_count} moves` : `Move ${game.move_count + 1}`}</small>
-            <strong>{game.phase === 'finished' ? (game.result ? 'Game complete' : 'Play ended · score not settled') : `${currentActor?.name ?? game.to_play} to play`}</strong>
+            <small>{game.phase === 'finished' ? t('play.moves', { count: game.move_count }) : t('play.move', { count: game.move_count + 1 })}</small>
+            <strong>{game.phase === 'finished' ? (game.result ? t('play.gameComplete') : t('play.scoreNotSettled')) : t('play.toPlay', { name: currentActor?.name ?? localizedColor(game.to_play, t) })}</strong>
           </div>
         </div>
       </header>
 
       <section className="objective-strip">
         <Target size={17} aria-hidden="true" />
-        <div><span>Current purpose</span><strong>{game.objective}</strong></div>
-        <div className="rules-compact"><span>{game.rules.name}</span><span>Komi {game.rules.komi}</span><span>{formatKoRule(game.rules.ko_rule)}</span></div>
+        <div><span>{t('play.currentPurpose')}</span><strong>{game.objective}</strong></div>
+        <div className="rules-compact"><span>{game.rules.name}</span><span>{t('play.komi', { value: game.rules.komi })}</span><span>{formatKoRule(game.rules.ko_rule, t)}</span></div>
       </section>
 
       <div className="play-layout">
@@ -1360,12 +1449,12 @@ export function PlayWorkspace({
               >
                 <LoaderCircle size={18} className="spin" />
                 <span>{operation === 'previewing'
-                  ? `Analyzing if ${game.to_play} plays ${selected ? pointToCoordinate(selected, game.board_size) : 'here'}…`
+                  ? t('play.analyzingAt', { color: localizedColor(game.to_play, t), coordinate: selected ? pointToCoordinate(selected, game.board_size) : '·' })
                   : analysisLoading && game.move_count === 0
-                    ? 'Finding a suggested first stone…'
+                    ? t('play.findingFirst')
                     : analysisLoading
-                      ? 'Comparing the next choices…'
-                      : operationLabel(operation)}</span>
+                      ? t('play.comparing')
+                      : operationLabel(operation, t)}</span>
               </div>
             )}
           </div>
@@ -1380,32 +1469,32 @@ export function PlayWorkspace({
                   disabled={selectedCandidateId ? busy : busy || game.move_count === 0}
                   data-testid={selectedCandidateId ? 'back-to-suggestions' : undefined}
                 >
-                  {selectedCandidateId ? <><ArrowLeft size={16} /> Back to suggestions</> : <><RotateCcw size={16} /> Rewind</>}
+                  {selectedCandidateId ? <><ArrowLeft size={16} /> {t('play.backSuggestions')}</> : <><RotateCcw size={16} /> {t('play.rewind')}</>}
                 </button>
                 <button type="button" className={`secondary-control ${theatreAutoPlay ? 'active' : ''}`} onClick={() => onTheatreAutoPlay(!theatreAutoPlay)} disabled={game.phase !== 'playing' || (busy && !theatreAutoPlay)} data-testid="theatre-autoplay">
-                  {theatreAutoPlay ? <Pause size={16} /> : <Play size={16} />}{theatreAutoPlay ? 'Pause theatre' : 'Watch continuously'}
+                  {theatreAutoPlay ? <Pause size={16} /> : <Play size={16} />}{theatreAutoPlay ? t('play.pauseTheatre') : t('play.watch')}
                 </button>
                 <button type="button" className="primary-control" onClick={onAgentTurn} disabled={game.phase !== 'playing' || busy || theatreAutoPlay || localPreview} data-testid="agent-next-turn">
-                  <Bot size={17} /> Play one narrated turn
+                  <Bot size={17} /> {t('play.oneTurn')}
                 </button>
               </>
             ) : selected ? (
               <>
-                <button type="button" className="secondary-control" onClick={clearBoardSelection} disabled={busy}>Cancel</button>
+                <button type="button" className="secondary-control" onClick={clearBoardSelection} disabled={busy}>{t('play.cancel')}</button>
                 <div className="selection-summary">
                   <span className={`selection-dot ${game.to_play}`} />
-                  <div><small>Previewing · right-click board or Esc to unselect</small><strong>{pointToCoordinate(selected, game.board_size)} · {intent}</strong></div>
+                  <div><small>{t('play.previewHint')}</small><strong>{pointToCoordinate(selected, game.board_size)} · {localizedIntent(intent, t)}</strong></div>
                   <span className={`legality ${preview ? (preview.legal ? 'legal' : 'blocked') : 'checking'}`}>
-                    {preview ? (preview.legal ? <><Check size={13} /> Verified</> : 'Not legal') : 'Checking…'}
+                    {preview ? (preview.legal ? <><Check size={13} /> {t('play.verified')}</> : t('play.notLegal')) : t('play.checking')}
                   </span>
                 </div>
                 {previewBound ? (
                   <button type="button" className="primary-control" onClick={onCommit} disabled={operation !== 'idle'} data-testid="commit-move">
-                    Place stone <ArrowRight size={17} />
+                    {t('play.placeStone')} <ArrowRight size={17} />
                   </button>
                 ) : (
                   <span className="analysis-before-confirmation" data-testid="analysis-before-confirmation">
-                    {preview && !preview.legal ? 'Choose another point' : 'Analysis first · placement remains locked'}
+                    {preview && !preview.legal ? t('play.chooseAnother') : t('play.analysisFirst')}
                   </span>
                 )}
               </>
@@ -1418,14 +1507,14 @@ export function PlayWorkspace({
                   disabled={selectedCandidateId ? busy : busy || game.move_count === 0}
                   data-testid={selectedCandidateId ? 'back-to-suggestions' : undefined}
                 >
-                  {selectedCandidateId ? <><ArrowLeft size={16} /> Back to suggestions</> : <><RotateCcw size={16} /> Rewind</>}
+                  {selectedCandidateId ? <><ArrowLeft size={16} /> {t('play.backSuggestions')}</> : <><RotateCcw size={16} /> {t('play.rewind')}</>}
                 </button>
                 <p className="move-instruction" data-testid={selectedCandidateId ? 'selection-dismiss-hint' : undefined}>
                   <Eye size={16} /> {selectedCandidateId
-                    ? 'Candidate pinned · right-click board or press Esc to return to agent suggestions.'
-                    : 'Select an empty intersection to preview its consequences.'}
+                    ? t('play.candidatePinned')
+                    : t('play.selectEmpty')}
                 </p>
-                <button type="button" className="secondary-control" onClick={onPass} disabled={game.phase !== 'playing' || busy || !humanTurn}>Pass</button>
+                <button type="button" className="secondary-control" onClick={onPass} disabled={game.phase !== 'playing' || busy || !humanTurn}>{t('play.pass')}</button>
               </>
             )}
           </div>
@@ -1444,16 +1533,22 @@ export function PlayWorkspace({
 
           <EnergyLenses active={activeLenses} onToggle={onLensToggle} facets={facets} engineAvailable={engineAvailable && !localPreview && ownershipAvailable} />
 
-          <div className="move-timeline" aria-label="Move timeline">
-            <div className="timeline-heading"><BookOpen size={15} /><span>The story so far</span><small>{game.move_count} moves</small></div>
+          <div className="move-timeline" aria-label={t('play.timeline')}>
+            <div className="timeline-heading"><BookOpen size={15} /><span>{t('play.storySoFar')}</span><small>{t('play.moves', { count: game.move_count })}</small></div>
             <div className="timeline-track">
               {game.moves.slice(-12).map((move) => (
-                <span key={`${move.move_number}-${move.color}`} title={`Move ${move.move_number}`}>
+                <span key={`${move.move_number}-${move.color}`} title={t('play.move', { count: move.move_number })}>
                   <i className={move.color} />
-                  <small>{move.point ? pointToCoordinate(move.point, game.board_size) : move.kind}</small>
+                  <small>{move.point
+                    ? pointToCoordinate(move.point, game.board_size)
+                    : move.kind === 'pass'
+                      ? t('play.pass')
+                      : move.kind === 'resign'
+                        ? t('play.resign')
+                        : move.kind}</small>
                 </span>
               ))}
-              {!game.move_count && <p>The first move will begin the chronicle.</p>}
+              {!game.move_count && <p>{t('play.firstChronicle')}</p>}
             </div>
           </div>
         </section>
@@ -1484,12 +1579,12 @@ export function PlayWorkspace({
           busy={busy}
           fallback={localPreview || coachStatus.status === 'unavailable' || coachStatus.status === 'starting'}
           statusLabel={localPreview
-            ? 'Authored guidance'
+            ? t('status.authoredGuidance')
             : coachStatus.status === 'ready'
-              ? `${coachStatus.provider} · ready`
+              ? t('status.providerReady', { provider: coachStatus.provider })
               : coachStatus.status === 'fallback'
-                ? `${coachStatus.provider} · local fallback`
-                : `${coachStatus.provider} · ${coachStatus.status}`}
+                ? t('status.providerFallback', { provider: coachStatus.provider })
+                : t('status.providerState', { provider: coachStatus.provider, state: coachStatus.status === 'starting' ? t('status.starting') : t('status.unavailable') })}
           delegationKey={`${game.id}:${game.revision}:${game.to_play}`}
         />
       </div>
@@ -1520,14 +1615,15 @@ function SimpleStart({
   onWhiteAgentChange: (agent: AppPreferences['white_agent']) => void
   onCompanionChange: (companion: AppPreferences['companion']) => void
 }) {
+  const { t } = useI18n()
   return (
     <section className="simple-start" data-testid="simple-launcher">
       <div className="simple-start-copy">
-        <span className="simple-kicker"><Sparkles size={14} /> Clear board · focused teaching</span>
-        <h1>{lesson?.title ?? 'Choose a first lesson'}</h1>
-        <p>{lesson?.subtitle ?? 'Begin on a small board and learn one relationship at a time.'}</p>
+        <span className="simple-kicker"><Sparkles size={14} /> {t('simple.kicker')}</span>
+        <h1>{lesson?.title ?? t('simple.chooseLesson')}</h1>
+        <p>{lesson?.subtitle ?? t('simple.beginSmall')}</p>
 
-        <div className="simple-size-choice" role="radiogroup" aria-label="Board size">
+        <div className="simple-size-choice" role="radiogroup" aria-label={t('simple.boardSize')}>
           {([5, 7, 9] as BoardSize[]).map((size) => (
             <button
               key={size}
@@ -1539,21 +1635,21 @@ function SimpleStart({
               data-testid={`simple-board-size-${size}`}
             >
               <strong>{size}×{size}</strong>
-              <small>{size === 5 ? 'First breath' : size === 7 ? 'Shape' : 'Full game'}</small>
+              <small>{size === 5 ? t('simple.firstBreath') : size === 7 ? t('simple.shape') : t('simple.fullGame')}</small>
             </button>
           ))}
         </div>
 
         <button type="button" className="simple-begin" onClick={onBegin} disabled={!lesson || loading} data-testid="simple-begin">
           {loading ? <LoaderCircle size={18} className="spin" /> : <Play size={17} />}
-          <span>{loading ? 'Opening…' : 'Open the board'}</span>
+          <span>{loading ? t('simple.opening') : t('simple.openBoard')}</span>
           <ArrowRight size={17} />
         </button>
 
-        <div className="simple-lesson-facts" aria-label="Lesson facts">
-          <span><Target size={14} /> {lesson?.duration_minutes ?? '—'} min</span>
-          <span><CircleDot size={14} /> {lesson?.training_variant ? 'Training position' : 'Chinese area rules'}</span>
-          <span className={fallback ? 'fallback' : ''}>{fallback ? <WifiOff size={14} /> : <Check size={14} />}{fallback ? 'Safe preview available' : 'Local service connected'}</span>
+        <div className="simple-lesson-facts" aria-label={t('simple.lessonFacts')}>
+          <span><Target size={14} /> {t('simple.minutes', { count: lesson?.duration_minutes ?? '—' })}</span>
+          <span><CircleDot size={14} /> {lesson?.training_variant ? t('simple.trainingPosition') : t('simple.chineseRules')}</span>
+          <span className={fallback ? 'fallback' : ''}>{fallback ? <WifiOff size={14} /> : <Check size={14} />}{fallback ? t('simple.safePreview') : t('simple.connected')}</span>
         </div>
 
         {lesson?.memory_line && (
@@ -1563,9 +1659,9 @@ function SimpleStart({
 
       <div className="simple-start-setup">
         <header>
-          <span className="eyebrow">How this game moves</span>
-          <h2>Choose your teaching style</h2>
-          <p>Your choice is remembered. You can return here without losing the game.</p>
+          <span className="eyebrow">{t('simple.howMoves')}</span>
+          <h2>{t('simple.chooseStyle')}</h2>
+          <p>{t('simple.remembered')}</p>
         </header>
         <ModePicker
           compact
@@ -1578,7 +1674,7 @@ function SimpleStart({
           onWhiteAgentChange={onWhiteAgentChange}
           onCompanionChange={onCompanionChange}
         />
-        <p className="simple-safety"><GraduationCap size={15} /> You inspect first. A stone is placed only after the rules preview and your confirmation.</p>
+        <p className="simple-safety"><GraduationCap size={15} /> {t('simple.safety')}</p>
       </div>
     </section>
   )
@@ -1597,34 +1693,35 @@ function OnboardingHero({
   loading: boolean
   fallback: boolean
 }) {
+  const { t } = useI18n()
   return (
     <section className="hero" data-testid="onboarding-hero">
       <div className="hero-glow one" /><div className="hero-glow two" />
       <div className="hero-inner">
         <div className="hero-copy">
-          <span className="hero-kicker"><Sparkles size={15} /> A patient path into Weiqi</span>
-          <h1>Don’t memorize the board.<br /><em>Learn to feel what changes.</em></h1>
-          <p>Play a complete game as a story of breath, connection, reach, danger, and choice—grounded in exact rules and bounded local analysis.</p>
+          <span className="hero-kicker"><Sparkles size={15} /> {t('hero.kicker')}</span>
+          <h1>{t('hero.title')}<br /><em>{t('hero.titleEm')}</em></h1>
+          <p>{t('hero.description')}</p>
           <div className="hero-actions">
             <button type="button" className="hero-primary" onClick={onBegin} disabled={!lesson || loading} data-testid="begin-journey">
               {loading ? <LoaderCircle size={18} className="spin" /> : <Play size={17} />}
-              {lesson ? `${lesson.status === 'current' ? 'Continue' : 'Begin'} · ${lesson.title}` : 'Begin the journey'}
+              {lesson ? `${lesson.status === 'current' ? t('hero.continue') : t('hero.begin')} · ${lesson.title}` : t('hero.beginJourney')}
               <ArrowRight size={17} />
             </button>
-            <a href="#learning-modes" className="hero-secondary">See how teaching works <ChevronRight size={16} /></a>
+            <a href="#learning-modes" className="hero-secondary">{t('hero.seeTeaching')} <ChevronRight size={16} /></a>
           </div>
           <div className="hero-trust">
-            <span><Check size={13} /> You place your stones</span>
-            <span><Check size={13} /> 9×9 default</span>
-            <span><Check size={13} /> Local-first</span>
-            {fallback && <span className="fallback"><WifiOff size={13} /> Preview ready while engine starts</span>}
+            <span><Check size={13} /> {t('hero.youPlace')}</span>
+            <span><Check size={13} /> {t('hero.defaultBoard')}</span>
+            <span><Check size={13} /> {t('hero.localFirst')}</span>
+            {fallback && <span className="fallback"><WifiOff size={13} /> {t('hero.previewReady')}</span>}
           </div>
         </div>
 
-        <div className="hero-scene" aria-label="Illustration of a teaching position">
+        <div className="hero-scene" aria-label={t('hero.illustration')}>
           <div className="hero-story-card top">
             <span className="story-icon"><GraduationCap size={17} /></span>
-            <div><small>Lantern asks</small><strong>Which group needs breath first?</strong></div>
+            <div><small>{t('hero.lanternAsks')}</small><strong>{t('hero.breathQuestion')}</strong></div>
           </div>
           <svg viewBox="0 0 440 440" className="hero-board" aria-hidden="true">
             <defs>
@@ -1639,10 +1736,10 @@ function OnboardingHero({
           </svg>
           <div className="hero-story-card bottom">
             <span className="energy-mini"><i /><i /><i /></span>
-            <div><small>Exact · Liberties</small><strong>Three open roads</strong></div>
+            <div><small>{t('hero.exactLiberties')}</small><strong>{t('hero.threeRoads')}</strong></div>
             <span className="mini-change">+2</span>
           </div>
-          <div className="hero-mode-pill">{mode === 'human_companion' ? <><UserRound size={14} /> You + Lantern</> : mode === 'agent_vs_agent' ? <><Bot size={14} /> Narrated theatre</> : <><UserRound size={14} /> Quiet game</>}</div>
+          <div className="hero-mode-pill">{mode === 'human_companion' ? <><UserRound size={14} /> {t('hero.youLantern')}</> : mode === 'agent_vs_agent' ? <><Bot size={14} /> {t('hero.narratedTheatre')}</> : <><UserRound size={14} /> {t('hero.quietGame')}</>}</div>
         </div>
       </div>
       <div id="learning-modes" />
@@ -1651,41 +1748,52 @@ function OnboardingHero({
 }
 
 function LearningDoctrine() {
+  const { t } = useI18n()
   const items = [
-    { icon: CircleDot, title: 'Exact breath', text: 'Rules code owns liberties, legality, capture, ko, scoring, and history.' },
-    { icon: Gauge, title: 'Bounded evidence', text: 'KataGo supplies candidate forecasts and variation across searched lines. It never mutates a game.' },
-    { icon: GraduationCap, title: 'A companion, not a pilot', text: 'Lantern asks, explains, and reflects. Your turn remains yours.' },
-    { icon: BookOpen, title: 'A story you can replay', text: 'Every rewind becomes a branch, so curiosity never erases the original game.' },
+    { icon: CircleDot, title: t('doctrine.exactTitle'), text: t('doctrine.exactText') },
+    { icon: Gauge, title: t('doctrine.engineTitle'), text: t('doctrine.engineText') },
+    { icon: GraduationCap, title: t('doctrine.companionTitle'), text: t('doctrine.companionText') },
+    { icon: BookOpen, title: t('doctrine.storyTitle'), text: t('doctrine.storyText') },
   ]
   return (
     <section className="doctrine-section">
-      <div className="section-heading"><div><span className="eyebrow">Our teaching promise</span><h2>High-quality analysis, honestly labeled</h2></div><p>“Energy” is a useful language for relationships—not a mystical score and never a replacement for evidence.</p></div>
+      <div className="section-heading"><div><span className="eyebrow">{t('doctrine.eyebrow')}</span><h2>{t('doctrine.title')}</h2></div><p>{t('doctrine.description')}</p></div>
       <div className="doctrine-grid">{items.map(({ icon: Icon, title, text }) => <article key={title}><span><Icon size={19} /></span><h3>{title}</h3><p>{text}</p></article>)}</div>
     </section>
   )
 }
 
-function operationLabel(operation: Operation): string {
-  const labels: Record<Operation, string> = {
-    idle: 'Ready',
-    creating: 'Opening the lesson…',
-    previewing: 'Reading the point…',
-    moving: 'Verifying and placing…',
-    agent: 'Agent is choosing among verified candidates…',
-    coach: 'Companion is preparing a grounded explanation…',
-    rewinding: 'Opening a new branch…',
-    'loading-game': 'Opening the chronicle…',
+type Translator = (key: MessageKey, values?: Record<string, string | number>) => string
+
+function operationLabel(operation: Operation, t: Translator): string {
+  const labels: Record<Operation, MessageKey> = {
+    idle: 'operation.ready',
+    creating: 'operation.creating',
+    previewing: 'operation.previewing',
+    moving: 'operation.moving',
+    agent: 'operation.agent',
+    coach: 'operation.coach',
+    rewinding: 'operation.rewinding',
+    'loading-game': 'operation.loadingGame',
   }
-  return labels[operation]
+  return t(labels[operation])
 }
 
-function formatKoRule(rule: GameState['rules']['ko_rule']): string {
-  const labels: Record<GameState['rules']['ko_rule'], string> = {
-    positional_superko: 'Positional superko',
-    situational_superko: 'Situational superko',
-    simple: 'Simple ko',
+function formatKoRule(rule: GameState['rules']['ko_rule'], t: Translator): string {
+  const labels: Record<GameState['rules']['ko_rule'], MessageKey> = {
+    positional_superko: 'rules.positionalSuperko',
+    situational_superko: 'rules.situationalSuperko',
+    simple: 'rules.simpleKo',
   }
-  return labels[rule]
+  return t(labels[rule])
+}
+
+function localizedColor(color: Stone['color'], t: Translator): string {
+  return t(color === 'black' ? 'board.black' : 'board.white')
+}
+
+function localizedIntent(intent: MoveIntent, t: Translator): string {
+  return t(`intent.${intent}` as MessageKey)
 }
 
 export default App

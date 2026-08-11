@@ -5,18 +5,19 @@ import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import 'katex/dist/katex.min.css'
+import { localizeRulesReason, useI18n, type MessageKey } from '../i18n'
 import type { BoardSize, CandidateMove, CoachMessage, GameMode, MoveIntent, MovePreview, StoneColor } from '../types'
 import { CandidateCards } from './CandidateCards'
 import { EvidenceBadge } from './EnergyLenses'
 
-const INTENTS: Array<{ id: MoveIntent; label: string }> = [
-  { id: 'unsure', label: 'Unsure' },
-  { id: 'claim', label: 'Claim' },
-  { id: 'connect', label: 'Connect' },
-  { id: 'pressure', label: 'Pressure' },
-  { id: 'escape', label: 'Escape' },
-  { id: 'settle', label: 'Settle' },
-  { id: 'sacrifice', label: 'Trade' },
+const INTENTS: Array<{ id: MoveIntent; label: MessageKey }> = [
+  { id: 'unsure', label: 'intent.unsure' },
+  { id: 'claim', label: 'intent.claim' },
+  { id: 'connect', label: 'intent.connect' },
+  { id: 'pressure', label: 'intent.pressure' },
+  { id: 'escape', label: 'intent.escape' },
+  { id: 'settle', label: 'intent.settle' },
+  { id: 'sacrifice', label: 'intent.sacrifice' },
 ]
 
 interface CoachRailProps {
@@ -76,12 +77,13 @@ export function CoachRail({
   statusLabel,
   delegationKey,
 }: CoachRailProps) {
+  const { locale, t } = useI18n()
   const [question, setQuestion] = useState('')
   const [delegationOpen, setDelegationOpen] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [historyRevealed, setHistoryRevealed] = useState(false)
-  const role = mode === 'agent_vs_agent' ? 'Narrator' : mode === 'human_companion' ? 'Companion' : 'Lesson guide'
-  const name = mode === 'human_vs_agent' ? 'Compass' : 'Lantern'
+  const role = mode === 'agent_vs_agent' ? t('coach.narrator') : mode === 'human_companion' ? t('coach.companion') : t('coach.lessonGuide')
+  const name = mode === 'human_vs_agent' ? t('coach.compass') : t('coach.lantern')
 
   useEffect(() => {
     setDelegationOpen(false)
@@ -95,7 +97,7 @@ export function CoachRail({
   const canRevealHistory = messages.length > 3 || hasOlderHistory
 
   return (
-    <aside className="coach-rail" data-testid="coach-rail" data-role={role.toLowerCase()} data-mobile-open={mobileOpen}>
+    <aside className="coach-rail" data-testid="coach-rail" data-role={mode === 'agent_vs_agent' ? 'narrator' : mode === 'human_companion' ? 'companion' : 'lesson-guide'} data-mobile-open={mobileOpen}>
       <div className="coach-rail-handle" aria-hidden="true" />
       <button
         type="button"
@@ -120,24 +122,24 @@ export function CoachRail({
         </span>
       </header>
 
-      <section className="coach-doctrine" aria-label="Agent authority">
+      <section className="coach-doctrine" aria-label={t('coach.authority')}>
         <ShieldCheck size={16} aria-hidden="true" />
         <p>
           {mode === 'agent_vs_agent'
-            ? 'Narration explains both doctrines. Only the two Player Agents can place stones.'
+            ? t('coach.authorityTheatre')
             : mode === 'human_companion'
-              ? 'Lantern is on your side, but does not move your stones unless you explicitly delegate one turn.'
-              : 'River chooses only among legal candidates verified by the teaching service.'}
+              ? t('coach.authorityCompanion')
+              : t('coach.authorityHuman')}
         </p>
       </section>
 
       {mode !== 'agent_vs_agent' && (
         <section className="intent-section">
           <div className="rail-section-title">
-            <span>Your intention</span>
-            <small>Optional, but useful</small>
+            <span>{t('coach.intention')}</span>
+            <small>{t('coach.optional')}</small>
           </div>
-          <div className="intent-row" role="radiogroup" aria-label="Move intention">
+          <div className="intent-row" role="radiogroup" aria-label={t('coach.moveIntention')}>
             {INTENTS.map((item) => (
               <button
                 key={item.id}
@@ -148,7 +150,7 @@ export function CoachRail({
                 onClick={() => onIntentChange(item.id)}
                 disabled={busy}
               >
-                {item.label}
+                {t(item.label)}
               </button>
             ))}
           </div>
@@ -164,7 +166,7 @@ export function CoachRail({
               aria-controls="coach-conversation-log"
               onClick={() => setHistoryRevealed(true)}
             >
-              <History size={14} aria-hidden="true" /> Reveal conversation history
+              <History size={14} aria-hidden="true" /> {t('coach.revealHistory')}
             </button>
           ) : (
             <div className="coach-history-actions">
@@ -179,45 +181,45 @@ export function CoachRail({
                 >
                   <History size={14} aria-hidden="true" />
                   {historyLoading
-                    ? 'Loading earlier messages…'
+                    ? t('coach.loadingEarlier')
                     : historyError
-                      ? 'Try loading earlier messages again'
-                      : 'Load earlier messages'}
+                      ? t('coach.tryEarlier')
+                      : t('coach.loadEarlier')}
                 </button>
               )}
               <button type="button" onClick={() => setHistoryRevealed(false)}>
-                Show recent only
+                {t('coach.recentOnly')}
               </button>
             </div>
           )}
           {historyRevealed && historyError && (
             <p id="coach-history-error" role="alert">
-              {historyError} The visible conversation is still here.
+              {historyError} {t('coach.visibleStillHere')}
             </p>
           )}
         </div>
       )}
 
-      <section id="coach-conversation-log" className="coach-conversation" role="log" aria-label={`${name} conversation`} aria-live="polite" aria-relevant="additions text">
+      <section id="coach-conversation-log" className="coach-conversation" role="log" aria-label={t('coach.conversation', { name })} aria-live="polite" aria-relevant="additions text">
         {visibleMessages.map((message) => {
           const answerLabel = {
-            coach: 'Coach answer',
-            companion: 'Companion answer',
-            narrator: 'Narrator response',
-            system: 'System message',
+            coach: t('coach.answer'),
+            companion: t('coach.companionAnswer'),
+            narrator: t('coach.narratorResponse'),
+            system: t('coach.systemMessage'),
           }[message.role]
           return (
             <div
               key={message.id}
               className="coach-exchange"
               role="group"
-              aria-label={message.question ? `Learner question and ${answerLabel.toLowerCase()}` : answerLabel}
+              aria-label={message.question ? t('coach.questionAndAnswer', { answer: answerLabel }) : answerLabel}
             >
               {message.question && (
-                <article className="coach-message learner" aria-label="Learner question">
+                <article className="coach-message learner" aria-label={t('coach.learnerQuestion')}>
                   <div className="message-meta">
-                    <strong>You</strong>
-                    <span>Learner question</span>
+                    <strong>{t('coach.you')}</strong>
+                    <span>{t('coach.learnerQuestion')}</span>
                   </div>
                   <p>{message.question}</p>
                 </article>
@@ -229,29 +231,29 @@ export function CoachRail({
                 </div>
                 <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{message.text}</ReactMarkdown>
                 {message.evidence?.length ? (
-                  <div className="message-evidence" role="group" aria-label="Evidence provenance">
+                  <div className="message-evidence" role="group" aria-label={t('coach.evidence')}>
                     {[...new Set(message.evidence)].map((kind) => <EvidenceBadge key={kind} kind={kind} />)}
                   </div>
                 ) : null}
                 {message.prompt && (
-                  <p className="companion-prompt"><strong>{message.speaker} asks:</strong> {message.prompt}</p>
+                  <p className="companion-prompt"><strong>{t('coach.asks', { name: message.speaker })}</strong> {message.prompt}</p>
                 )}
               </article>
             </div>
           )
         })}
         {!messages.length && (
-          <div className="coach-empty"><Bot size={20} /><p>The guide is watching quietly. Select a point or ask a question.</p></div>
+          <div className="coach-empty"><Bot size={20} /><p>{t('coach.empty')}</p></div>
         )}
       </section>
 
       <section className="consequence-section">
         <div className="rail-section-title">
-          <span>{preview ? 'Other candidate ideas' : 'Candidate intentions'}</span>
-          {preview && <small>{preview.legal ? `${preview.coordinate} preview shown on board` : `${preview.coordinate} is not legal`}</small>}
+          <span>{preview ? t('coach.otherCandidates') : t('coach.candidateIntentions')}</span>
+          {preview && <small>{preview.legal ? t('coach.previewShown', { coordinate: preview.coordinate }) : t('coach.pointIllegal', { coordinate: preview.coordinate })}</small>}
         </div>
         {preview && !preview.legal && (
-          <div className="preview-illegal" role="alert"><X size={15} /> {preview.reason ?? 'That point is not legal now.'}</div>
+          <div className="preview-illegal" role="alert"><X size={15} /> {localizeRulesReason(preview.reason, locale) ?? t('coach.notLegalNow')}</div>
         )}
         <CandidateCards
           compact={compact}
@@ -268,11 +270,11 @@ export function CoachRail({
       </section>
 
       <div className="coach-quick-actions">
-        <button type="button" onClick={() => onAsk('What should I notice before I move?', 'hint')} disabled={busy}>
-          <Lightbulb size={15} /> Hint ladder
+        <button type="button" onClick={() => onAsk(t('coach.hintQuestion'), 'hint')} disabled={busy}>
+          <Lightbulb size={15} /> {t('coach.hint')}
         </button>
-        <button type="button" onClick={() => onAsk('Explain the strongest contrast between these candidates.', 'explain')} disabled={busy}>
-          <MessageCircleQuestion size={15} /> Compare
+        <button type="button" onClick={() => onAsk(t('coach.compareQuestion'), 'explain')} disabled={busy}>
+          <MessageCircleQuestion size={15} /> {t('coach.compare')}
         </button>
       </div>
 
@@ -286,17 +288,17 @@ export function CoachRail({
           setQuestion('')
         }}
       >
-        <label className="sr-only" htmlFor="coach-question">Ask the coach</label>
+        <label className="sr-only" htmlFor="coach-question">{t('coach.ask')}</label>
         <input
           id="coach-question"
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
-          placeholder={mode === 'agent_vs_agent' ? 'Ask about either doctrine…' : 'Ask what changed…'}
+          placeholder={mode === 'agent_vs_agent' ? t('coach.askDoctrine') : t('coach.askChanged')}
           maxLength={500}
           disabled={busy}
           data-testid="coach-input"
         />
-        <button type="submit" disabled={busy || !question.trim()} aria-label="Ask coach" data-testid="coach-send">
+        <button type="submit" disabled={busy || !question.trim()} aria-label={t('coach.ask')} data-testid="coach-send">
           <Send size={17} />
         </button>
       </form>
@@ -305,13 +307,13 @@ export function CoachRail({
         <div className="delegation-zone" data-testid="delegation-zone" data-confirming={delegationOpen}>
           {!delegationOpen ? (
             <button type="button" className="delegate-button" onClick={() => setDelegationOpen(true)} disabled={busy}>
-              <Hand size={16} /> Invite Lantern to choose this one move <ChevronDown size={14} />
+              <Hand size={16} /> {t('coach.invite')} <ChevronDown size={14} />
             </button>
           ) : (
-            <div className="delegate-confirm" role="group" aria-label="Confirm one-turn delegation">
-              <p><strong>One turn only.</strong> Under your explicit authority, Lantern will choose from the server’s position-bound verified candidates. Lantern remains a non-playing Companion, and every later turn stays yours.</p>
+            <div className="delegate-confirm" role="group" aria-label={t('coach.confirmDelegation')}>
+              <p><strong>{t('coach.oneTurnOnly')}</strong> {t('coach.delegationExplanation')}</p>
               <div>
-                <button type="button" onClick={() => setDelegationOpen(false)} disabled={busy}>Keep my turn</button>
+                <button type="button" onClick={() => setDelegationOpen(false)} disabled={busy}>{t('coach.keepTurn')}</button>
                 <button
                   type="button"
                   className="primary"
@@ -319,7 +321,7 @@ export function CoachRail({
                   disabled={busy}
                   data-testid="delegate-confirm"
                 >
-                  Choose this move once
+                  {t('coach.chooseOnce')}
                 </button>
               </div>
             </div>

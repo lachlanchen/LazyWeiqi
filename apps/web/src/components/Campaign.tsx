@@ -1,4 +1,5 @@
 import { ArrowRight, Check, Clock3, Compass, LockKeyhole, Sparkles } from 'lucide-react'
+import { useI18n } from '../i18n'
 import type { BoardSize, LessonSummary } from '../types'
 
 interface CampaignProps {
@@ -10,18 +11,19 @@ interface CampaignProps {
 }
 
 export function Campaign({ lessons, selectedBoard, onBoardChange, onStartLesson, busy = false }: CampaignProps) {
+  const { t } = useI18n()
   const visible = lessons.filter((lesson) => lesson.board_size === selectedBoard)
   return (
     <section className="campaign" data-testid="campaign" data-board-filter={selectedBoard}>
       <div className="section-heading campaign-heading">
         <div>
-          <span className="eyebrow"><Compass size={14} /> Your learning path</span>
-          <h2>Begin small. Reach the full valley.</h2>
+          <span className="eyebrow"><Compass size={14} /> {t('campaign.eyebrow')}</span>
+          <h2>{t('campaign.title')}</h2>
         </div>
-        <p>Short lessons teach one relationship at a time. Nine by nine is the default home for complete games.</p>
+        <p>{t('campaign.description')}</p>
       </div>
 
-      <div className="board-size-switch" role="radiogroup" aria-label="Lesson board size">
+      <div className="board-size-switch" role="radiogroup" aria-label={t('campaign.boardSize')}>
         {([5, 7, 9] as BoardSize[]).map((size) => (
           <button
             key={size}
@@ -33,7 +35,7 @@ export function Campaign({ lessons, selectedBoard, onBoardChange, onStartLesson,
             data-testid={`board-size-${size}`}
           >
             <span>{size}×{size}</span>
-            <small>{size === 9 ? 'Full journey' : size === 5 ? 'First breaths' : 'Growing shape'}</small>
+            <small>{size === 9 ? t('campaign.fullJourney') : size === 5 ? t('campaign.firstBreaths') : t('campaign.growingShape')}</small>
           </button>
         ))}
       </div>
@@ -54,8 +56,8 @@ export function Campaign({ lessons, selectedBoard, onBoardChange, onStartLesson,
               <div className="lesson-content">
                 <div className="lesson-meta">
                   <span>{lesson.board_size}×{lesson.board_size}</span>
-                  <span><Clock3 size={13} /> {lesson.duration_minutes} min</span>
-                  {lesson.training_variant && <span className="training-label">Training rules</span>}
+                  <span><Clock3 size={13} /> {t('simple.minutes', { count: lesson.duration_minutes })}</span>
+                  {lesson.training_variant && <span className="training-label">{t('campaign.trainingRules')}</span>}
                 </div>
                 <h3>{lesson.title}</h3>
                 <p className="lesson-subtitle">{lesson.subtitle}</p>
@@ -70,15 +72,15 @@ export function Campaign({ lessons, selectedBoard, onBoardChange, onStartLesson,
                 className="lesson-action"
                 onClick={() => onStartLesson(lesson)}
                 disabled={locked || busy}
-                aria-label={`${complete ? 'Revisit' : 'Begin'} ${lesson.title}`}
+                aria-label={`${complete ? t('campaign.revisit') : t('campaign.begin')} ${lesson.title}`}
               >
-                {complete ? 'Revisit' : lesson.status === 'current' ? 'Continue' : 'Begin'}
+                {complete ? t('campaign.revisit') : lesson.status === 'current' ? t('campaign.continue') : t('campaign.begin')}
                 <ArrowRight size={16} aria-hidden="true" />
               </button>
             </article>
           )
         })}
-        {!visible.length && <p className="empty-note">More lessons are being prepared for this board.</p>}
+        {!visible.length && <p className="empty-note">{t('campaign.moreSoon')}</p>}
       </div>
     </section>
   )

@@ -1,35 +1,37 @@
 import { Calculator, CircleDot, CloudSun, Eye, GitBranch, Map, Radio, TimerReset, Zap } from 'lucide-react'
+import { useI18n, type MessageKey } from '../i18n'
 import type { EnergyFacet, EvidenceKind } from '../types'
 import type { EnergyLensId } from './WeiqiBoard'
 
 const LENSES: Array<{
   id: EnergyLensId
-  label: string
-  canonical: string
+  label: MessageKey
+  canonical: MessageKey
   evidence: EvidenceKind
   icon: typeof CircleDot
 }> = [
-  { id: 'cloud', label: 'Presence sketch', canonical: 'Distance analogy', evidence: 'metaphor', icon: CloudSun },
-  { id: 'breath', label: 'Breath', canonical: 'Liberties', evidence: 'exact', icon: CircleDot },
-  { id: 'bonds', label: 'Bonds', canonical: 'Connections', evidence: 'exact', icon: GitBranch },
-  { id: 'shelter', label: 'Shelter', canonical: 'Eye space', evidence: 'tactical', icon: Eye },
-  { id: 'reach', label: 'Forecast', canonical: 'Ownership tendency', evidence: 'engine', icon: Radio },
-  { id: 'ground', label: 'Strong forecast', canonical: 'Display-only ownership threshold', evidence: 'engine', icon: Map },
-  { id: 'area', label: 'Board count', canonical: 'Stones and empty intersections', evidence: 'exact', icon: Calculator },
-  { id: 'beat', label: 'Turn', canonical: 'Side to move', evidence: 'exact', icon: TimerReset },
-  { id: 'pressure', label: 'Pressure', canonical: 'Hypothetical atari consequence', evidence: 'tactical', icon: Zap },
+  { id: 'cloud', label: 'lens.cloud', canonical: 'lens.cloudTerm', evidence: 'metaphor', icon: CloudSun },
+  { id: 'breath', label: 'lens.breath', canonical: 'lens.liberties', evidence: 'exact', icon: CircleDot },
+  { id: 'bonds', label: 'lens.bonds', canonical: 'lens.connections', evidence: 'exact', icon: GitBranch },
+  { id: 'shelter', label: 'lens.shelter', canonical: 'lens.eyeSpace', evidence: 'tactical', icon: Eye },
+  { id: 'reach', label: 'lens.forecast', canonical: 'lens.ownership', evidence: 'engine', icon: Radio },
+  { id: 'ground', label: 'lens.strong', canonical: 'lens.threshold', evidence: 'engine', icon: Map },
+  { id: 'area', label: 'lens.area', canonical: 'lens.areaTerm', evidence: 'exact', icon: Calculator },
+  { id: 'beat', label: 'lens.turn', canonical: 'lens.side', evidence: 'exact', icon: TimerReset },
+  { id: 'pressure', label: 'lens.pressure', canonical: 'lens.atari', evidence: 'tactical', icon: Zap },
 ]
 
 export function EvidenceBadge({ kind }: { kind: EvidenceKind }) {
-  const labels: Record<EvidenceKind, string> = {
-    exact: 'Exact',
-    tactical: 'Tactical read',
-    engine: 'Engine estimate',
-    model: 'Model explanation',
-    teacher: 'Teacher guidance',
-    metaphor: 'Metaphor',
+  const { t } = useI18n()
+  const labels: Record<EvidenceKind, MessageKey> = {
+    exact: 'evidence.exact',
+    tactical: 'evidence.tactical',
+    engine: 'evidence.engine',
+    model: 'evidence.model',
+    teacher: 'evidence.teacher',
+    metaphor: 'evidence.metaphor',
   }
-  return <span className={`evidence-badge ${kind}`}>{labels[kind]}</span>
+  return <span className={`evidence-badge ${kind}`}>{t(labels[kind])}</span>
 }
 
 interface EnergyLensesProps {
@@ -40,18 +42,19 @@ interface EnergyLensesProps {
 }
 
 export function EnergyLenses({ active, onToggle, facets = [], engineAvailable }: EnergyLensesProps) {
+  const { t } = useI18n()
   const hasFacet = (id: EnergyLensId) => facets.some((facet) => facet.id === id)
   const visibleFacets = facets.filter((facet) => active.has(facet.id as EnergyLensId))
   return (
     <section className="energy-panel" data-testid="energy-lenses" data-active-count={active.size}>
       <div className="energy-heading">
         <div>
-          <span className="eyebrow">Board views</span>
-          <h3>Turn one clear layer on or off</h3>
+          <span className="eyebrow">{t('energy.views')}</span>
+          <h3>{t('energy.title')}</h3>
         </div>
-        <span className="no-score">No magic score</span>
+        <span className="no-score">{t('energy.noMagic')}</span>
       </div>
-      <div className="lens-chips" aria-label="Board teaching overlays">
+      <div className="lens-chips" aria-label={t('energy.overlays')}>
         {LENSES.map((lens) => {
           const Icon = lens.icon
           const isActive = active.has(lens.id)
@@ -66,12 +69,12 @@ export function EnergyLenses({ active, onToggle, facets = [], engineAvailable }:
               aria-disabled={blocked && !isActive}
               className={`lens-chip ${isActive ? 'active' : ''} ${blocked ? 'unavailable' : ''}`}
               onClick={() => (isActive || !blocked) && onToggle(lens.id)}
-              title={blocked ? `${lens.canonical} has no position-bound reading yet` : lens.canonical}
+              title={blocked ? t('energy.noReading', { term: t(lens.canonical) }) : t(lens.canonical)}
               data-testid={`lens-${lens.id}`}
             >
               <Icon size={15} aria-hidden="true" />
-              <span>{lens.label}</span>
-              <small>{lens.canonical}</small>
+              <span>{t(lens.label)}</span>
+              <small>{t(lens.canonical)}</small>
             </button>
           )
         })}
@@ -81,7 +84,7 @@ export function EnergyLenses({ active, onToggle, facets = [], engineAvailable }:
           {visibleFacets.slice(0, 6).map((facet) => (
             <article key={`${facet.scope ?? 'current'}-${facet.id}-${facet.value}`} className="facet-reading" data-scope={facet.scope ?? 'current'} data-facet-id={facet.id}>
               <small className={`facet-scope ${facet.scope ?? 'current'}`}>
-                {facet.scope === 'if_played' ? 'If played' : 'Current position'}
+                {facet.scope === 'if_played' ? t('energy.ifPlayed') : t('energy.current')}
               </small>
               <div className="facet-reading-top">
                 <strong>{facet.label}</strong>

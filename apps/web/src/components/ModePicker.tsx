@@ -1,4 +1,5 @@
 import { Bot, Drama, GraduationCap, Sparkles, UserRound } from 'lucide-react'
+import { useI18n, type MessageKey } from '../i18n'
 import type {
   AgentConfiguration,
   AgentDoctrine,
@@ -21,46 +22,46 @@ interface ModePickerProps {
 
 const MODE_OPTIONS: Array<{
   id: GameMode
-  title: string
-  eyebrow: string
-  description: string
+  title: MessageKey
+  eyebrow: MessageKey
+  description: MessageKey
   icon: typeof UserRound
 }> = [
   {
     id: 'human_companion',
-    title: 'Journey with a companion',
-    eyebrow: 'Recommended',
-    description: 'You play every stone. Lantern asks questions and explains verified evidence.',
+    title: 'mode.companionTitle',
+    eyebrow: 'mode.recommended',
+    description: 'mode.companionDescription',
     icon: GraduationCap,
   },
   {
     id: 'human_vs_agent',
-    title: 'Quiet teaching game',
-    eyebrow: 'Human vs Agent',
-    description: 'You face a calibrated Player Agent with only concise lesson prompts.',
+    title: 'mode.humanTitle',
+    eyebrow: 'mode.humanEyebrow',
+    description: 'mode.humanDescription',
     icon: UserRound,
   },
   {
     id: 'agent_vs_agent',
-    title: 'Theatre of stones',
-    eyebrow: 'Narrated Agent vs Agent',
-    description: 'Watch two doctrines choose among verified candidates while a narrator teaches.',
+    title: 'mode.theatreTitle',
+    eyebrow: 'mode.theatreEyebrow',
+    description: 'mode.theatreDescription',
     icon: Drama,
   },
 ]
 
-const doctrines: Array<{ id: AgentDoctrine; label: string }> = [
-  { id: 'balanced', label: 'Balanced' },
-  { id: 'territory', label: 'Territory' },
-  { id: 'influence', label: 'Influence' },
-  { id: 'fighting', label: 'Fighting' },
-  { id: 'light', label: 'Light & flexible' },
+const doctrines: Array<{ id: AgentDoctrine; label: MessageKey }> = [
+  { id: 'balanced', label: 'doctrine.balanced' },
+  { id: 'territory', label: 'doctrine.territory' },
+  { id: 'influence', label: 'doctrine.influence' },
+  { id: 'fighting', label: 'doctrine.fighting' },
+  { id: 'light', label: 'doctrine.light' },
 ]
 
-const companionStyles: Array<{ id: CompanionStyle; label: string }> = [
-  { id: 'socratic', label: 'Socratic questions' },
-  { id: 'encouraging', label: 'Warm encouragement' },
-  { id: 'concise', label: 'Quiet and concise' },
+const companionStyles: Array<{ id: CompanionStyle; label: MessageKey }> = [
+  { id: 'socratic', label: 'style.socratic' },
+  { id: 'encouraging', label: 'style.encouraging' },
+  { id: 'concise', label: 'style.concise' },
 ]
 
 export function ModePicker({
@@ -74,19 +75,20 @@ export function ModePicker({
   onCompanionChange,
   compact = false,
 }: ModePickerProps) {
+  const { t } = useI18n()
   return (
     <section className={`mode-picker ${compact ? 'compact' : ''}`} data-testid="mode-picker" data-mode={mode}>
       {!compact && (
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Choose how the story moves</span>
-            <h2>Three ways to learn</h2>
+            <span className="eyebrow">{t('mode.eyebrow')}</span>
+            <h2>{t('mode.title')}</h2>
           </div>
-          <p>Player Agents may choose only verified legal candidates. Companion and narrator roles never control a color.</p>
+          <p>{t('mode.description')}</p>
         </div>
       )}
 
-      <div className="mode-grid" role="radiogroup" aria-label="Learning mode">
+      <div className="mode-grid" role="radiogroup" aria-label={t('mode.group')}>
         {MODE_OPTIONS.map((option) => {
           const Icon = option.icon
           const selected = mode === option.id
@@ -102,9 +104,9 @@ export function ModePicker({
             >
               <span className="mode-icon"><Icon size={20} aria-hidden="true" /></span>
               <span className="mode-copy">
-                <span className="mode-eyebrow">{option.eyebrow}</span>
-                <strong>{option.title}</strong>
-                {!compact && <small>{option.description}</small>}
+                <span className="mode-eyebrow">{t(option.eyebrow)}</span>
+                <strong>{t(option.title)}</strong>
+                {!compact && <small>{t(option.description)}</small>}
               </span>
               <span className="radio-mark" aria-hidden="true" />
             </button>
@@ -115,25 +117,25 @@ export function ModePicker({
       <div className="cast-config" data-testid="agent-cast">
         <div className="cast-title">
           <Sparkles size={17} aria-hidden="true" />
-          <span>Cast & doctrine</span>
+          <span>{t('mode.cast')}</span>
         </div>
         {mode === 'agent_vs_agent' && (
           <AgentSelect
             id="black-agent"
-            label="Black · Mountain"
+            label={t('mode.blackMountain')}
             value={blackAgent.doctrine}
             onChange={(doctrine) => onBlackAgentChange({ ...blackAgent, doctrine })}
           />
         )}
         <AgentSelect
           id="white-agent"
-          label={`${mode === 'agent_vs_agent' ? 'White' : 'Opponent'} · River`}
+          label={mode === 'agent_vs_agent' ? t('mode.whiteRiver') : t('mode.opponentRiver')}
           value={whiteAgent.doctrine}
           onChange={(doctrine) => onWhiteAgentChange({ ...whiteAgent, doctrine })}
         />
         {mode === 'human_companion' && (
           <label className="field-select" htmlFor="companion-style">
-            <span><GraduationCap size={15} aria-hidden="true" /> Lantern · Companion</span>
+            <span><GraduationCap size={15} aria-hidden="true" /> {t('mode.lanternCompanion')}</span>
             <select
               id="companion-style"
               value={companion.style}
@@ -142,14 +144,14 @@ export function ModePicker({
               }
               data-testid="companion-style"
             >
-              {companionStyles.map((style) => <option key={style.id} value={style.id}>{style.label}</option>)}
+              {companionStyles.map((style) => <option key={style.id} value={style.id}>{t(style.label)}</option>)}
             </select>
           </label>
         )}
         {mode === 'agent_vs_agent' && (
           <div className="narrator-note">
             <Bot size={16} aria-hidden="true" />
-            <span>Lantern narrates intentions and consequences; it never chooses either side’s move.</span>
+            <span>{t('mode.narratorAuthority')}</span>
           </div>
         )}
       </div>
@@ -168,6 +170,7 @@ function AgentSelect({
   value: AgentDoctrine
   onChange: (value: AgentDoctrine) => void
 }) {
+  const { t } = useI18n()
   return (
     <label className="field-select" htmlFor={id}>
       <span><Bot size={15} aria-hidden="true" /> {label}</span>
@@ -177,7 +180,7 @@ function AgentSelect({
         onChange={(event) => onChange(event.target.value as AgentDoctrine)}
         data-testid={`${id}-doctrine`}
       >
-        {doctrines.map((doctrine) => <option key={doctrine.id} value={doctrine.id}>{doctrine.label}</option>)}
+        {doctrines.map((doctrine) => <option key={doctrine.id} value={doctrine.id}>{t(doctrine.label)}</option>)}
       </select>
     </label>
   )
