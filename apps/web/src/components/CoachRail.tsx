@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bot, ChevronDown, Hand, History, Lightbulb, MessageCircleQuestion, Send, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { Bot, BrainCircuit, ChevronDown, Hand, History, Lightbulb, MessageCircleQuestion, Send, ShieldCheck, Sparkles, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
@@ -35,7 +35,7 @@ interface CoachRailProps {
   onIntentChange: (intent: MoveIntent) => void
   onCandidateSelect: (candidate: CandidateMove) => void
   onCandidateInspect: (candidate: CandidateMove | null) => void
-  onAsk: (question: string, kind?: 'hint' | 'explain') => void
+  onAsk: (question: string, kind?: 'hint' | 'explain' | 'reflection') => void
   hasOlderHistory: boolean
   historyLoading: boolean
   historyError: string | null
@@ -276,6 +276,16 @@ export function CoachRail({
         <button type="button" onClick={() => onAsk(t('coach.compareQuestion'), 'explain')} disabled={busy}>
           <MessageCircleQuestion size={15} /> {t('coach.compare')}
         </button>
+        {boardSize === 19 && (
+          <button
+            type="button"
+            onClick={() => onAsk(t('opening.deepStudyHelp'), 'reflection')}
+            disabled={busy}
+            data-testid="coach-deep-study"
+          >
+            <BrainCircuit size={15} aria-hidden="true" /> {t('opening.deepStudy')}
+          </button>
+        )}
       </div>
 
       <form

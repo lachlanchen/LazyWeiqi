@@ -12,6 +12,7 @@ import type { GameState, LessonSummary } from './types'
 import {
   LOCALE_NAMES,
   MESSAGE_KEYS,
+  OPENING_COPY_KEYS,
   SUPPORTED_LOCALES,
   documentLocale,
   localizeCurriculum,
@@ -24,6 +25,7 @@ import {
   localeDirection,
   messagesForLocale,
   normalizeLocale,
+  openingCopyKey,
   translate,
 } from './i18n'
 
@@ -69,7 +71,7 @@ describe('reviewed locale contract', () => {
   it('requires exact key and placeholder parity in all eleven explicit catalogs', () => {
     const english = messagesForLocale('en')
     const expectedKeys = [...MESSAGE_KEYS].sort()
-    expect(expectedKeys).toHaveLength(409)
+    expect(expectedKeys).toHaveLength(629)
 
     for (const locale of SUPPORTED_LOCALES) {
       const catalog = messagesForLocale(locale)
@@ -77,6 +79,52 @@ describe('reviewed locale contract', () => {
       for (const key of MESSAGE_KEYS) {
         expect(placeholders(catalog[key]), `${locale}:${key}`).toEqual(placeholders(english[key]))
       }
+    }
+  })
+
+  it('freezes the bounded 19×19 opening vocabulary without raw-ID fallback', () => {
+    const openingKeys = MESSAGE_KEYS.filter((key) => key.startsWith('opening.'))
+    expect(openingKeys).toHaveLength(220)
+    expect(OPENING_COPY_KEYS).toHaveLength(113)
+    expect(new Set(OPENING_COPY_KEYS).size).toBe(113)
+    expect(openingCopyKey('engine_evidence_not_attached')).toBe('opening.copy.engine_evidence_not_attached')
+    expect(openingCopyKey('network_not_validated_for_19x19')).toBeNull()
+    expect(openingCopyKey('unreviewed_model_sentence')).toBeNull()
+
+    for (const locale of SUPPORTED_LOCALES) {
+      const catalog = messagesForLocale(locale)
+      expect(Object.keys(catalog).filter((key) => key.startsWith('opening.')), locale).toHaveLength(220)
+      for (const key of openingKeys) {
+        expect(catalog[key].trim(), `${locale}:${key}`).not.toBe('')
+        expect(catalog[key], `${locale}:${key}`).not.toMatch(/opening\.copy\.|(?:upper|lower)_(?:left|right)_|_[a-z]+_/)
+      }
+    }
+  })
+
+  it('keeps exact, calculated, authored, and engine opening evidence semantically separate', () => {
+    const requiredTerms = {
+      en: [/exact/i, /potential/i, /not secured territory/i, /not ownership/i, /not a forced sequence/i],
+      ar: [/بالضبط|الدقيق|الدقيقة/, /إمكان|المحتمل/, /ليست منطقة مؤمنة/, /ليس ملكية/, /ليس تسلسلاً قسرياً/],
+      de: [/exakt|genaue/i, /potenzial/i, /kein gesichertes/i, /kein Eigentum/i, /keine erzwungene/i],
+      es: [/exact/i, /potencial/i, /no es un territorio asegurado/i, /no es propiedad/i, /no es una secuencia forzada/i],
+      fr: [/exact/i, /potentiel/i, /n.est pas un territoire sécurisé/i, /n.est pas un contrôle acquis/i, /n.est pas une séquence forcée/i],
+      ja: [/正確/, /可能性/, /確保済みの地ではありません/, /帰属ではありません/, /強制手順ではありません/],
+      ko: [/정확|활로/, /가능성|잠재/, /확보된 집이 아닙니다/, /소유권이 아닙니다/, /강제 수순이 아닙니다/],
+      vi: [/chính xác/i, /tiềm năng/i, /không phải là (?:đất|lãnh thổ) đã (?:được )?bảo đảm/i, /không phải quyền sở hữu/i, /không phải (?:là một )?chuỗi bắt buộc/i],
+      'zh-Hans': [/准确|确切|气/, /潜力/, /不是已确保的地盘/, /不是归属/, /不是强制次序/],
+      'zh-Hant': [/準確|確切|氣/, /潛力/, /不是已確保的地盤/, /不是歸屬/, /不是強制次序/],
+      ru: [/точн|дамэ/i, /потенциал/i, /не означает закрепл.нную территорию/i, /не означает принадлежность/i, /не является вынужденной последовательностью/i],
+    } as const
+
+    for (const locale of SUPPORTED_LOCALES) {
+      const catalog = messagesForLocale(locale)
+      const [exact, potential, territory, influence, joseki] = requiredTerms[locale]
+      expect(catalog['opening.copy.stone_has_exact_resulting_liberties'], locale).toMatch(exact)
+      expect(catalog['opening.territory'], locale).toMatch(potential)
+      expect(catalog['opening.copy.potential_not_secured_territory'], locale).toMatch(territory)
+      expect(catalog['opening.copy.influence_not_ownership'], locale).toMatch(influence)
+      expect(catalog['opening.copy.joseki_not_forced_sequence'], locale).toMatch(joseki)
+      expect(catalog['opening.deepStudyHelp'], locale).toMatch(/stone|Stein|piedra|pierre|石|落子|돌|quân|棋|حجر|камень/i)
     }
   })
 
@@ -495,6 +543,169 @@ describe('reviewed locale contract', () => {
     expect(localModelFallback.coach_messages[0].text).toContain('候補の座標：パス。')
     expect(localModelFallback.coach_messages[0].text).toContain('次に見ること：近くの一団のダメが少ないなら')
     expect(localModelFallback.coach_messages[0].text).toContain('GPT-5.6 Sol を利用できなかったため')
+  })
+
+  it('localizes only deep-study headings and preserves every model body byte-for-byte', () => {
+    const bodies = [
+      'phase=19x19_opening; keep _underscores_, {braces}, 日本語, and  2 spaces.',
+      'Do not translate this arbitrary strategic sentence: moyo ≠ territory.',
+      'Mechanism body\nwith an internal newline and punctuation?!',
+      'Gain body — 그대로 유지.',
+      'Tradeoff body: x_y_z.',
+      'Opponent body with CJK：原文。',
+      'Step A → Step B; exact bytes.',
+      'Reconsider only if the model says so.',
+      'Transfer me verbatim; SENTINEL_9.',
+    ]
+    const headings = [
+      'Study focus',
+      'Why now',
+      'How it works',
+      'Gain',
+      'Tradeoff',
+      'Opponent response',
+      'Next steps',
+      'Reconsider when',
+      'Transferable principle',
+    ]
+    const source = headings.map((heading, index) => `${heading}: ${bodies[index]}`).join('\n\n')
+    const localized = localizeGame({
+      ...DEMO_GAME,
+      coach_messages: [{
+        id: 'deep-study-structured-model',
+        speaker: 'Lantern',
+        role: 'companion',
+        evidence: ['model'],
+        text: source,
+      }],
+    }, 'ja').coach_messages[0].text
+
+    expect(localized).toBe([
+      `${translate('ja', 'opening.deepStudyFocus')}：${bodies[0]}`,
+      `${translate('ja', 'opening.whyNow')}：${bodies[1]}`,
+      `${translate('ja', 'opening.mechanism')}：${bodies[2]}`,
+      `${translate('ja', 'opening.gain')}：${bodies[3]}`,
+      `${translate('ja', 'opening.tradeoff')}：${bodies[4]}`,
+      `${translate('ja', 'opening.opponentReply')}：${bodies[5]}`,
+      `${translate('ja', 'opening.followUps')}：${bodies[6]}`,
+      `${translate('ja', 'opening.reconsider')}：${bodies[7]}`,
+      `${translate('ja', 'opening.transferablePrinciple')}：${bodies[8]}`,
+    ].join('\n\n'))
+    for (const body of bodies) expect(localized).toContain(body)
+  })
+
+  it('localizes an allowlisted model study phase but preserves every other model body', () => {
+    const arbitraryBody = 'life_and_death plus arbitrary model prose _must_stay_exact_.'
+    for (const locale of ['ar', 'ja', 'zh-Hans'] as const) {
+      const localized = localizeGame({
+        ...DEMO_GAME,
+        coach_messages: [{
+          id: `model-phase-${locale}`,
+          speaker: 'Lantern',
+          role: 'companion',
+          evidence: ['model'],
+          text: `Study focus: life_and_death\n\nWhy now: ${arbitraryBody}`,
+        }],
+      }, locale).coach_messages[0].text
+      expect(localized).toBe([
+        `${translate(locale, 'opening.deepStudyFocus')}${locale === 'ja' || locale === 'zh-Hans' ? '：' : ': '}${translate(locale, 'opening.phase.life_and_death')}`,
+        `${translate(locale, 'opening.whyNow')}${locale === 'ja' || locale === 'zh-Hans' ? '：' : ': '}${arbitraryBody}`,
+      ].join('\n\n'))
+      expect(localized).toContain(arbitraryBody)
+      expect(localized).not.toContain('Study focus:')
+    }
+  })
+
+  it('maps every bounded study phase without exposing protocol slugs', () => {
+    const phaseKeys = {
+      rules: 'opening.phase.rules',
+      life_and_death: 'opening.phase.life_and_death',
+      tesuji: 'opening.phase.tesuji',
+      shape: 'opening.phase.shape',
+      joseki: 'opening.phase.joseki',
+      fuseki: 'opening.phase.fuseki',
+      middle_game: 'opening.phase.middle_game',
+      endgame: 'opening.phase.endgame',
+      positional_judgment: 'opening.phase.positional_judgment',
+      game_review: 'opening.phase.game_review',
+    } as const
+
+    for (const locale of SUPPORTED_LOCALES.filter((item) => item !== 'en')) {
+      const colon = locale === 'ja' || locale === 'zh-Hans' || locale === 'zh-Hant' ? '：' : ': '
+      for (const [phase, key] of Object.entries(phaseKeys)) {
+        const localized = localizeGame({
+          ...DEMO_GAME,
+          coach_messages: [{
+            id: `model-phase-${locale}-${phase}`,
+            speaker: 'Lantern',
+            role: 'companion',
+            evidence: ['model'],
+            text: `Study focus: ${phase}`,
+          }],
+        }, locale).coach_messages[0].text
+        expect(localized, `${locale}:${phase}`).toBe(
+          `${translate(locale, 'opening.deepStudyFocus')}${colon}${translate(locale, key)}`,
+        )
+        if (phase.includes('_')) expect(localized, `${locale}:${phase}`).not.toContain(phase)
+      }
+    }
+  })
+
+  it('localizes bounded deterministic deep-study bodies in Chinese, Arabic, and Japanese', () => {
+    const searched = [
+      'Study focus: life_and_death',
+      'Why now: This is a life_and_death teaching lens at move 12 for D4; the phase label is pedagogical, not an engine verdict.',
+      'How it works: Rules: captures 1 stone(s); leaves a 2-stone group with 3 liberties.',
+      'Gain: Authored teaching hypothesis: A teacher hypothesis is to keep several future directions open.',
+      'Tradeoff: Authored teaching caution: A flexible move may be too quiet if a nearby group currently has very few liberties.',
+      'Opponent response: KataGo supplied White D4 in one searched line; this reply is not forced.',
+      'Next steps: 1. Recount exact liberties after the opponent reply; 2. Compare authored future anchors Q16, D16; 3. Re-evaluate whole-board urgency before choosing one.',
+      'Reconsider when: Authored teaching caution: A flexible move may be too quiet if a nearby group currently has very few liberties.',
+      'Transferable principle: Separate exact local consequences from authored plans, engine forecasts, and unsettled influence or territory potential.',
+    ].join('\n\n')
+    const unsearched = [
+      'Study focus: positional_judgment',
+      'Why now: This is a positional_judgment teaching lens at move 0; the phase label is pedagogical, not an engine verdict.',
+      'How it works: The current position has 0 black stones and 0 white stones; legality and liberties remain deterministic board facts.',
+      'Gain: Compare only the supplied legal choices; no strategic gain is proven here.',
+      'Tradeoff: The position does not prove that territory is secured or that a group is safe.',
+      "Opponent response: No searched reply is attached; compare the opponent's legal responses.",
+      "Next steps: 1. Recount exact liberties; 2. Compare the supplied legal candidates; 3. Re-evaluate after the opponent's actual move.",
+      'Reconsider when: The position does not prove that territory is secured or that a group is safe.',
+      'Transferable principle: Separate exact local consequences from authored plans, engine forecasts, and unsettled influence or territory potential.',
+    ].join('\n\n')
+    const stableEnglishBodies = [
+      'This is a ',
+      'teaching lens at move',
+      'Authored teaching hypothesis',
+      'Authored teaching caution',
+      'KataGo supplied',
+      'No searched reply is attached',
+      'Recount exact liberties',
+      'Separate exact local consequences',
+      'black stones and',
+    ]
+
+    for (const locale of ['zh-Hans', 'ar', 'ja'] as const) {
+      for (const [index, source] of [searched, unsearched].entries()) {
+        const localized = localizeGame({
+          ...DEMO_GAME,
+          coach_messages: [{
+            id: `deterministic-study-${locale}-${index}`,
+            speaker: 'Lantern',
+            role: 'companion',
+            evidence: ['teacher'],
+            text: source,
+          }],
+        }, locale).coach_messages[0].text
+        for (const english of stableEnglishBodies) {
+          expect(localized, `${locale}:${index}:${english}`).not.toContain(english)
+        }
+        expect(localized).toContain(translate(locale, index === 0 ? 'opening.phase.life_and_death' : 'opening.phase.positional_judgment'))
+        expect(localized).toContain(translate(locale, 'opening.study.transferable'))
+        expect(localized).toContain(translate(locale, 'opening.opponentReply'))
+      }
+    }
   })
 
   it('localizes deterministic coach and facet templates in every non-English locale', () => {

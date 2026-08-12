@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .adapters.katago.full_board import KataGo19Process
 from .adapters.katago.process import KataGoProcess
 from .adapters.localllm.client import LocalLLMClient
 from .adapters.openai.client import OpenAIClient
@@ -177,6 +178,7 @@ def create_app(
     *,
     store: GameStore | None = None,
     katago: KataGoProcess | None = None,
+    katago19: KataGo19Process | None = None,
     openai: OpenAIClient | None = None,
     local: LocalLLMClient | None = None,
 ) -> FastAPI:
@@ -187,6 +189,7 @@ def create_app(
         data_dir = configured.prepare_data_dir()
         resolved_store = store or GameStore(data_dir)
         resolved_katago = katago or KataGoProcess(configured)
+        resolved_katago19 = katago19 or KataGo19Process(configured)
         resolved_openai = openai or OpenAIClient(configured)
         resolved_local = local or LocalLLMClient(configured)
         providers = TeachingProviders(
@@ -197,15 +200,22 @@ def create_app(
         app.state.settings = configured
         app.state.game_store = resolved_store
         app.state.katago = resolved_katago
+        app.state.katago19 = resolved_katago19
         app.state.openai = resolved_openai
         app.state.localllm = resolved_local
         app.state.providers = providers
-        app.state.game_service = GameService(resolved_store, resolved_katago, providers)
+        app.state.game_service = GameService(
+            resolved_store,
+            resolved_katago,
+            resolved_katago19,
+            providers,
+        )
         try:
             yield
         finally:
             await app.state.game_service.close()
             await resolved_katago.close()
+            await resolved_katago19.close()
             await resolved_openai.close()
             await resolved_local.close()
 
@@ -298,6 +308,7 @@ def create_app(
     async def status(request: Request) -> dict[str, Any]:
         service = _service(request)
         engine = await service.katago.status()
+        engine19 = await service.katago19.status()
         try:
             providers = await asyncio.wait_for(service.providers.status(), timeout=7.0)
         except (asyncio.TimeoutError, TimeoutError):
@@ -341,11 +352,19 @@ def create_app(
                 )
             ),
         }
+        engine19_status = {
+            "status": "ready" if engine19["available"] else "fallback",
+            "provider": "KataGo" if engine19["available"] else "Deterministic opening geometry",
+            "profiles": engine19.get("profiles", {}),
+            "active_profile": engine19.get("active_profile"),
+            "detail": engine19["detail"],
+        }
         return {
-            "status": "ready" if engine["available"] else "degraded",
+            "status": "ready" if engine["available"] or engine19["available"] else "degraded",
             "service": "weiqi",
             "version": "0.1.0",
             "engine": engine_status,
+            "engine_19x19": engine19_status,
             "coach": coach_status,
             "supported_board_sizes": list(PUBLIC_BOARD_SIZES),
         }

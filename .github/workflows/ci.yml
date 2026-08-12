@@ -47,6 +47,7 @@ jobs:
           persist-credentials: false
       - run: bash -n scripts/*.sh scripts/tests/*.sh
       - run: scripts/verify-katago.sh --static-only
+      - run: scripts/verify-katago19.sh --static-only
       - run: scripts/tests/test-katago-scripts.sh
       - run: scripts/tests/test-runtime-safety.sh
       - run: python3 -m compileall -q scripts

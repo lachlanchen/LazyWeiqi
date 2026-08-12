@@ -11,6 +11,7 @@ import { EnergyLenses } from './EnergyLenses'
 import { ModePicker } from './ModePicker'
 import { PowerTeacher } from './PowerTeacher'
 import { WeiqiBoard } from './WeiqiBoard'
+import type { CandidateMove } from '../types'
 
 describe('accessible teaching surfaces', () => {
   it('exposes the normal 19x19 lesson in both simple and full launchers', () => {
@@ -334,7 +335,7 @@ describe('accessible teaching surfaces', () => {
     )
     const cards = renderToStaticMarkup(
       <CandidateCards
-        boardSize={19}
+        boardSize={9}
         toPlay="black"
         candidates={[candidate]}
         inspectedCandidateId={candidate.id}
@@ -398,6 +399,124 @@ describe('accessible teaching surfaces', () => {
     expect(cards).not.toContain('candidate-small-board-honesty')
     expect(teacher).toContain('Rules + teacher interpretation · no candidate engine claim')
     expect(teacher).not.toContain('Engine estimate')
+  })
+
+  it('replaces the empty-board distance sketch with state-bound 19x19 opening layers', () => {
+    const candidate: CandidateMove = {
+      id: 'm_19openingreading19openingreading',
+      point: { x: 3, y: 3 },
+      coordinate: 'D16',
+      intent: 'claim',
+      intent_evidence: 'teacher',
+      title: 'Begin near the upper-left star point',
+      summary: 'Compare the corner and its two open development directions.',
+      tactics: {
+        captures: [], resulting_liberties: 4, resulting_group_size: 1,
+        connects: [], cuts: [], friendly_groups_joined: 0,
+        opponent_groups_newly_in_atari: 0, friendly_groups_escaped_atari: 0,
+        self_atari: false, evidence: 'exact',
+      },
+      opening_teaching: {
+        schema_version: 1,
+        binding: { state_token: 'empty-19-black', position_hash: 'empty-19-black', move_number: 0, candidate_id: 'm_19openingreading19openingreading', to_move: 'black' },
+        provenance: {
+          rules_facts: { evidence: 'exact', source: 'deterministic_rules' },
+          geometry: { evidence: 'calculated_potential', source: 'deterministic_opening_geometry_v1' },
+          strategy: { evidence: 'authored', source: 'authored_opening_principles_v1' },
+          engine: { available: false, reason_id: 'engine_evidence_not_attached' },
+        },
+        role_id: 'upper_left_framework_seed',
+        family_id: 'corner_star_point',
+        purpose_id: 'claim_upper_left_with_two_open_directions',
+        why_id: 'fourth_line_balances_corner_access_and_outward_reach',
+        gain_ids: ['corner_entry', 'top_side_option', 'left_side_option'],
+        loss_ids: ['corner_not_secured', 'opponent_keeps_approach_choice'],
+        mechanism: {
+          fact_ids: ['fourth_line_corner_projection', 'two_open_development_directions'],
+          exact: { region_id: 'corner_entry', line_from_nearest_edge: 4, resulting_liberties: 4, resulting_group_size: 1, connections: 0 },
+          before_shape_id: 'empty_board_uncommitted',
+          after_shape_id: 'upper_left_seed_projects_right_and_down',
+          reconsider_condition_ids: ['nearby_contact_makes_local_reply_urgent'],
+          shape_assessment: { evidence: 'calculated_potential', thickness_id: 'single_stone_not_thick', weakness_ids: ['can_be_approached_from_open_side'] },
+        },
+        influence: {
+          evidence: 'calculated_potential',
+          vectors: [
+            { from: { x: 3, y: 3 }, to: { x: 9, y: 3 }, strength: 0.8, direction_id: 'along_top' },
+            { from: { x: 3, y: 3 }, to: { x: 3, y: 9 }, strength: 0.8, direction_id: 'along_left' },
+          ],
+          regions: [{ center: { x: 5, y: 5 }, radius: 3, strength: 0.65, direction_id: 'toward_center' }],
+          change_cells: [{ point: { x: 4, y: 3 }, influence_delta: 0.24, territory_potential_delta: 0.12 }],
+        },
+        territory: {
+          evidence: 'calculated_potential',
+          zones: [{ kind: 'corner', center: { x: 2, y: 2 }, radius: 3, potential: 'efficient' }],
+          note_id: 'potential_not_secured_territory',
+        },
+        whole_board: { balance_effect_id: 'adds_upper_left_option', open_corners: 4 },
+        initiative: { sente_status_id: 'open_board_not_forced', not_forced: true },
+        follow_ups: [{ label_id: 'extend_top', point: { x: 9, y: 3 }, coordinate: 'K16', role: 'extension', reason_id: 'extend_along_open_side', evidence: 'authored' }],
+        reply_anchors: [{ label_id: 'opponent_approach', point: { x: 5, y: 3 }, coordinate: 'F16', role: 'approach', reason_id: 'approach_tests_corner_response', evidence: 'authored' }],
+        joseki: { term: 'Joseki', original: '定式', relation: 'entry_point', note_id: 'star_point_can_begin_joseki_context', evidence: 'authored', guaranteed_sequence: false },
+        teaching_diagrams: [],
+        caution_ids: ['corner_not_secured'],
+        limitations_ids: ['authored_context_not_best_move'],
+      },
+      legal_verified: true,
+      engine_analyzed: false,
+      verified: false,
+    }
+    const html = renderToStaticMarkup(
+      <WeiqiBoard
+        size={19}
+        stones={[]}
+        toPlay="black"
+        selected={null}
+        onSelect={() => undefined}
+        candidatePreview={candidate}
+        candidatePreviewMode="suggested-first-stone"
+        openingLandscape={{
+          schema_version: 1,
+          binding: { state_token: 'empty-19-black', position_hash: 'empty-19-black', move_number: 0, to_move: 'black' },
+          provenance: {
+            rules_facts: { evidence: 'exact', source: 'deterministic_rules' },
+            geometry: { evidence: 'calculated_potential', source: 'deterministic_opening_geometry_v1' },
+            strategy: { evidence: 'authored', source: 'authored_opening_principles_v1' },
+            engine: { available: false, reason_id: 'engine_evidence_not_attached' },
+          },
+          phase_id: 'empty_board_opening',
+          field: {
+            evidence: 'calculated_potential', source: 'deterministic_opening_geometry_v1', cells: [], cell_limit: 241,
+            not_ownership: true, not_secured_territory: true,
+          },
+          region_balance: [],
+          corner_status: [],
+          limitations_ids: ['potential_not_secured_territory', 'influence_not_ownership'],
+        }}
+        activeLenses={new Set(['cloud'])}
+        showCoordinates
+      />,
+    )
+
+    expect(html).toContain('data-opening-teaching="true"')
+    expect(html).toContain('data-testid="opening-teaching-layers"')
+    expect(html).toContain('data-testid="opening-shape-exact" data-evidence="exact"')
+    expect(html).toContain('data-testid="opening-territory-potential" data-evidence="calculated_potential"')
+    expect(html).toContain('data-testid="opening-influence-potential" data-evidence="calculated_potential"')
+    expect(html).toContain('data-testid="opening-follow-up-anchors" data-evidence="authored"')
+    expect(html).toContain('data-testid="opening-landscape-potential" data-evidence="calculated_potential"')
+    expect(html).toContain('data-not-ownership="true" data-not-secured-territory="true"')
+    expect(html).toContain('data-testid="opening-candidate-change-field" data-evidence="calculated_potential"')
+    expect(html).toContain('data-field-mode="candidate-change-vs-current"')
+    expect(html).toContain('data-testid="opening-landscape-accessible"')
+    expect(html).toContain('potential, not secured territory')
+    expect(html).toContain('potential, not ownership')
+    expect(html).toContain('data-testid="opening-details-trigger"')
+    expect(html).toContain('Why this move?')
+    expect(html).not.toContain('data-testid="opening-potential-cloud"')
+    expect(html).not.toContain('data-testid="candidate-ownership-after"')
+    expect(html).not.toContain('data-testid="opening-dialog"')
+    expect(html).not.toContain('data-testid="candidate-field-key"')
   })
 
   it('labels a small-board candidate as location and exact shape without an engine forecast claim', () => {
@@ -479,7 +598,7 @@ describe('accessible teaching surfaces', () => {
     }
     const html = renderToStaticMarkup(
       <CandidateCards
-        boardSize={9}
+        boardSize={19}
         toPlay="black"
         candidates={[candidate]}
         selectedCandidateId={null}
@@ -902,7 +1021,7 @@ describe('accessible teaching surfaces', () => {
   it('renders persisted learner questions and companion answers as an accessible chat', () => {
     const html = renderToStaticMarkup(
       <CoachRail
-        boardSize={9}
+        boardSize={19}
         toPlay="black"
         mode="human_companion"
         messages={[
@@ -966,6 +1085,8 @@ $$
     expect(html.match(/>Exact<\/span>/g)).toHaveLength(1)
     expect(html).toContain('class="katex"')
     expect(html).toContain('class="katex-display"')
+    expect(html).toContain('data-testid="coach-deep-study"')
+    expect(html).toContain('Ask for deeper AI study')
     expect(html).not.toContain('<script>')
     expect(html).toContain('Lantern asks:')
     expect(html).toContain('Choose an opening and name its intention.')

@@ -65,6 +65,22 @@ class Settings(BaseSettings):
     katago_model: Path = REPOSITORY_ROOT / ".local/models/katago/kata9x9-b18c384nbt-20231025.bin.gz"
     katago_human_model: Path = REPOSITORY_ROOT / ".local/models/katago/b18c384nbt-humanv0.bin.gz"
 
+    # Ordinary 19x19 games use reviewed general networks in a separate,
+    # serialized process lane. The small profile serves interactive reads;
+    # the larger profile is reserved for an explicit reflection request.
+    katago19_enabled: bool = True
+    katago19_gpu: int = Field(default=1, ge=0, le=15)
+    katago19_idle_seconds: int = Field(default=90, ge=30, le=3600)
+    katago19_fast_max_visits: int = Field(default=24, ge=1, le=32)
+    katago19_quality_max_visits: int = Field(default=64, ge=1, le=96)
+    katago19_fast_timeout_seconds: float = Field(default=20.0, gt=0, le=30.0)
+    katago19_quality_timeout_seconds: float = Field(default=60.0, gt=0, le=90.0)
+    katago19_config: Path = REPOSITORY_ROOT / "config/katago-analysis-19x19.cfg"
+    katago19_fast_model: Path = REPOSITORY_ROOT / ".local/models/katago19/b10c384h6nbttflrs.bin.gz"
+    katago19_quality_model: Path = (
+        REPOSITORY_ROOT / ".local/models/katago19/b11c768h12nbt3tflrs-fson-silu.bin.gz"
+    )
+
     @field_validator("host")
     @classmethod
     def validate_host(cls, value: str) -> str:

@@ -17,6 +17,95 @@ def test_openai_coach_schema_is_normalized_for_strict_structured_output() -> Non
     assert set(schema["required"]) == set(schema["properties"])
     assert "default" not in schema["properties"]["uncertainty"]
     assert schema["additionalProperties"] is False
+    assert "study" in schema["required"]
+
+
+@pytest.mark.asyncio
+async def test_openai_deep_study_requires_the_structured_annotated_book_fields(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    settings = Settings(data_dir=tmp_path, openai_api_key="test-only-key")
+    client = OpenAIClient(settings)
+    ordinary = {
+        "schema_version": 1,
+        "headline": "Compare the directions",
+        "story": "The corner is open.",
+        "principle": {"name": "Fuseki", "explanation": "Whole-board opening direction."},
+        "what_changed": ["No stone has been committed."],
+        "remember": "Compare the opponent's approach.",
+        "choices": [],
+        "reflection_question": "Which side matters next?",
+        "uncertainty": None,
+        "study": None,
+    }
+
+    async def response(**_kwargs: Any) -> dict[str, Any]:
+        return ordinary
+
+    monkeypatch.setattr(client, "_response", response)
+    try:
+        with pytest.raises(ValueError, match="omitted the requested structured deep study"):
+            await client.coach(
+                {
+                    "candidates": [],
+                    "teaching_focus": {"primary": "fuseki", "supporting": ["shape"]},
+                },
+                review=True,
+            )
+        accepted = await client.coach({"candidates": []}, review=False)
+    finally:
+        await client.close()
+
+    assert accepted.study is None
+
+
+@pytest.mark.asyncio
+async def test_openai_deep_study_cannot_change_the_deterministic_teaching_phase(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    settings = Settings(data_dir=tmp_path, openai_api_key="test-only-key")
+    client = OpenAIClient(settings)
+    payload = {
+        "schema_version": 1,
+        "headline": "Compare the whole board",
+        "story": "The corner move faces two sides.",
+        "principle": {"name": "Fuseki", "explanation": "Opening direction across the board."},
+        "what_changed": ["The preview remains uncommitted."],
+        "remember": "Compare the approach before choosing.",
+        "choices": [],
+        "reflection_question": "Which open side matters more?",
+        "uncertainty": None,
+        "study": {
+            "phase": "endgame",
+            "why_now": "The opening is empty.",
+            "mechanism": "A high corner move projects along two sides.",
+            "gain": "It keeps two directions.",
+            "tradeoff": "The corner remains open to approach.",
+            "opponent_response": "Compare the supplied approach anchors.",
+            "next_steps": ["Inspect one supplied extension."],
+            "reconsider_when": "A weak group becomes urgent.",
+            "transferable_principle": "Whole-board direction matters in fuseki.",
+        },
+    }
+
+    async def response(**_kwargs: Any) -> dict[str, Any]:
+        return payload
+
+    monkeypatch.setattr(client, "_response", response)
+    evidence = {
+        "candidates": [],
+        "teaching_focus": {"primary": "fuseki", "supporting": ["shape", "joseki"]},
+    }
+    try:
+        with pytest.raises(ValueError, match="changed the deterministic teaching focus"):
+            await client.coach(evidence, review=True)
+        payload["study"]["phase"] = "fuseki"
+        accepted = await client.coach(evidence, review=True)
+    finally:
+        await client.close()
+
+    assert accepted.study is not None
+    assert accepted.study.phase == "fuseki"
 
 
 @pytest.mark.asyncio

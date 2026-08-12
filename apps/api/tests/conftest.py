@@ -9,6 +9,19 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from weiqi.adapters.katago.full_board import (
+    KATAGO19_BINARY_SHA256,
+    KATAGO19_BINARY_SIZE,
+    KATAGO19_CONFIG_NAME,
+    KATAGO19_CONFIG_SHA256,
+    KATAGO19_CONFIG_SIZE,
+    KATAGO19_FAST_MODEL_NAME,
+    KATAGO19_FAST_MODEL_SHA256,
+    KATAGO19_FAST_MODEL_SIZE,
+    KATAGO19_QUALITY_MODEL_NAME,
+    KATAGO19_QUALITY_MODEL_SHA256,
+    KATAGO19_QUALITY_MODEL_SIZE,
+)
 from weiqi.adapters.katago.process import KataGoUnavailable
 from weiqi.adapters.store.sqlite import GameStore
 from weiqi.config import Settings
@@ -43,6 +56,103 @@ class FakeKataGo:
         response = self.analysis(query) if callable(self.analysis) else self.analysis
         normalized = dict(response)
         normalized.setdefault("turnNumber", len(query.get("moves", [])))
+        return normalized
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class FakeKataGo19:
+    def __init__(
+        self,
+        analysis: dict[str, Any] | Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    ) -> None:
+        self.analysis = analysis
+        self.queries: list[dict[str, Any]] = []
+        self.closed = False
+
+    @staticmethod
+    def profile_descriptor(profile: str) -> dict[str, Any]:
+        quality = profile == "quality"
+        return {
+            "engine_version": "1.17.2",
+            "profile": profile,
+            "model": KATAGO19_QUALITY_MODEL_NAME if quality else KATAGO19_FAST_MODEL_NAME,
+            "model_sha256": (
+                KATAGO19_QUALITY_MODEL_SHA256 if quality else KATAGO19_FAST_MODEL_SHA256
+            ),
+            "model_size": KATAGO19_QUALITY_MODEL_SIZE if quality else KATAGO19_FAST_MODEL_SIZE,
+            "max_visits": 64 if quality else 24,
+            "perspective": "black",
+            "config": {
+                "name": KATAGO19_CONFIG_NAME,
+                "size": KATAGO19_CONFIG_SIZE,
+                "sha256": KATAGO19_CONFIG_SHA256,
+            },
+            "binary": {
+                "size": KATAGO19_BINARY_SIZE,
+                "sha256": KATAGO19_BINARY_SHA256,
+                "source_commit": "6a1fc5de9fc253723ac475a0683bf0b9d9b7bd19",
+            },
+        }
+
+    async def status(self) -> dict[str, Any]:
+        return {
+            "available": self.analysis is not None,
+            "running": False,
+            "active_profile": None,
+            "version": "1.17.2" if self.analysis is not None else None,
+            "gpu": 1,
+            "profiles": {name: self.profile_descriptor(name) for name in ("fast", "quality")}
+            if self.analysis is not None
+            else {},
+            "detail": "test full-board engine"
+            if self.analysis is not None
+            else "disabled in tests",
+        }
+
+    async def query(self, **query: Any) -> dict[str, Any]:
+        self.queries.append(query)
+        if self.analysis is None:
+            raise KataGoUnavailable("disabled in deterministic tests")
+        response = self.analysis(query) if callable(self.analysis) else self.analysis
+        normalized = dict(response)
+        normalized.setdefault("turnNumber", len(query.get("moves", [])))
+        profile = query["profile"]
+        descriptor = self.profile_descriptor(profile)
+        root = normalized.get("rootInfo")
+        current_player = root.get("currentPlayer") if isinstance(root, dict) else None
+        actual_visits = root.get("visits") if isinstance(root, dict) else None
+        normalized.setdefault(
+            "_weiqi_provenance",
+            {
+                "schema_version": 1,
+                "engine": "KataGo",
+                "engine_version": descriptor["engine_version"],
+                "profile": profile,
+                "model": {
+                    "name": descriptor["model"],
+                    "size": descriptor["model_size"],
+                    "sha256": descriptor["model_sha256"],
+                },
+                "config": descriptor["config"],
+                "binary": descriptor["binary"],
+                "requested_visits": descriptor["max_visits"],
+                "actual_visits": actual_visits,
+                "elapsed_ms": 1.25,
+                "cache_hit": False,
+                "perspective": "black",
+                "binding": {
+                    "state_token": query["state_token"],
+                    "position_hash": query["position_hash"],
+                    "history_digest": query["history_digest"],
+                    "move_number": len(query.get("moves", [])),
+                    "side_to_move": {"B": "black", "W": "white"}.get(current_player),
+                    "board_size": 19,
+                    "query_sha256": "0" * 64,
+                },
+            },
+        )
         return normalized
 
     async def close(self) -> None:
@@ -115,12 +225,16 @@ def app_client_factory(tmp_path: Path):
         openai_draft: Any = None,
         local_choice: str | None = None,
         local_draft: Any = None,
+        katago19_analysis: (
+            dict[str, Any] | Callable[[dict[str, Any]], dict[str, Any]] | None
+        ) = None,
     ) -> Iterator[tuple[TestClient, FakeKataGo, FakeModelClient, FakeModelClient]]:
         slot = len(clients)
         data_dir = tmp_path / f"data-{slot}"
         settings = Settings(data_dir=data_dir, openai_api_key=None)
         store = GameStore(settings.prepare_data_dir())
         katago = FakeKataGo(katago_analysis)
+        katago19 = FakeKataGo19(katago19_analysis)
         openai = FakeModelClient(
             candidate_choice=openai_choice,
             coach_draft=openai_draft,
@@ -136,6 +250,7 @@ def app_client_factory(tmp_path: Path):
             settings,
             store=store,
             katago=katago,  # type: ignore[arg-type]
+            katago19=katago19,  # type: ignore[arg-type]
             openai=openai,  # type: ignore[arg-type]
             local=local,  # type: ignore[arg-type]
         )

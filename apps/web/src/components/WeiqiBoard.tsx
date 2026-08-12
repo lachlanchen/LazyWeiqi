@@ -14,7 +14,8 @@ import {
 } from '../board'
 import { localizeAuthoredTemplate, localizeAuthoredText } from '../authoredCopy'
 import { localizeRulesReason, useI18n, type Locale } from '../i18n'
-import type { BoardSize, CandidateMove, MovePreview, MoveRecord, OwnershipCell, Point, Stone, StoneColor } from '../types'
+import type { BoardSize, CandidateMove, MovePreview, MoveRecord, OpeningLandscape, OwnershipCell, Point, Stone, StoneColor } from '../types'
+import { OpeningReading } from './OpeningReading'
 
 export type EnergyLensId = 'cloud' | 'breath' | 'bonds' | 'shelter' | 'reach' | 'ground' | 'area' | 'beat' | 'pressure'
 export type CandidatePreviewMode = 'suggested-first-stone' | 'if-played' | 'candidate-comparison' | 'pinned-candidate'
@@ -32,11 +33,14 @@ interface WeiqiBoardProps {
   candidatePreviewMode?: CandidatePreviewMode | null
   lastMove?: MoveRecord | null
   ownership?: OwnershipCell[]
+  openingLandscape?: OpeningLandscape
   activeLenses: Set<EnergyLensId>
   showCoordinates: boolean
   disabled?: boolean
   reducedMotion?: boolean
   operationStatus?: string
+  onOpeningDeepStudy?: (candidate: CandidateMove) => void
+  openingDeepStudyBusy?: boolean
 }
 
 const BOARD_EDGE = 540
@@ -76,11 +80,14 @@ export function WeiqiBoard({
   candidatePreviewMode,
   lastMove,
   ownership,
+  openingLandscape,
   activeLenses,
   showCoordinates,
   disabled = false,
   reducedMotion = false,
   operationStatus = 'idle',
+  onOpeningDeepStudy,
+  openingDeepStudyBusy = false,
 }: WeiqiBoardProps) {
   const { locale, t } = useI18n()
   const toPlayName = toPlay === 'black' ? t('board.black') : t('board.white')
@@ -113,6 +120,56 @@ export function WeiqiBoard({
     [candidateDelta, candidateDeltaDisplayThreshold],
   )
   const candidatePoint = candidatePreview?.point ?? null
+  const openingTeaching = size === 19 &&
+    candidatePreview?.opening_teaching?.schema_version === 1 &&
+    candidatePreview.opening_teaching.binding.position_hash.length > 0 &&
+    candidatePreview.opening_teaching.binding.candidate_id === candidatePreview.id &&
+    candidatePreview.opening_teaching.binding.to_move === toPlay &&
+    candidatePreview.opening_teaching.mechanism.exact.resulting_liberties === candidatePreview.tactics?.resulting_liberties &&
+    candidatePreview.opening_teaching.mechanism.exact.resulting_group_size === candidatePreview.tactics?.resulting_group_size &&
+    candidatePreview.opening_teaching.mechanism.exact.connections === candidatePreview.tactics?.friendly_groups_joined
+    ? candidatePreview.opening_teaching
+    : undefined
+  const openingTeachingVisible = Boolean(openingTeaching && candidatePoint)
+  const openingLandscapeVisible = Boolean(
+    openingTeaching &&
+    openingLandscape?.schema_version === 1 &&
+    openingLandscape.binding.state_token === openingTeaching.binding.state_token &&
+    openingLandscape.binding.position_hash === openingTeaching.binding.position_hash &&
+    openingLandscape.binding.move_number === openingTeaching.binding.move_number &&
+    openingLandscape.binding.to_move === toPlay &&
+    openingLandscape.field.evidence === 'calculated_potential' &&
+    openingLandscape.field.source === 'deterministic_opening_geometry_v1' &&
+    openingLandscape.field.not_ownership === true &&
+    openingLandscape.field.not_secured_territory === true &&
+    openingLandscape.field.cells.length <= openingLandscape.field.cell_limit &&
+    openingLandscape.field.cell_limit <= 241 &&
+    openingLandscape.field.cells.every((cell) =>
+      cell.point.x >= 0 && cell.point.x < size &&
+      cell.point.y >= 0 && cell.point.y < size &&
+      [
+        cell.black_influence,
+        cell.white_influence,
+        cell.black_territory_potential,
+        cell.white_territory_potential,
+        cell.contested,
+      ].every((value) => Number.isFinite(value) && value >= 0 && value <= 1),
+    ),
+  )
+  const openingChangeCells = openingTeachingVisible ? openingTeaching?.influence.change_cells ?? [] : []
+  const openingChangeThreshold = useMemo(() => {
+    const magnitudes = openingChangeCells
+      .map((cell) => Math.max(Math.abs(cell.influence_delta), Math.abs(cell.territory_potential_delta)))
+      .filter(Number.isFinite)
+      .sort((left, right) => right - left)
+    return magnitudes.length > 64 ? magnitudes[63] : 0.012
+  }, [openingChangeCells])
+  const visibleOpeningChangeCells = useMemo(
+    () => openingChangeCells.filter((cell) =>
+      Math.max(Math.abs(cell.influence_delta), Math.abs(cell.territory_potential_delta)) >= openingChangeThreshold,
+    ),
+    [openingChangeCells, openingChangeThreshold],
+  )
   const candidateIsPass = Boolean(candidatePreview && (candidatePreview.kind === 'pass' || candidatePreview.point == null))
   const candidateVariationAvailable = Boolean(
     candidatePreview?.ownership_after?.length &&
@@ -152,7 +209,10 @@ export function WeiqiBoard({
   })
   const cloudVisible = activeLenses.has('cloud')
   const presenceSketchVisible = cloudVisible && !candidatePreview
-  const openingCloud = presenceSketchVisible && stones.length === 0
+  // The generic opening cloud is only a distance analogy. A position-bound
+  // 19x19 teaching candidate replaces it with separate shape, territory-
+  // potential, influence, and joseki layers.
+  const openingCloud = presenceSketchVisible && stones.length === 0 && !openingTeachingVisible
   const baselineOwnershipVisible = Boolean(
     !candidatePreview && ownership?.length && (activeLenses.has('reach') || activeLenses.has('ground')),
   )
@@ -172,6 +232,12 @@ export function WeiqiBoard({
     center: `center-potential-${instanceId}`,
     clip: `board-clip-${instanceId}`,
     smooth: `candidate-field-smooth-${instanceId}`,
+    openingInfluence: `opening-influence-${instanceId}`,
+    openingTerritory: `opening-territory-${instanceId}`,
+    openingArrow: `opening-arrow-${instanceId}`,
+    landscapeBlack: `landscape-black-${instanceId}`,
+    landscapeWhite: `landscape-white-${instanceId}`,
+    landscapeContested: `landscape-contested-${instanceId}`,
   }
 
   useEffect(() => {
@@ -190,6 +256,7 @@ export function WeiqiBoard({
       className="board-visual"
       data-board-size={size}
       data-presence-key={presenceSketchVisible ? 'visible' : 'hidden'}
+      data-opening-reading={openingTeachingVisible ? 'visible' : 'hidden'}
     >
       <div
         className={`board-frame ${reducedMotion ? 'reduce-motion' : ''}`}
@@ -197,6 +264,7 @@ export function WeiqiBoard({
         data-board-size={size}
         data-operation={operationStatus}
         data-candidate-mode={candidatePreviewMode ?? 'none'}
+        data-opening-teaching={openingTeachingVisible}
         data-selection-clearable={selectionClearable}
         data-context-action={selectionClearable ? 'clear-selection' : 'browser-default'}
         onContextMenu={(event) => {
@@ -266,6 +334,31 @@ export function WeiqiBoard({
             <stop offset="0" stopColor="#7c45bd" stopOpacity=".58" />
             <stop offset="1" stopColor="#cbb8e8" stopOpacity="0" />
           </radialGradient>
+          <radialGradient id={cloudIds.openingInfluence}>
+            <stop offset="0" stopColor="#0c97a6" stopOpacity=".5" />
+            <stop offset=".55" stopColor="#42bfd0" stopOpacity=".23" />
+            <stop offset="1" stopColor="#8bdde3" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id={cloudIds.openingTerritory}>
+            <stop offset="0" stopColor="#df9f39" stopOpacity=".42" />
+            <stop offset=".62" stopColor="#f3c86f" stopOpacity=".18" />
+            <stop offset="1" stopColor="#f9e7b6" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id={cloudIds.landscapeBlack}>
+            <stop offset="0" stopColor="#16708e" stopOpacity=".46" />
+            <stop offset="1" stopColor="#5fb2bd" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id={cloudIds.landscapeWhite}>
+            <stop offset="0" stopColor="#d56b42" stopOpacity=".42" />
+            <stop offset="1" stopColor="#efb06e" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id={cloudIds.landscapeContested}>
+            <stop offset="0" stopColor="#7651a5" stopOpacity=".4" />
+            <stop offset="1" stopColor="#ae8ac8" stopOpacity="0" />
+          </radialGradient>
+          <marker id={cloudIds.openingArrow} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M 0 0 L 8 4 L 0 8 z" className="opening-influence-arrowhead" />
+          </marker>
           <clipPath id={cloudIds.clip}>
             <rect x="15" y="15" width="510" height="510" rx="22" />
           </clipPath>
@@ -349,6 +442,167 @@ export function WeiqiBoard({
               {presenceField.filter((cell) => cell.contested >= 0.08).map((cell) => {
                 const { x, y } = position(cell)
                 return <circle key={`contested-cloud-${pointKey(cell)}`} cx={x} cy={y} r={step * 1.08} fill={`url(#${cloudIds.contested})`} opacity={0.28 + cell.contested * 0.58} />
+              })}
+            </g>
+          </g>
+        )}
+
+        {openingLandscapeVisible && openingLandscape && (
+          <g
+            className="opening-landscape-potential"
+            data-testid="opening-landscape-potential"
+            data-evidence="calculated_potential"
+            data-source={openingLandscape.field.source}
+            data-not-ownership={openingLandscape.field.not_ownership}
+            data-not-secured-territory={openingLandscape.field.not_secured_territory}
+            data-position-hash={openingLandscape.binding.position_hash}
+            clipPath={`url(#${cloudIds.clip})`}
+            aria-hidden="true"
+          >
+            {openingLandscape.field.cells.map((cell) => {
+              const at = position(cell.point)
+              const black = Math.max(cell.black_influence, cell.black_territory_potential)
+              const white = Math.max(cell.white_influence, cell.white_territory_potential)
+              const strongest = Math.max(black, white, cell.contested)
+              const fill = cell.contested >= Math.max(black, white) * 0.72
+                ? `url(#${cloudIds.landscapeContested})`
+                : black >= white
+                  ? `url(#${cloudIds.landscapeBlack})`
+                  : `url(#${cloudIds.landscapeWhite})`
+              return (
+                <circle
+                  key={`opening-landscape-${pointKey(cell.point)}`}
+                  cx={at.x}
+                  cy={at.y}
+                  r={step * 0.72}
+                  fill={fill}
+                  opacity={Math.min(0.42, 0.1 + strongest * 0.32)}
+                  data-point={pointKey(cell.point)}
+                />
+              )
+            })}
+          </g>
+        )}
+
+        {openingTeachingVisible && visibleOpeningChangeCells.length > 0 && (
+          <g
+            className="opening-candidate-change-field"
+            data-testid="opening-candidate-change-field"
+            data-evidence="calculated_potential"
+            data-field-mode="candidate-change-vs-current"
+            data-not-ownership="true"
+            data-display-cutoff={openingChangeThreshold.toFixed(3)}
+            clipPath={`url(#${cloudIds.clip})`}
+            aria-hidden="true"
+          >
+            {visibleOpeningChangeCells.map((cell) => {
+              const at = position(cell.point)
+              const influence = cell.influence_delta
+              const territory = cell.territory_potential_delta
+              const magnitude = Math.max(Math.abs(influence), Math.abs(territory))
+              return (
+                <circle
+                  key={`opening-change-${pointKey(cell.point)}`}
+                  cx={at.x}
+                  cy={at.y}
+                  r={step * 0.32}
+                  className={`opening-change-cell ${influence + territory >= 0 ? 'gain' : 'loss'}`}
+                  opacity={Math.min(0.72, 0.2 + magnitude * 0.7)}
+                  data-point={pointKey(cell.point)}
+                  data-influence-delta={influence.toFixed(3)}
+                  data-territory-potential-delta={territory.toFixed(3)}
+                />
+              )
+            })}
+          </g>
+        )}
+
+        {openingTeachingVisible && openingTeaching && (
+          <g
+            className="opening-teaching-layers"
+            data-testid="opening-teaching-layers"
+            data-candidate-id={openingTeaching.binding.candidate_id}
+            data-position-hash={openingTeaching.binding.position_hash}
+            data-schema-version={openingTeaching.schema_version}
+            aria-hidden="true"
+          >
+            <g data-testid="opening-territory-potential" data-evidence="calculated_potential" clipPath={`url(#${cloudIds.clip})`}>
+              {openingTeaching.territory.zones.map((zone, index) => {
+                const at = position(zone.center)
+                return (
+                  <circle
+                    key={`opening-zone-${index}-${pointKey(zone.center)}`}
+                    cx={at.x}
+                    cy={at.y}
+                    r={Math.max(step * 1.2, step * zone.radius)}
+                    fill={`url(#${cloudIds.openingTerritory})`}
+                    className={`opening-territory-zone ${zone.kind} ${zone.potential}`}
+                    data-zone-kind={zone.kind}
+                    data-potential={zone.potential}
+                  />
+                )
+              })}
+            </g>
+            <g data-testid="opening-influence-potential" data-evidence="calculated_potential" clipPath={`url(#${cloudIds.clip})`}>
+              {openingTeaching.influence.regions.map((region, index) => {
+                const at = position(region.center)
+                return (
+                  <circle
+                    key={`opening-influence-region-${index}-${pointKey(region.center)}`}
+                    cx={at.x}
+                    cy={at.y}
+                    r={Math.max(step, step * region.radius)}
+                    fill={`url(#${cloudIds.openingInfluence})`}
+                    opacity={Math.max(0.32, Math.min(0.82, region.strength))}
+                    data-direction={region.direction_id}
+                  />
+                )
+              })}
+              {openingTeaching.influence.vectors.map((vector, index) => {
+                const from = position(vector.from)
+                const to = position(vector.to)
+                return (
+                  <line
+                    key={`opening-influence-vector-${index}-${pointKey(vector.from)}-${pointKey(vector.to)}`}
+                    x1={from.x}
+                    y1={from.y}
+                    x2={to.x}
+                    y2={to.y}
+                    className="opening-influence-vector"
+                    markerEnd={`url(#${cloudIds.openingArrow})`}
+                    opacity={Math.max(0.5, Math.min(1, vector.strength))}
+                    data-direction={vector.direction_id}
+                  />
+                )
+              })}
+            </g>
+            <g data-testid="opening-shape-exact" data-evidence="exact">
+              {candidatePoint && (() => {
+                const at = position(candidatePoint)
+                return (
+                  <>
+                    <circle cx={at.x} cy={at.y} r={step * 0.76} className="opening-shape-ring" />
+                    <text x={at.x} y={at.y - step * 0.7} textAnchor="middle" className="opening-shape-label">
+                      {openingTeaching.mechanism.exact.resulting_liberties}
+                    </text>
+                  </>
+                )
+              })()}
+            </g>
+            <g data-testid="opening-follow-up-anchors" data-evidence="authored">
+              {[...openingTeaching.follow_ups, ...openingTeaching.reply_anchors].map((anchor, index) => {
+                const at = position(anchor.point)
+                return (
+                  <g
+                    key={`opening-anchor-${index}-${anchor.role}-${pointKey(anchor.point)}`}
+                    className={`opening-anchor ${anchor.role}`}
+                    data-role={anchor.role}
+                    data-coordinate={anchor.coordinate}
+                  >
+                    <circle cx={at.x} cy={at.y} r={step * 0.28} />
+                    <text x={at.x} y={at.y + 3.5} textAnchor="middle">{index + 1}</text>
+                  </g>
+                )
               })}
             </g>
           </g>
@@ -724,6 +978,11 @@ export function WeiqiBoard({
           </g>
         ))}
       </svg>
+      {openingLandscapeVisible && (
+        <p className="sr-only" data-testid="opening-landscape-accessible">
+          {t('opening.territoryHelp')} {t('opening.influenceHelp')}
+        </p>
+      )}
       <div className="board-live-status sr-only" aria-live="polite">
         {candidatePreview
           ? candidatePreviewMode === 'suggested-first-stone'
@@ -751,7 +1010,19 @@ export function WeiqiBoard({
       </div>
       </div>
 
-      {candidatePreview && (
+      {openingTeaching && candidatePreview && candidatePoint && (
+        <OpeningReading
+          size={size}
+          stones={stones}
+          toPlay={toPlay}
+          candidate={candidatePreview}
+          teaching={openingTeaching}
+          onDeepStudy={onOpeningDeepStudy ? () => onOpeningDeepStudy(candidatePreview) : undefined}
+          deepStudyBusy={openingDeepStudyBusy}
+        />
+      )}
+
+      {candidatePreview && !openingTeaching && (
         <section
           className="candidate-field-key"
           aria-label={candidateEngineField

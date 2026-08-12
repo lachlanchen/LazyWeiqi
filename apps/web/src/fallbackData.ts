@@ -24,6 +24,11 @@ export const FALLBACK_STATUS: ServiceStatus = {
     provider: 'KataGo',
     detail: 'Analysis is not connected. Exact board teaching remains available.',
   },
+  engine_19x19: {
+    status: 'fallback',
+    provider: 'Deterministic opening geometry',
+    detail: 'Calculated opening potential remains available without engine ownership evidence.',
+  },
   coach: {
     status: 'fallback',
     provider: 'Local companion',

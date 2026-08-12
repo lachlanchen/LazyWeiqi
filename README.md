@@ -20,6 +20,8 @@ Path of Influence is a local-first teaching application for Go/Weiqi. It moves f
 
 The board keeps exact liberties, groups, captures, ko, and legal moves visually separate from KataGo forecasts, teacher interpretation, model explanation, and metaphor.
 
+On ordinary 19×19 openings, candidate previews separate exact local shape from calculated territory potential and influence direction, then show authored gains, tradeoffs, before→after power shape, reconsideration conditions, follow-ups, opponent replies, and joseki (定式) context. Numbered mini-diagrams are questions to examine, not stones already played or a forced sequence. The optional deeper AI study keeps its localized headings separate from verbatim model prose and never places a stone.
+
 ## Teaching contract
 
 - Deterministic code owns legality, capture, positional superko, scoring, history, and persistence.
@@ -35,7 +37,7 @@ The board keeps exact liberties, groups, captures, ko, and legal moves visually 
 | --- | --- |
 | [`apps/api/`](apps/api/) | FastAPI authority, deterministic Go domain, SQLite chronicle, and bounded KataGo/LLM adapters |
 | [`apps/web/`](apps/web/) | Responsive React/Vite teaching client with 11 explicit interface catalogs |
-| [`config/`](config/) | Reviewed 9×9 KataGo analysis configuration |
+| [`config/`](config/) | Reviewed 9×9 and 19×19 KataGo analysis configurations |
 | [`scripts/`](scripts/) | Reproducible setup, verification, runtime, and visible-browser controls |
 | [`references/`](references/) | [Architecture and safety](references/architecture-and-safety.md), [teaching principles](references/teaching-principles.md), and [model provenance](references/model-sources.md) |
 
@@ -58,17 +60,20 @@ Open `http://127.0.0.1:8010/` for the compact board or `http://127.0.0.1:8010/fu
 scripts/run.sh stop
 ```
 
-Install the pinned, hash-verified KataGo teaching engine when analysis is needed:
+Install the pinned, hash-verified KataGo teaching engines when analysis is needed. The dedicated 19×19 setup has its own reviewed configuration and verification path:
 
 ```bash
 scripts/setup-katago.sh --print-plan
 scripts/setup-katago.sh
 scripts/verify-katago.sh
+scripts/setup-katago19-models.sh
+scripts/verify-katago19.sh --static-only
+scripts/verify-katago19.sh
 ```
 
 ## Eleven-language interface
 
-The persisted, allowlisted selector supports `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de`, and `ru`. Every locale has the same 409 explicit message keys and the same interpolation placeholders. The document language follows the selection, and Arabic switches the page to right-to-left layout.
+The persisted, allowlisted selector supports `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de`, and `ru`. Every locale has the same 629 explicit message keys and the same interpolation placeholders. The document language follows the selection, and Arabic switches the page to right-to-left layout.
 
 Stable interface copy and known deterministic rule failures are localized. Unknown engine or model prose remains verbatim and keeps its evidence provenance; the client never presents an unreviewed translation as an exact Go fact.
 

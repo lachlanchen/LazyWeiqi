@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from ..adapters.katago.full_board import KataGo19Process, KataGo19Profile
 from ..adapters.katago.process import KataGoProcess
 from ..adapters.store.sqlite import (
     GameNotFound,
@@ -44,6 +45,9 @@ from ..domain import (
     legal_candidates,
     neighbors,
     new_game,
+    opening_candidate_priority,
+    opening_landscape,
+    opening_teaching,
     play,
     vertex_to_gtp,
 )
@@ -63,6 +67,12 @@ from ..schemas import (
 from .curriculum import DEFAULT_LESSON_BY_BOARD_SIZE, PUBLIC_BOARD_SIZES, get_lesson, list_lessons
 from .providers import TeachingProviders
 from .serialization import impact_to_dict, state_from_dict, state_to_dict, vertex_to_dict
+from .teaching_evidence import (
+    bound_teaching_evidence,
+    candidate_model_evidence,
+    game_review_evidence,
+    teaching_focus,
+)
 
 
 class InvalidGameRequest(ValueError):
@@ -77,9 +87,10 @@ COACH_HISTORY_PAGE_LIMIT = 80
 COACH_HISTORY_CURSOR_MAX_BYTES = 512
 GAME_LIST_CURSOR_MAX_BYTES = 160
 ENGINE_ANALYSIS_CACHE_ENTRIES = 24
+ENGINE_ANALYSIS_MAX_PENDING = 8
 CANDIDATE_LIMIT = 3
 PV_MOVE_LIMIT = 4
-EngineAnalysisCacheKey = tuple[str, int, float, str, str, str, str, str]
+EngineAnalysisCacheKey = tuple[str, int, float, str, str, str, str, str, str]
 GAME_ID_RE = re.compile(r"^game_[0-9a-f]{32}$")
 NODE_ID_RE = re.compile(r"^node_[0-9a-f]{32}$")
 COACH_EVENT_CURSOR_ID_RE = re.compile(r"^[nm]:(?:node|coach)_[0-9a-f]{32}$")
@@ -638,10 +649,9 @@ def _candidate_copy(public: dict[str, Any]) -> dict[str, Any]:
 
 
 def _candidate_model_copy(public: dict[str, Any]) -> dict[str, Any]:
-    """Keep model evidence useful without sending three duplicated board maps."""
+    """Project one candidate into the bounded language-model evidence contract."""
 
-    board_fields = {"ownership_before", "ownership_after", "ownership_delta"}
-    return {key: value for key, value in public.items() if key not in board_fields}
+    return candidate_model_evidence(public)
 
 
 def _public_candidate_id(candidate: LegalCandidate) -> str:
@@ -656,7 +666,7 @@ def _public_candidate_id(candidate: LegalCandidate) -> str:
 
 
 def _engine_history_digest(state: GameState) -> str:
-    """Bind HumanSL cache entries to the exact ordered query history."""
+    """Bind engine cache entries to the exact setup and ordered query history."""
 
     payload = {
         "initial_black": [
@@ -665,11 +675,17 @@ def _engine_history_digest(state: GameState) -> str:
         "initial_white": [
             vertex_to_gtp(vertex, state.size) for vertex in state.initial_stones(Color.WHITE)
         ],
-        "moves": [
-            [move.color.gtp, vertex_to_gtp(move.vertex, state.size)]
+        "actions": [
+            [
+                move.color.gtp,
+                vertex_to_gtp(move.vertex, state.size)
+                if move.kind in {MoveKind.PLAY, MoveKind.PASS}
+                else "resign",
+            ]
             for move in state.history
-            if move.kind in {MoveKind.PLAY, MoveKind.PASS}
         ],
+        "phase": state.phase.value,
+        "result_reason": state.result_reason.value if state.result_reason is not None else None,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("ascii")
     return hashlib.sha256(encoded).hexdigest()
@@ -697,6 +713,159 @@ def _bounded_int(value: object, *, minimum: int, maximum: int) -> int | None:
     if type(value) is not int or not minimum <= value <= maximum:
         return None
     return value
+
+
+def _sha256_text(value: object) -> str | None:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        return None
+    return value
+
+
+def _public_engine_provenance(engine: dict[str, Any] | None) -> dict[str, Any] | None:
+    if engine is None or not isinstance(engine.get("_weiqi_provenance"), dict):
+        return None
+    # JSON-compatible engine evidence is immutable by contract, but copying
+    # each nested object keeps per-response decoration from mutating a cached
+    # search result.
+    return json.loads(json.dumps(engine["_weiqi_provenance"], separators=(",", ":")))
+
+
+def _validated_19_provenance(
+    analysis: dict[str, Any],
+    *,
+    state: GameState,
+    profile: KataGo19Profile,
+    history_digest: str,
+    engine_move_number: int,
+    descriptor: dict[str, Any],
+) -> dict[str, Any] | None:
+    provenance = analysis.get("_weiqi_provenance")
+    root = analysis.get("rootInfo")
+    if not isinstance(provenance, dict) or not isinstance(root, dict):
+        return None
+    model = provenance.get("model")
+    binding = provenance.get("binding")
+    elapsed_ms = _finite_float(provenance.get("elapsed_ms"), minimum=0.0, maximum=90_000.0)
+    actual_visits = _bounded_int(provenance.get("actual_visits"), minimum=0, maximum=10_000_000)
+    root_visits = _bounded_int(root.get("visits"), minimum=0, maximum=10_000_000)
+    if (
+        set(provenance)
+        != {
+            "schema_version",
+            "engine",
+            "engine_version",
+            "profile",
+            "model",
+            "config",
+            "binary",
+            "requested_visits",
+            "actual_visits",
+            "elapsed_ms",
+            "cache_hit",
+            "perspective",
+            "binding",
+        }
+        or provenance.get("schema_version") != 1
+        or provenance.get("engine") != "KataGo"
+        or provenance.get("engine_version") != descriptor.get("engine_version")
+        or provenance.get("profile") != profile
+        or provenance.get("perspective") != "black"
+        or provenance.get("requested_visits") != descriptor.get("max_visits")
+        or provenance.get("cache_hit") is not False
+        or elapsed_ms is None
+        or actual_visits is None
+        or root_visits != actual_visits
+        or model
+        != {
+            "name": descriptor.get("model"),
+            "size": descriptor.get("model_size"),
+            "sha256": descriptor.get("model_sha256"),
+        }
+        or provenance.get("config") != descriptor.get("config")
+        or provenance.get("binary") != descriptor.get("binary")
+        or not isinstance(binding, dict)
+        or set(binding)
+        != {
+            "state_token",
+            "position_hash",
+            "history_digest",
+            "move_number",
+            "side_to_move",
+            "board_size",
+            "query_sha256",
+        }
+        or binding.get("state_token") != state.state_token
+        or binding.get("position_hash") != state.position_hash
+        or binding.get("history_digest") != history_digest
+        or binding.get("move_number") != engine_move_number
+        or binding.get("side_to_move") != state.to_move.value
+        or binding.get("board_size") != 19
+        or _sha256_text(binding.get("query_sha256")) is None
+    ):
+        return None
+    if _sha256_text(descriptor.get("model_sha256")) is None:
+        return None
+    return provenance
+
+
+def _engine_cache_copy(engine: dict[str, Any]) -> dict[str, Any]:
+    cached = dict(engine)
+    provenance = _public_engine_provenance(engine)
+    if provenance is not None:
+        provenance["cache_hit"] = True
+        cached["_weiqi_provenance"] = provenance
+    return cached
+
+
+def _opening_engine_lane(
+    engine: dict[str, Any] | None,
+    *,
+    candidate_analyzed: bool | None = None,
+) -> dict[str, Any]:
+    provenance = _public_engine_provenance(engine)
+    if provenance is None:
+        return {
+            "available": False,
+            "reason_id": "engine_evidence_not_attached",
+        }
+    model = provenance["model"]
+    lane = {
+        "available": True,
+        "evidence": "engine",
+        "profile": provenance["profile"],
+        "model_sha256": model["sha256"],
+        "requested_visits": provenance["requested_visits"],
+        "actual_visits": provenance["actual_visits"],
+        "perspective": provenance["perspective"],
+        "binding": provenance["binding"],
+    }
+    if candidate_analyzed is not None:
+        lane["candidate_analyzed"] = candidate_analyzed
+    return lane
+
+
+def _attach_opening_engine(
+    opening: dict[str, Any],
+    engine: dict[str, Any] | None,
+    *,
+    candidate_analyzed: bool | None = None,
+) -> None:
+    lane = _opening_engine_lane(engine, candidate_analyzed=candidate_analyzed)
+    provenance = opening.get("provenance")
+    if isinstance(provenance, dict):
+        provenance["engine"] = lane
+    limitations = opening.get("limitations_ids")
+    if not isinstance(limitations, list):
+        return
+    reason = "engine_evidence_not_attached"
+    if lane["available"]:
+        opening["limitations_ids"] = [item for item in limitations if item != reason]
+    elif reason not in limitations:
+        limitations.append(reason)
 
 
 def _ownership_cells(
@@ -887,6 +1056,7 @@ def _candidate_engine_fields(
     info: dict[str, Any] | None,
     *,
     compare_score_to_top: bool = True,
+    include_ownership: bool = True,
 ) -> dict[str, Any]:
     if engine is None or info is None:
         return {}
@@ -985,21 +1155,22 @@ def _candidate_engine_fields(
     if len(evaluation) > 2:
         fields["evaluation"] = evaluation
 
-    before_ownership = _ownership_cells(
-        engine.get("ownership"), engine.get("ownershipStdev"), state.size
-    )
-    after_ownership = _ownership_cells(
-        info.get("ownership"), info.get("ownershipStdev"), state.size
-    )
-    if before_ownership:
-        fields["ownership_before"] = before_ownership
-    if after_ownership:
-        fields["ownership_after"] = after_ownership
-    delta_ownership = _ownership_delta(before_ownership, after_ownership, state.size)
-    if delta_ownership:
-        fields["ownership_delta"] = delta_ownership
-    if before_ownership or after_ownership:
-        fields["ownership_perspective"] = "black"
+    if include_ownership:
+        before_ownership = _ownership_cells(
+            engine.get("ownership"), engine.get("ownershipStdev"), state.size
+        )
+        after_ownership = _ownership_cells(
+            info.get("ownership"), info.get("ownershipStdev"), state.size
+        )
+        if before_ownership:
+            fields["ownership_before"] = before_ownership
+        if after_ownership:
+            fields["ownership_after"] = after_ownership
+        delta_ownership = _ownership_delta(before_ownership, after_ownership, state.size)
+        if delta_ownership:
+            fields["ownership_delta"] = delta_ownership
+        if before_ownership or after_ownership:
+            fields["ownership_perspective"] = "black"
     return fields
 
 
@@ -1024,6 +1195,8 @@ def _candidate_child_engine_fields(
     candidate: LegalCandidate,
     current_engine: dict[str, Any],
     child_engine: dict[str, Any],
+    *,
+    include_ownership: bool = True,
 ) -> dict[str, Any]:
     """Build preview evidence from the analyzed deterministic child root.
 
@@ -1055,9 +1228,15 @@ def _candidate_child_engine_fields(
         current_engine,
         child_info,
         compare_score_to_top=False,
+        include_ownership=include_ownership,
     )
     if root_candidate_info is not None:
-        ranked_fields = _candidate_engine_fields(state, current_engine, root_candidate_info)
+        ranked_fields = _candidate_engine_fields(
+            state,
+            current_engine,
+            root_candidate_info,
+            include_ownership=False,
+        )
         ranked_score = ranked_fields.get("score")
         child_score = fields.get("score")
         if isinstance(ranked_score, dict) and isinstance(child_score, dict):
@@ -1220,13 +1399,14 @@ def _coach_exchange_response(exchange: dict[str, Any]) -> dict[str, Any]:
         metadata = {}
     candidates = metadata.get("candidates")
     facets = metadata.get("facets")
+    engine_provenance = metadata.get("engine_provenance")
     content = exchange["content"]
     if str(exchange["source"]).split("+", 1)[0] == "localllm":
         content = (
             "Local-model explanation — not an exact board fact. Verify factual "
             "claims against the labeled Energy facets below.\n\n" + content
         )
-    return {
+    response = {
         "message": {
             "id": exchange["id"],
             "speaker": "Lantern",
@@ -1239,6 +1419,12 @@ def _coach_exchange_response(exchange: dict[str, Any]) -> dict[str, Any]:
         "candidates": candidates if isinstance(candidates, list) else [],
         "facets": facets if isinstance(facets, list) else [],
     }
+    reflection_question = metadata.get("reflection_question")
+    if isinstance(reflection_question, str) and reflection_question:
+        response["message"]["prompt"] = reflection_question
+    if isinstance(engine_provenance, dict):
+        response["engine_provenance"] = engine_provenance
+    return response
 
 
 class GameService:
@@ -1246,10 +1432,12 @@ class GameService:
         self,
         store: GameStore,
         katago: KataGoProcess,
+        katago19: KataGo19Process,
         providers: TeachingProviders,
     ) -> None:
         self.store = store
         self.katago = katago
+        self.katago19 = katago19
         self.providers = providers
         self._coach_inflight: dict[tuple[str, str], _InflightCoachExchange] = {}
         self._engine_analysis_cache: OrderedDict[EngineAnalysisCacheKey, dict[str, Any]] = (
@@ -1261,6 +1449,7 @@ class GameService:
         # from multiplying GPU work. Distinct cancelled previews leave this
         # queue immediately; identical previews share one task above.
         self._engine_query_slot = asyncio.Semaphore(1)
+        self._engine_query_pending = 0
 
     async def close(self) -> None:
         """Cancel abandoned engine searches before the process is closed."""
@@ -1449,6 +1638,11 @@ class GameService:
                 "ownership": [],
                 "facets": _global_facets(state),
                 "candidates": [],
+                **(
+                    {"opening_landscape": landscape}
+                    if (landscape := opening_landscape(state)) is not None
+                    else {}
+                ),
             },
             "review_moments": [],
             "story_summary": None,
@@ -1482,29 +1676,43 @@ class GameService:
         return game, state, lesson
 
     async def _compatible_engine_analysis(
-        self, state: GameState, *, rank_profile: str
+        self,
+        state: GameState,
+        *,
+        rank_profile: str,
+        analysis_profile: KataGo19Profile = "fast",
     ) -> dict[str, Any] | None:
-        # The pinned teaching network and process buffers are explicitly 9x9.
-        # Never decorate another board size, including 19x19, with estimates
-        # from an out-of-domain net.
-        if state.size != 9:
+        if state.size == 9:
+            network = getattr(getattr(self.katago, "_settings", None), "katago_model", None)
+            network_identity = getattr(network, "name", "unknown-network")
+            profile_identity = "human-sl-9x9"
+            rank_identity = rank_profile
+        elif state.size == 19:
+            descriptor = self.katago19.profile_descriptor(analysis_profile)
+            network_identity = str(descriptor["model_sha256"])
+            profile_identity = analysis_profile
+            # General 19x19 networks have no learner-rank input. Identical
+            # board/profile requests therefore share one cache/in-flight key
+            # even when they originate from games with different UI ranks.
+            rank_identity = "general-19x19"
+        else:
             return None
-        network = getattr(getattr(self.katago, "_settings", None), "katago_model", None)
-        network_name = getattr(network, "name", "unknown-network")
+        history_digest = _engine_history_digest(state)
         cache_key = (
             state.state_token,
             state.size,
             float(state.komi),
             "chinese-area-positional-superko",
-            str(network_name),
-            rank_profile,
-            _engine_history_digest(state),
+            str(network_identity),
+            rank_identity,
+            history_digest,
             "full-evidence-v1",
+            profile_identity,
         )
         if cache_key in self._engine_analysis_cache:
             cached = self._engine_analysis_cache.pop(cache_key)
             self._engine_analysis_cache[cache_key] = cached
-            return cached
+            return _engine_cache_copy(cached)
 
         inflight = self._engine_analysis_inflight.get(cache_key)
         if inflight is None:
@@ -1512,6 +1720,8 @@ class GameService:
                 self._query_compatible_engine_analysis(
                     state,
                     rank_profile=rank_profile,
+                    analysis_profile=analysis_profile,
+                    history_digest=history_digest,
                     cache_key=cache_key,
                 )
             )
@@ -1550,38 +1760,80 @@ class GameService:
         state: GameState,
         *,
         rank_profile: str,
+        analysis_profile: KataGo19Profile,
+        history_digest: str,
         cache_key: EngineAnalysisCacheKey,
     ) -> dict[str, Any] | None:
-        moves = [
-            [move.color.gtp, vertex_to_gtp(move.vertex, state.size)]
-            for move in state.history
-            if move.kind in {MoveKind.PLAY, MoveKind.PASS}
-        ]
-        initial_stones = [
-            *[
-                ["B", vertex_to_gtp(vertex, state.size)]
-                for vertex in state.initial_stones(Color.BLACK)
-            ],
-            *[
-                ["W", vertex_to_gtp(vertex, state.size)]
-                for vertex in state.initial_stones(Color.WHITE)
-            ],
-        ]
-        initial_player = moves[0][0] if moves else state.to_move.gtp
-        try:
-            async with self._engine_query_slot:
-                analysis = await self.katago.query(
-                    moves=moves,
-                    initial_stones=initial_stones,
-                    initial_player=initial_player,
-                    board_size=state.size,
-                    komi=state.komi,
-                    rank_profile=rank_profile,
-                )
-        except asyncio.CancelledError:
-            raise
-        except Exception:
+        position_projection: dict[str, Any] | None = None
+        if state.result_reason is ResultReason.RESIGNATION:
+            # Resignation is not a KataGo move. Analyze the exact final stones
+            # and side-to-move as a setup position instead of falsifying the
+            # game history with a pass. Historic ko/superko context is not
+            # represented and is disclosed with the engine evidence.
+            moves: list[list[str]] = []
+            initial_stones = [
+                *[["B", vertex_to_gtp(vertex, state.size)] for vertex in state.stones(Color.BLACK)],
+                *[["W", vertex_to_gtp(vertex, state.size)] for vertex in state.stones(Color.WHITE)],
+            ]
+            initial_player = state.to_move.gtp
+            position_projection = {
+                "kind": "current_board_setup_after_resignation",
+                "same_stones_and_side_to_move": True,
+                "historic_ko_context_encoded": False,
+                "candidate_generation_allowed": False,
+            }
+        else:
+            moves = [
+                [move.color.gtp, vertex_to_gtp(move.vertex, state.size)]
+                for move in state.history
+                if move.kind in {MoveKind.PLAY, MoveKind.PASS}
+            ]
+            initial_stones = [
+                *[
+                    ["B", vertex_to_gtp(vertex, state.size)]
+                    for vertex in state.initial_stones(Color.BLACK)
+                ],
+                *[
+                    ["W", vertex_to_gtp(vertex, state.size)]
+                    for vertex in state.initial_stones(Color.WHITE)
+                ],
+            ]
+            initial_player = moves[0][0] if moves else state.to_move.gtp
+        if self._engine_query_pending >= ENGINE_ANALYSIS_MAX_PENDING:
             return None
+        self._engine_query_pending += 1
+        try:
+            try:
+                async with self._engine_query_slot:
+                    if state.size == 9:
+                        analysis = await self.katago.query(
+                            moves=moves,
+                            initial_stones=initial_stones,
+                            initial_player=initial_player,
+                            board_size=state.size,
+                            komi=state.komi,
+                            rank_profile=rank_profile,
+                        )
+                    elif state.size == 19:
+                        analysis = await self.katago19.query(
+                            profile=analysis_profile,
+                            moves=moves,
+                            initial_stones=initial_stones,
+                            initial_player=initial_player,
+                            board_size=state.size,
+                            komi=state.komi,
+                            state_token=state.state_token,
+                            position_hash=state.position_hash,
+                            history_digest=history_digest,
+                        )
+                    else:  # guarded by _compatible_engine_analysis
+                        return None
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                return None
+        finally:
+            self._engine_query_pending -= 1
         if not isinstance(analysis, dict):
             return None
         root = analysis.get("rootInfo")
@@ -1593,6 +1845,22 @@ class GameService:
         turn_number = analysis.get("turnNumber")
         if type(turn_number) is not int or turn_number != len(moves):
             return None
+        if state.size == 19:
+            descriptor = self.katago19.profile_descriptor(analysis_profile)
+            if (
+                _validated_19_provenance(
+                    analysis,
+                    state=state,
+                    profile=analysis_profile,
+                    history_digest=history_digest,
+                    engine_move_number=len(moves),
+                    descriptor=descriptor,
+                )
+                is None
+            ):
+                return None
+        if position_projection is not None:
+            analysis["_weiqi_position_projection"] = position_projection
         self._engine_analysis_cache[cache_key] = analysis
         while len(self._engine_analysis_cache) > ENGINE_ANALYSIS_CACHE_ENTRIES:
             self._engine_analysis_cache.popitem(last=False)
@@ -1604,6 +1872,7 @@ class GameService:
         *,
         lesson: dict[str, Any],
         rank_profile: str,
+        analysis_profile: KataGo19Profile = "fast",
     ) -> tuple[list[ShortlistedCandidate], dict[str, Any] | None]:
         all_legal = legal_candidates(state, include_pass=True)
         legal = [candidate for candidate in all_legal if candidate.vertex]
@@ -1611,9 +1880,26 @@ class GameService:
             (candidate for candidate in all_legal if candidate.kind is MoveKind.PASS), None
         )
         if not legal and pass_candidate is None:
-            return [], None
+            # A finished 19x19 game has no legal choices, but an explicit
+            # reflection still needs bounded current-position evaluation for
+            # honest game review. The engine remains read-only and the empty
+            # shortlist prevents any post-finish move authority.
+            engine = (
+                await self._compatible_engine_analysis(
+                    state,
+                    rank_profile=rank_profile,
+                    analysis_profile=analysis_profile,
+                )
+                if state.size == 19 and state.phase is GamePhase.FINISHED
+                else None
+            )
+            return [], engine
         by_vertex = {(item.vertex.x, item.vertex.y): item for item in legal if item.vertex}
-        engine = await self._compatible_engine_analysis(state, rank_profile=rank_profile)
+        engine = await self._compatible_engine_analysis(
+            state,
+            rank_profile=rank_profile,
+            analysis_profile=analysis_profile,
+        )
         ordered: list[tuple[LegalCandidate, dict[str, Any] | None]] = []
         if engine is not None:
             move_infos = engine.get("moveInfos")
@@ -1678,6 +1964,7 @@ class GameService:
                     + impact.friendly_groups_joined * 20
                     + impact.self_liberties * 3
                     - center_distance * 0.2
+                    + opening_candidate_priority(state, candidate)
                 )
                 if candidate in featured:
                     score += 1000 - featured.index(candidate)
@@ -1736,6 +2023,24 @@ class GameService:
                 "next_calculation": risk,
                 **_candidate_engine_fields(state, engine, info),
             }
+            engine_provenance = _public_engine_provenance(engine)
+            if info is not None and engine_provenance is not None:
+                engine_provenance["candidate_binding"] = {
+                    "candidate_id": public_id,
+                    "coordinate": public["coordinate"],
+                    "engine_order": _bounded_int(
+                        info.get("order"), minimum=0, maximum=state.size * state.size
+                    ),
+                }
+                public["engine_provenance"] = engine_provenance
+            opening = opening_teaching(state, domain, public_id, after, impact)
+            if opening is not None:
+                _attach_opening_engine(
+                    opening,
+                    engine,
+                    candidate_analyzed=info is not None,
+                )
+                public["opening_teaching"] = opening
             shortlist.append(ShortlistedCandidate(public_id, domain, public))
         return shortlist, engine
 
@@ -1814,7 +2119,7 @@ class GameService:
             if isinstance(root, dict)
             else None
         )
-        return {
+        payload = {
             "status": "ready" if engine else "fallback",
             "engine": "KataGo 1.17.2" if engine else "Exact board facts + authored guidance",
             "side_to_move": state.to_move.value,
@@ -1828,21 +2133,43 @@ class GameService:
             "facets": _global_facets(state, engine),
             "candidates": [_candidate_copy(item.public) for item in shortlist],
         }
+        engine_provenance = _public_engine_provenance(engine)
+        if engine_provenance is not None:
+            payload["engine_provenance"] = engine_provenance
+        position_projection = engine.get("_weiqi_position_projection") if engine else None
+        if isinstance(position_projection, dict):
+            payload["engine_position_projection"] = json.loads(
+                json.dumps(position_projection, separators=(",", ":"))
+            )
+        landscape = opening_landscape(state)
+        if landscape is not None:
+            _attach_opening_engine(landscape, engine)
+            payload["opening_landscape"] = landscape
+        return payload
 
     async def analyze(
-        self, game_id: str, expected_revision: int | None = None
+        self,
+        game_id: str,
+        expected_revision: int | None = None,
+        *,
+        analysis_profile: KataGo19Profile = "fast",
     ) -> tuple[dict[str, Any], list[ShortlistedCandidate]]:
         game, state, lesson = self._load_current(game_id, expected_revision)
         shortlist, engine = await self._shortlist(
             state,
             lesson=lesson,
             rank_profile=game["rank_profile"],
+            analysis_profile=analysis_profile,
         )
+        if state.size == 19:
+            network = self.katago19.profile_descriptor(analysis_profile)["model"]
+        else:
+            network = self.katago._settings.katago_model.name
         analysis = self._analysis_payload(
             state,
             shortlist,
             engine,
-            self.katago._settings.katago_model.name,
+            str(network),
         )
         return analysis, shortlist
 
@@ -1945,11 +2272,16 @@ class GameService:
             lesson=lesson,
             rank_profile=game["rank_profile"],
         )
+        preview_network = (
+            self.katago19.profile_descriptor("fast")["model"]
+            if state.size == 19
+            else self.katago._settings.katago_model.name
+        )
         analysis = self._analysis_payload(
             state,
             shortlist,
             current_engine,
-            self.katago._settings.katago_model.name,
+            str(preview_network),
         )
         # Do not spend a child search after this request's revision has already
         # become stale while the current-position query was in flight.
@@ -1989,6 +2321,20 @@ class GameService:
                 "what_changes": self._candidate_change_text(impact, tactics),
                 "next_calculation": risk,
             }
+            opening = opening_teaching(
+                state,
+                candidate,
+                selected_teaching["id"],
+                after,
+                impact,
+            )
+            if opening is not None:
+                _attach_opening_engine(
+                    opening,
+                    current_engine,
+                    candidate_analyzed=False,
+                )
+                selected_teaching["opening_teaching"] = opening
 
         # Preview evidence has one uniform meaning: the `after` values are from
         # a bounded analysis of the rules-verified child position, never an
@@ -2012,6 +2358,7 @@ class GameService:
                 "ownership_delta",
                 "ownership_perspective",
                 "analysis_source",
+                "engine_provenance",
             ):
                 selected_teaching.pop(key, None)
             # A parent-root continuation describes a different search. Never
@@ -2028,6 +2375,22 @@ class GameService:
                 selected_teaching.update(child_fields)
                 selected_teaching["engine_analyzed"] = bool(child_fields)
                 selected_teaching["verified"] = bool(child_fields)
+                child_provenance = _public_engine_provenance(child_engine)
+                if child_provenance is not None:
+                    child_provenance["preview_binding"] = {
+                        "parent_state_token": state.state_token,
+                        "candidate_id": selected_teaching["id"],
+                        "coordinate": coordinate,
+                        "child_state_token": after.state_token,
+                    }
+                    selected_teaching["engine_provenance"] = child_provenance
+                opening = selected_teaching.get("opening_teaching")
+                if isinstance(opening, dict):
+                    _attach_opening_engine(
+                        opening,
+                        child_engine,
+                        candidate_analyzed=bool(child_fields),
+                    )
                 child_variation = _child_root_variation(state, candidate, child_engine)
                 selected_teaching["variation"] = child_variation
                 selected_teaching["main_line_reply"] = _main_line_reply(
@@ -2037,6 +2400,13 @@ class GameService:
             else:
                 selected_teaching["engine_analyzed"] = False
                 selected_teaching["verified"] = False
+                opening = selected_teaching.get("opening_teaching")
+                if isinstance(opening, dict):
+                    _attach_opening_engine(
+                        opening,
+                        None,
+                        candidate_analyzed=False,
+                    )
 
         # The root query may be unavailable, but a no-engine preview still
         # needs a final CAS check after all awaited work.
@@ -2292,12 +2662,46 @@ class GameService:
         if existing is not None:
             return _coach_exchange_response(existing)
         game, state, lesson = self._load_current(game_id, request.expected_revision)
-        analysis, shortlist = await self.analyze(game_id, request.expected_revision)
+        analysis_profile: KataGo19Profile = (
+            "quality" if state.size == 19 and request.kind == "reflection" else "fast"
+        )
+        analysis, shortlist = await self.analyze(
+            game_id,
+            request.expected_revision,
+            analysis_profile=analysis_profile,
+        )
+        (
+            coach_shortlist,
+            question_target,
+            selected_needs_child_analysis,
+        ) = self._coach_shortlist_for_selected_point(
+            state,
+            request.selected_point,
+            shortlist,
+            analysis,
+        )
+        if (
+            state.size == 19
+            and request.kind == "reflection"
+            and selected_needs_child_analysis
+            and coach_shortlist
+        ):
+            await self._attach_quality_child_reflection(
+                game_id=game_id,
+                game=game,
+                state=state,
+                selected=coach_shortlist[0],
+                expected_revision=request.expected_revision,
+                analysis=analysis,
+            )
+        focus = teaching_focus(state, deep_study=request.kind == "reflection")
         evidence = {
             "schema_version": 1,
             "rules": "Chinese area scoring with positional superko",
             "question": request.question,
             "question_kind": request.kind,
+            "question_target": question_target,
+            "teaching_focus": focus,
             "recent_dialogue": _recent_dialogue(game),
             "lesson": {
                 "title": lesson["title"],
@@ -2340,8 +2744,15 @@ class GameService:
                 "status": analysis["status"],
                 "score_lead_black": analysis["score_lead"],
                 "visits": analysis["visits"],
+                "score_and_ownership_are_forecasts": True,
+                **(
+                    {"position_projection": analysis["engine_position_projection"]}
+                    if "engine_position_projection" in analysis
+                    else {}
+                ),
             },
-            "candidates": [_candidate_model_copy(item.public) for item in shortlist],
+            "engine_provenance": analysis.get("engine_provenance"),
+            "candidates": [_candidate_model_copy(item.public) for item in coach_shortlist],
             "teaching_contract": (
                 "Liberties, captures, groups, side to move, and stone counts are exact facts. "
                 "Live territory is not settled. Engine ownership, score forecasts, and lines are "
@@ -2350,6 +2761,9 @@ class GameService:
                 "language is metaphor."
             ),
         }
+        if state.phase is GamePhase.FINISHED and request.kind == "reflection":
+            evidence["game_review"] = game_review_evidence(state)
+        evidence = bound_teaching_evidence(evidence)
         draft, source, warning = await self.providers.coach(
             evidence, review=request.kind == "reflection"
         )
@@ -2358,7 +2772,16 @@ class GameService:
         )
         if latest["current_node_id"] != game["current_node_id"]:
             raise RevisionConflict("the position changed while the companion was answering")
-        text = self._coach_text(draft, state, lesson, warning, shortlist)
+        text = self._coach_text(
+            draft,
+            state,
+            lesson,
+            warning,
+            coach_shortlist,
+            deep_study=request.kind == "reflection",
+            focus=focus,
+        )
+        reflection_question = self._coach_reflection_question(draft, coach_shortlist)
         stored_source = f"{source}+engine" if analysis["status"] == "ready" else source
         stored = self.store.add_coach_exchange(
             game_id=game_id,
@@ -2371,11 +2794,239 @@ class GameService:
             content=text,
             source=stored_source,
             response={
-                "candidates": analysis["candidates"],
+                "candidates": [_candidate_copy(item.public) for item in coach_shortlist],
                 "facets": analysis["facets"],
+                "engine_provenance": analysis.get("engine_provenance"),
+                **(
+                    {"reflection_question": reflection_question}
+                    if request.kind == "reflection"
+                    else {}
+                ),
             },
         )
         return _coach_exchange_response(stored)
+
+    def _coach_shortlist_for_selected_point(
+        self,
+        state: GameState,
+        selected_point: Any,
+        shortlist: list[ShortlistedCandidate],
+        analysis: dict[str, Any],
+    ) -> tuple[list[ShortlistedCandidate], dict[str, Any] | None, bool]:
+        """Bind a learner-inspected point to one canonical legal candidate.
+
+        The model sees only the selected move when a current legal point was
+        supplied. This prevents a general root recommendation from answering a
+        point-specific question, while the opaque ID still comes from the
+        deterministic legal set for this exact state. The final boolean says
+        that this legal selected candidate lacks candidate-specific engine
+        evidence and therefore needs a child query for a 19x19 reflection.
+        """
+
+        if selected_point is None:
+            return shortlist, None, False
+        point = {"x": selected_point.x, "y": selected_point.y}
+        for item in shortlist:
+            if item.public.get("point") == point:
+                return (
+                    [item],
+                    {
+                        "status": "legal_candidate",
+                        "point": point,
+                        "coordinate": item.public["coordinate"],
+                        "candidate_id": item.ui_id,
+                    },
+                    item.public.get("engine_analyzed") is not True,
+                )
+
+        vertex = Vertex(selected_point.x, selected_point.y)
+        try:
+            coordinate = vertex_to_gtp(vertex, state.size)
+            candidate = candidate_for_action(state, MoveKind.PLAY, vertex)
+            actor_id = state.actors.player_for(state.to_move).id
+            after = apply_candidate(
+                state,
+                CandidateSelection(state.state_token, candidate.id, actor_id),
+            )
+        except (IllegalMoveError, ValueError):
+            return (
+                shortlist,
+                {
+                    "status": "not_legal_in_current_position",
+                    "point": point,
+                },
+                False,
+            )
+
+        impact = explain_move_impact(state, after)
+        intent, title = _intent_for(state, candidate, impact)
+        tactics = _candidate_tactics(state, candidate, impact)
+        summary = self._candidate_summary(impact, intent)
+        risk = self._candidate_risk(impact, intent)
+        public_id = _public_candidate_id(candidate)
+        public: dict[str, Any] = {
+            "id": public_id,
+            "kind": candidate.kind.value,
+            "point": point,
+            "coordinate": coordinate,
+            "intent": intent,
+            "intent_evidence": "teacher",
+            "title": title,
+            "summary": summary,
+            "main_line_reply": None,
+            "risk": risk,
+            "variation": [],
+            "facets": _impact_facets(impact),
+            "verified": False,
+            "legal_verified": True,
+            "engine_analyzed": False,
+            "tactics": tactics,
+            "why_here": summary,
+            "what_changes": self._candidate_change_text(impact, tactics),
+            "next_calculation": risk,
+        }
+        opening = opening_teaching(state, candidate, public_id, after, impact)
+        if opening is not None:
+            engine_provenance = analysis.get("engine_provenance")
+            public_engine = (
+                {"_weiqi_provenance": engine_provenance}
+                if isinstance(engine_provenance, dict)
+                else None
+            )
+            _attach_opening_engine(opening, public_engine, candidate_analyzed=False)
+            public["opening_teaching"] = opening
+        selected = ShortlistedCandidate(public_id, candidate, public)
+        return (
+            [selected],
+            {
+                "status": "legal_candidate",
+                "point": point,
+                "coordinate": coordinate,
+                "candidate_id": public_id,
+            },
+            True,
+        )
+
+    async def _attach_quality_child_reflection(
+        self,
+        *,
+        game_id: str,
+        game: dict[str, Any],
+        state: GameState,
+        selected: ShortlistedCandidate,
+        expected_revision: int,
+        analysis: dict[str, Any],
+    ) -> None:
+        """Attach bounded quality evidence for an inspected but unsearched move."""
+
+        actor_id = state.actors.player_for(state.to_move).id
+        after = apply_candidate(
+            state,
+            CandidateSelection(state.state_token, selected.domain.id, actor_id),
+        )
+        coordinate = selected.public["coordinate"]
+        binding = {
+            "parent": {
+                "state_token": state.state_token,
+                "position_hash": state.position_hash,
+                "move_number": state.move_number,
+                "side_to_move": state.to_move.value,
+            },
+            "candidate": {
+                "candidate_id": selected.ui_id,
+                "coordinate": coordinate,
+                "kind": selected.domain.kind.value,
+                "legal_verified": True,
+            },
+            "child": {
+                "state_token": after.state_token,
+                "position_hash": after.position_hash,
+                "move_number": after.move_number,
+                "side_to_move": after.to_move.value,
+            },
+            "expected_revision": expected_revision,
+        }
+        selected.public["candidate_analysis"] = {
+            "status": "unavailable",
+            "profile": "quality",
+            "source": "rules_verified_child_root",
+            "reason_id": "quality_current_or_child_query_unavailable",
+            "binding": binding,
+        }
+        if analysis.get("status") != "ready":
+            return
+
+        current_engine = await self._compatible_engine_analysis(
+            state,
+            rank_profile=game["rank_profile"],
+            analysis_profile="quality",
+        )
+        latest, _latest_state, _latest_lesson = self._load_current(game_id, expected_revision)
+        if latest["current_node_id"] != game["current_node_id"]:
+            raise RevisionConflict("the position changed during quality reflection")
+        if current_engine is None:
+            return
+
+        child_engine = await self._compatible_engine_analysis(
+            after,
+            rank_profile=game["rank_profile"],
+            analysis_profile="quality",
+        )
+        latest, _latest_state, _latest_lesson = self._load_current(game_id, expected_revision)
+        if latest["current_node_id"] != game["current_node_id"]:
+            raise RevisionConflict("the position changed during quality child analysis")
+        if child_engine is None:
+            return
+
+        child_fields = _candidate_child_engine_fields(
+            state,
+            selected.domain,
+            current_engine,
+            child_engine,
+            include_ownership=False,
+        )
+        child_variation = _child_root_variation(state, selected.domain, child_engine)
+        child_provenance = _public_engine_provenance(child_engine)
+        if child_provenance is None:
+            return
+        child_provenance["reflection_binding"] = binding
+        for key in (
+            "score",
+            "evaluation",
+            "analysis_source",
+            "engine_provenance",
+        ):
+            selected.public.pop(key, None)
+        selected.public.update(child_fields)
+        selected.public["variation"] = child_variation
+        selected.public["main_line_reply"] = _main_line_reply(child_variation, state.size)
+        selected.public["engine_provenance"] = child_provenance
+        selected.public["engine_analyzed"] = True
+        selected.public["verified"] = True
+        selected.public["candidate_analysis"] = {
+            "status": "ready",
+            "profile": "quality",
+            "source": "rules_verified_child_root",
+            "binding": binding,
+        }
+        opening = selected.public.get("opening_teaching")
+        if isinstance(opening, dict):
+            _attach_opening_engine(opening, child_engine, candidate_analyzed=True)
+
+    @staticmethod
+    def _coach_reflection_question(
+        draft: CoachDraft | None,
+        shortlist: list[ShortlistedCandidate],
+    ) -> str:
+        if draft is not None:
+            return draft.reflection_question
+        if shortlist:
+            coordinate = shortlist[0].public["coordinate"]
+            return (
+                f"Which opponent reply would make you reconsider {coordinate}, "
+                "and what exact board fact would you check first?"
+            )
+        return "Which exact board fact should you verify before choosing a plan?"
 
     @staticmethod
     def _coach_text(
@@ -2384,6 +3035,9 @@ class GameService:
         lesson: dict[str, Any],
         warning: str | None,
         shortlist: list[ShortlistedCandidate],
+        *,
+        deep_study: bool = False,
+        focus: dict[str, Any] | None = None,
     ) -> str:
         first_public = shortlist[0].public if shortlist else None
         if draft is None:
@@ -2432,15 +3086,20 @@ class GameService:
                 "The model companion was unavailable. This fallback separates exact board facts "
                 "from authored teacher guidance."
             )
+            if deep_study:
+                parts.extend(GameService._deterministic_study_parts(state, first_public, focus))
             return "\n\n".join(parts)
 
-        selected_choice = draft.choices[0] if draft.choices else None
+        offered_choice = draft.choices[0] if draft.choices else None
+        selected_choice = None
         selected_public = None
-        if selected_choice is not None:
+        if offered_choice is not None:
             selected_public = next(
-                (item.public for item in shortlist if item.ui_id == selected_choice.candidate_id),
+                (item.public for item in shortlist if item.ui_id == offered_choice.candidate_id),
                 None,
             )
+            if selected_public is not None:
+                selected_choice = offered_choice
         selected_public = selected_public or first_public
         changes = " ".join(draft.what_changed[:2])
         parts = [f"Now: {draft.headline}"]
@@ -2468,9 +3127,109 @@ class GameService:
         parts.append(f"Remember: {draft.remember}")
         if draft.uncertainty:
             parts.append(f"Model uncertainty: {draft.uncertainty}")
+        if deep_study:
+            allowed_phases: set[str] = set()
+            if isinstance(focus, dict):
+                primary = focus.get("primary")
+                if isinstance(primary, str):
+                    allowed_phases.add(primary)
+                supporting = focus.get("supporting")
+                if isinstance(supporting, list):
+                    allowed_phases.update(value for value in supporting if isinstance(value, str))
+            if draft.study is not None and (
+                not allowed_phases or draft.study.phase in allowed_phases
+            ):
+                study = draft.study
+                next_steps = "; ".join(
+                    f"{index}. {step}" for index, step in enumerate(study.next_steps, start=1)
+                )
+                parts.extend(
+                    [
+                        f"Study focus: {study.phase}",
+                        f"Why now: {study.why_now}",
+                        f"How it works: {study.mechanism}",
+                        f"Gain: {study.gain}",
+                        f"Tradeoff: {study.tradeoff}",
+                        f"Opponent response: {study.opponent_response}",
+                        f"Next steps: {next_steps}",
+                        f"Reconsider when: {study.reconsider_when}",
+                        f"Transferable principle: {study.transferable_principle}",
+                    ]
+                )
+            else:
+                parts.extend(GameService._deterministic_study_parts(state, selected_public, focus))
         if warning:
             parts.append(warning)
         return "\n\n".join(parts)
+
+    @staticmethod
+    def _deterministic_study_parts(
+        state: GameState,
+        public: dict[str, Any] | None,
+        focus: dict[str, Any] | None,
+    ) -> list[str]:
+        phase = focus.get("primary") if isinstance(focus, dict) else None
+        phase_text = str(phase or "positional_judgment")
+        coordinate = public.get("coordinate") if isinstance(public, dict) else None
+        target = f" for {coordinate}" if isinstance(coordinate, str) else ""
+        exact_change = public.get("what_changes") if isinstance(public, dict) else None
+        if not isinstance(exact_change, str) or not exact_change:
+            exact_change = (
+                f"The current position has {len(state.stones(Color.BLACK))} black stones and "
+                f"{len(state.stones(Color.WHITE))} white stones; legality and liberties remain "
+                "deterministic board facts."
+            )
+        summary = public.get("summary") if isinstance(public, dict) else None
+        gain = (
+            f"Authored teaching hypothesis: {summary}"
+            if isinstance(summary, str) and summary
+            else "Compare only the supplied legal choices; no strategic gain is proven here."
+        )
+        risk = public.get("risk") if isinstance(public, dict) else None
+        tradeoff = (
+            f"Authored teaching caution: {risk}"
+            if isinstance(risk, str) and risk
+            else "The position does not prove that territory is secured or that a group is safe."
+        )
+        reply = public.get("main_line_reply") if isinstance(public, dict) else None
+        if isinstance(reply, str) and reply:
+            opponent = f"KataGo supplied {reply} in one searched line; this reply is not forced."
+        else:
+            opponent = "No searched reply is attached; compare the opponent's legal responses."
+        follow_ups: list[str] = []
+        opening = public.get("opening_teaching") if isinstance(public, dict) else None
+        if isinstance(opening, dict):
+            for item in opening.get("follow_ups", [])[:3]:
+                if isinstance(item, dict) and isinstance(item.get("coordinate"), str):
+                    follow_ups.append(str(item["coordinate"]))
+        if follow_ups:
+            next_steps = (
+                "1. Recount exact liberties after the opponent reply; "
+                f"2. Compare authored future anchors {', '.join(follow_ups)}; "
+                "3. Re-evaluate whole-board urgency before choosing one."
+            )
+        else:
+            next_steps = (
+                "1. Recount exact liberties; 2. Compare the supplied legal candidates; "
+                "3. Re-evaluate after the opponent's actual move."
+            )
+        return [
+            f"Study focus: {phase_text}",
+            (
+                f"Why now: This is a {phase_text} teaching lens at move {state.move_number}"
+                f"{target}; the phase label is pedagogical, not an engine verdict."
+            ),
+            f"How it works: {exact_change}",
+            f"Gain: {gain}",
+            f"Tradeoff: {tradeoff}",
+            f"Opponent response: {opponent}",
+            f"Next steps: {next_steps}",
+            f"Reconsider when: {tradeoff}",
+            (
+                "Transferable principle: Separate exact local consequences from authored plans, "
+                "engine forecasts, and unsettled influence or territory potential."
+            ),
+        ]
 
     @staticmethod
     def _request_id(*parts: object) -> str:

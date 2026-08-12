@@ -161,6 +161,38 @@ class CoachPrinciple(StrictModel):
     explanation: Annotated[str, StringConstraints(min_length=1, max_length=500)]
 
 
+class CoachStudy(StrictModel):
+    """Structured annotated-book teaching for an explicit deep study.
+
+    Every field remains prose and therefore model evidence.  Coordinates,
+    diagrams, legal moves, and quantitative facts continue to come only from
+    the bounded evidence supplied by deterministic code and KataGo.
+    """
+
+    phase: Literal[
+        "rules",
+        "life_and_death",
+        "tesuji",
+        "shape",
+        "joseki",
+        "fuseki",
+        "middle_game",
+        "endgame",
+        "positional_judgment",
+        "game_review",
+    ]
+    why_now: Annotated[str, StringConstraints(min_length=1, max_length=400)]
+    mechanism: Annotated[str, StringConstraints(min_length=1, max_length=600)]
+    gain: Annotated[str, StringConstraints(min_length=1, max_length=400)]
+    tradeoff: Annotated[str, StringConstraints(min_length=1, max_length=400)]
+    opponent_response: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    next_steps: list[Annotated[str, StringConstraints(min_length=1, max_length=300)]] = Field(
+        min_length=1, max_length=3
+    )
+    reconsider_when: Annotated[str, StringConstraints(min_length=1, max_length=400)]
+    transferable_principle: Annotated[str, StringConstraints(min_length=1, max_length=400)]
+
+
 class CoachDraft(StrictModel):
     schema_version: Literal[1]
     headline: Annotated[str, StringConstraints(min_length=1, max_length=80)]
@@ -173,6 +205,7 @@ class CoachDraft(StrictModel):
     choices: list[CandidateChoice] = Field(default_factory=list, max_length=3)
     reflection_question: Annotated[str, StringConstraints(min_length=1, max_length=240)]
     uncertainty: Annotated[str, StringConstraints(max_length=240)] | None = None
+    study: CoachStudy | None = None
 
 
 class ApiError(StrictModel):

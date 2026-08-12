@@ -27,7 +27,7 @@ The teacher presents evidence in this order:
    connecting, cutting, escaping, pressuring, reducing, and taking ground. It
    relates the move to nearby groups and their exact liberties instead of
    declaring them weak or strong from a slogan.
-5. **Whole-board value.** On supported 9×9 positions, KataGo supplies a ranked
+5. **Whole-board value.** On supported 9×9 and ordinary 19×19 positions, KataGo supplies a ranked
    candidate, predicted ownership after that candidate, searched-line variation, and
    Black-perspective score/win-rate estimates. The UI also converts differences
    into the mover's perspective and labels both perspectives.
@@ -98,10 +98,36 @@ Every statement retains its provenance: **Exact**, **Tactical read**,
 field stays missing; the client must not synthesize a quality score or ownership
 map from stone distance.
 
+On 19×19, a candidate also has a bounded annotated-book view. It keeps these
+lanes visibly separate:
+
+- exact resulting group shape, liberties, connections, and captures;
+- calculated influence direction and territory *potential*, neither ownership
+  nor secured territory;
+- authored gain, trade-off, whole-board direction, response anchors, and joseki
+  context, never a best-move or forced-sequence claim;
+- KataGo ownership, score, policy, visits, and one searched line when a matching
+  attested engine response is available.
+
+The compact board opens a large explanation sheet with local before/after diagrams,
+a whole-board fuseki miniature, numbered response branches, subsequent steps, and
+conditions that should make the learner reconsider. Diagrams are rendered from
+rules-verified stones and finite authored anchors; the language model cannot add a
+stone, coordinate, or legal move to them.
+
+An explicit **deep study** follows the teaching progression **Rules → Life and
+Death → Tesuji → Shape → Joseki → Fuseki → Middle Game → Endgame → Positional
+Judgment → Game Review**. Deterministic position signals select the relevant phase.
+The larger KataGo profile supplies bounded engine evidence, and the companion's
+structured response must cover why now, mechanism, gain, loss/trade-off, opponent
+response space, next steps, reconsider conditions, and one transferable principle.
+All generated prose remains model evidence.
+
 ## Supported boards
 
-The installed neural network is specialized for 9×9, so quantitative candidate
-quality, ownership, and score maps are available only on 9×9. The 5×5 and 7×7
-lessons remain useful for rules, shape, and authored exercises, but they must say
-when no engine estimate exists. A future board size needs its own pinned,
-verified network before receiving an engine badge.
+The dedicated HumanSL teaching lane remains hard-gated to 9×9. Ordinary 19×19
+uses separately pinned general fast and quality networks with distinct model
+hashes and a one-resident-at-a-time runtime. The 5×5 and 7×7 lessons remain on
+rules, shape, and authored exercises and explicitly say when no engine estimate
+exists. No other board size receives an engine badge without its own reviewed,
+verified network contract.

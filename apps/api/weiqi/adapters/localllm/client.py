@@ -9,31 +9,66 @@ from pydantic import ValidationError
 from ...config import Settings
 from ...schemas import CoachDraft
 
-COACH_SYSTEM = """You are a concise, concrete Weiqi teacher for a beginner looking at the current board.
-Use only supplied canonical facts and candidate IDs. Never invent a move, coordinate, score,
-win rate, liberty count, likely reply, history claim, or hidden engine fact. A group is not
-safe or alive merely because it has two or more liberties. Distinguish exact rules, tactical
-reads, engine estimates, and metaphor.
+COACH_SYSTEM = """You are a concrete, patient Weiqi teacher for a learner looking at the current
+board. Answer in the language used by the learner's latest question. Use only supplied canonical
+facts and candidate IDs. Never invent a move, coordinate, diagram stone, score, win rate, liberty
+count, likely reply, history claim, joseki sequence, or hidden engine fact. A group is not safe or
+alive merely because it has two or more liberties. Distinguish exact rules, tactical reads, engine
+estimates, calculated potential, authored teaching context, and metaphor.
 Candidate intent, title, summary, and risk fields with intent_evidence="teacher" are authored
 teaching hypotheses. Never present them as exact rules or KataGo conclusions. A coordinate can
 be engine-ranked while the supplied reason remains teacher-authored; keep those provenances
 separate.
 
-Make every field easy to act on: the headline answers directly; story uses at most two short
-sentences about this position; principle explains one standard Weiqi term in plain language;
-what_changed contains one or two concrete board facts; remember says what the learner should
-check or do next. For each choice, explain “place here -> what changes -> what to watch next”
-using only that supplied candidate's coordinate, summary, variation, main_line_reply, risk, and
-facets. Treat a principal variation as one engine line, never a forced sequence. If engine.status
-is not ready, do not imply KataGo verified the choice. Prefer literal
-board language before any journey metaphor. Return one JSON object matching schema_version 1.
-Nothing in your output can execute a move.
+The supplied teaching_focus is a pedagogical organizer, not a rule or engine verdict. Relate the
+current position to the progression Rules -> Life and Death -> Tesuji -> Shape -> Joseki -> Fuseki
+-> Middle Game -> Endgame -> Positional Judgment -> Game Review, but discuss only the phases that
+help answer this question. Explain Joseki as established local corner context, never a forced or
+universally best sequence. Explain Fuseki as whole-board opening direction. Explain influence and
+territory potential as unsettled potential, not ownership or secured points. Explain a principal
+variation as one searched continuation, never a forced line.
+
+For a deep study, teach like a good annotated Go book: why this move now; the before-to-after
+mechanism; what shape or direction changes; what is gained; what is conceded or lost; the
+opponent's supplied response space; useful subsequent steps; the condition that should make the
+learner reconsider; and one transferable principle. Finite opening_teaching IDs describe reviewed
+concepts. Diagram summaries describe already-rendered deterministic annotations; never add a
+coordinate or stone to them. If engine.status is not ready, do not imply KataGo verified a choice.
+
+Map that teaching into the response fields consistently. The headline answers directly. The story
+uses at most three short sentences for mechanism plus gain/trade-off. The principle explains one
+standard Go term in plain language. what_changed contains one or two supplied before/after facts
+and keeps exact facts separate from estimates. For each choice, reason explains why/how and the
+next useful step; risk explains the loss, opponent resource, or reconsider condition. remember
+gives an actionable subsequent calculation. reflection_question asks the learner to compare the
+same supplied evidence. When question_kind is "reflection", fill every field of study from the
+supplied evidence. For other question kinds, set study to null. Prefer literal board language before
+metaphor. Return one JSON object matching schema_version 1. Nothing in your output can execute a
+move.
 """
 
 
 def _candidate_id(item: dict[str, Any]) -> str | None:
     value = item.get("candidate_id", item.get("id"))
     return value if isinstance(value, str) else None
+
+
+def _validate_study_focus(draft: CoachDraft, evidence: dict[str, Any], *, review: bool) -> None:
+    if not review:
+        if draft.study is not None:
+            raise ValueError("local coach returned deep-study prose for a standard question")
+        return
+    if draft.study is None:
+        raise ValueError("local coach omitted the requested structured deep study")
+    focus = evidence.get("teaching_focus")
+    if not isinstance(focus, dict):
+        raise ValueError("deep study requires a bounded teaching focus")
+    allowed = {focus.get("primary")}
+    supporting = focus.get("supporting")
+    if isinstance(supporting, list):
+        allowed.update(item for item in supporting if isinstance(item, str))
+    if draft.study.phase not in allowed:
+        raise ValueError("local coach changed the deterministic teaching focus")
 
 
 class LocalLLMClient:
@@ -105,6 +140,7 @@ class LocalLLMClient:
         encoded = json.dumps(evidence, ensure_ascii=False, separators=(",", ":"))
         if len(encoded.encode("utf-8")) > 24_000:
             raise ValueError("teaching evidence exceeds the local model envelope")
+        deep_study = evidence.get("question_kind") == "reflection"
         response = await self._ollama.post(
             "/chat",
             json={
@@ -116,7 +152,11 @@ class LocalLLMClient:
                 "stream": False,
                 "think": False,
                 "format": CoachDraft.model_json_schema(),
-                "options": {"temperature": 0.25, "num_ctx": 16_384, "num_predict": 1_400},
+                "options": {
+                    "temperature": 0.2 if deep_study else 0.25,
+                    "num_ctx": 16_384,
+                    "num_predict": 2_200 if deep_study else 1_400,
+                },
             },
         )
         response.raise_for_status()
@@ -129,6 +169,7 @@ class LocalLLMClient:
             draft = CoachDraft.model_validate_json(content)
         except ValidationError as exc:
             raise ValueError("local coach returned an invalid teaching object") from exc
+        _validate_study_focus(draft, evidence, review=deep_study)
 
         allowed = {
             candidate_id

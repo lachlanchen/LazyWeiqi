@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   canonicalLessonForStart,
   createGameRequestForLesson,
+  engineAvailableForBoard,
+  gameAfterCoachResponse,
   localGameForLesson,
   localPreviewForPoint,
+  openingSuggestionForGame,
   preferencesFromStoredValue,
   selectableBoardSizes,
 } from './App'
-import { DEFAULT_PREFERENCES, FALLBACK_CURRICULUM, FALLBACK_STATUS } from './fallbackData'
+import { DEFAULT_PREFERENCES, DEMO_GAME, FALLBACK_CURRICULUM, FALLBACK_STATUS } from './fallbackData'
 import { localizeGame, localizeLesson, SUPPORTED_LOCALES } from './i18n'
-import type { BoardSize } from './types'
+import type { BoardSize, CandidateMove, CoachResponse } from './types'
 
 describe('offline lesson localization', () => {
   it('builds the fallback from canonical lesson data and restores English after a locale switch', () => {
@@ -120,5 +123,67 @@ describe('offline lesson localization', () => {
       ...FALLBACK_STATUS,
       supported_board_sizes: [5, 13, 19] as unknown as BoardSize[],
     })).toEqual([5, 19])
+  })
+
+  it('reports the board-size-specific KataGo lane when only one lane is ready', () => {
+    const onlyFullBoardReady = {
+      ...FALLBACK_STATUS,
+      engine: { ...FALLBACK_STATUS.engine, status: 'fallback' as const },
+      engine_19x19: { ...FALLBACK_STATUS.engine_19x19!, status: 'ready' as const },
+    }
+    expect(engineAvailableForBoard(onlyFullBoardReady, 19)).toBe(true)
+    expect(engineAvailableForBoard(onlyFullBoardReady, 9)).toBe(false)
+
+    const onlySmallBoardReady = {
+      ...FALLBACK_STATUS,
+      engine: { ...FALLBACK_STATUS.engine, status: 'ready' as const },
+      engine_19x19: { ...FALLBACK_STATUS.engine_19x19!, status: 'fallback' as const },
+    }
+    expect(engineAvailableForBoard(onlySmallBoardReady, 19)).toBe(false)
+    expect(engineAvailableForBoard(onlySmallBoardReady, 9)).toBe(true)
+  })
+
+  it('keeps the root opening suggestion stable after an off-shortlist point study', () => {
+    const candidate = (id: string, coordinate: string, x: number): CandidateMove => ({
+      id,
+      kind: 'play',
+      point: { x, y: 3 },
+      coordinate,
+      intent: 'claim',
+      title: coordinate,
+      summary: coordinate,
+      legal_verified: true,
+      verified: true,
+    })
+    const rootD16 = candidate('root-d16', 'D16', 3)
+    const inspectedC16 = candidate('inspected-c16', 'C16', 2)
+    const game = {
+      ...DEMO_GAME,
+      id: 'game_opening_stability',
+      revision: 7,
+      board_size: 19 as const,
+      move_count: 0,
+      moves: [],
+      stones: [],
+      coach_messages: [],
+      analysis: { status: 'ready' as const, candidates: [rootD16] },
+    }
+    const response: CoachResponse = {
+      message: {
+        id: 'study-c16', speaker: 'Lantern', role: 'companion', text: 'Rules-verified legal candidate: C16.',
+      },
+      candidates: [inspectedC16],
+    }
+
+    const studied = gameAfterCoachResponse(game, response, true)
+
+    expect(openingSuggestionForGame(game)?.coordinate).toBe('D16')
+    expect(openingSuggestionForGame(studied)?.coordinate).toBe('D16')
+    expect(studied.analysis?.candidates).toEqual([rootD16])
+    expect(studied.coach_messages.at(-1)?.text).toContain('C16')
+    expect(studied.revision).toBe(game.revision)
+    expect(studied.moves).toEqual([])
+    expect(studied.stones).toEqual([])
+    expect(game.coach_messages).toEqual([])
   })
 })

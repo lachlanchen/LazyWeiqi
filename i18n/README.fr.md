@@ -20,6 +20,8 @@ Path of Influence est une application d’enseignement locale pour Go/Weiqi. Ell
 
 Le tableau garde les libertés exactes, les groupes, les captures, le ko et les coups légaux visuellement séparés des prévisions KataGo, de l'interprétation de l'enseignant, de l'explication du modèle et de la métaphore.
 
+Dans les ouvertures ordinaires en 19×19, les aperçus des candidats séparent la forme locale exacte du potentiel territorial et de la direction d’influence calculés, puis présentent les gains, compromis, la forme de puissance avant→après, les conditions de réexamen, les suites, les réponses adverses et le contexte rédigé du joseki (定式). Les minidiagrammes numérotés sont des questions à étudier, pas des pierres déjà jouées ni une séquence forcée. L’étude approfondie optionnelle par IA sépare ses titres localisés du texte du modèle conservé mot pour mot et ne pose jamais de pierre.
+
 ## Contrat d'enseignement
 
 - Le code déterministe possède la légalité, la capture, le superko positionnel, le score, l'historique et la persistance.
@@ -35,7 +37,7 @@ Le tableau garde les libertés exactes, les groupes, les captures, le ko et les 
 | --- | --- |
 | [`apps/api/`](../apps/api/) | Autorité FastAPI, domaine Go déterministe, chronique SQLite et adaptateurs KataGo/LLM limités |
 | [`apps/web/`](../apps/web/) | Client d'enseignement React/Vite réactif avec 11 catalogues d'interface explicites |
-| [`config/`](../config/) | Configuration d'analyse KataGo 9×9 révisée |
+| [`config/`](../config/) | Configurations d’analyse KataGo 9×9 et 19×19 révisées |
 | [`scripts/`](../scripts/) | Configuration reproductible, vérification, exécution et contrôles visibles du navigateur |
 | [`references/`](../references/) | [Architecture et sécurité](../references/architecture-and-safety.md), [principes d'enseignement](../references/teaching-principles.md) et [provenance du modèle](../references/model-sources.md) |
 
@@ -58,17 +60,20 @@ Ouvrez `http://127.0.0.1:8010/` pour le tableau compact ou `http://127.0.0.1:801
 scripts/run.sh stop
 ```
 
-Installez le moteur d'enseignement KataGo, vérifié par hachage, lorsque l'analyse est nécessaire :
+Installez les moteurs d’enseignement KataGo épinglés et vérifiés par hachage lorsque l’analyse est nécessaire. L’installation dédiée au 19×19 possède sa propre configuration révisée et sa propre vérification :
 
 ```bash
 scripts/setup-katago.sh --print-plan
 scripts/setup-katago.sh
 scripts/verify-katago.sh
+scripts/setup-katago19-models.sh
+scripts/verify-katago19.sh --static-only
+scripts/verify-katago19.sh
 ```
 
 ## Interface en onze langues
 
-Le sélecteur persistant et autorisé prend en charge `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de` et `ru`. Chaque locale a les mêmes 409 clés de message explicites et les mêmes espaces réservés d'interpolation. La langue du document suit la sélection, et l'arabe change la page en mise en page de droite à gauche.
+Le sélecteur persistant et autorisé prend en charge `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de` et `ru`. Chaque locale a les mêmes 629 clés de message explicites et les mêmes espaces réservés d'interpolation. La langue du document suit la sélection, et l'arabe change la page en mise en page de droite à gauche.
 
 La copie de l'interface stable et les échecs de règles déterministes connus sont localisés. La prose d'un moteur ou d'un modèle inconnu reste verbatim et conserve sa provenance de preuve ; le client ne présente jamais une traduction non révisée comme un fait exact de Go.
 

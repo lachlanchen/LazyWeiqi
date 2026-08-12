@@ -338,6 +338,226 @@ const en = {
   'candidate.smallBoardHidden': 'Engine comparison is hidden: this {size}×{size} lesson is an authored teaching view.',
   'candidate.readNext': 'Read next',
   'candidate.interaction': 'Hover or focus to inspect. Tap, click, or press Enter to keep a non-committing preview. Right-click the board or press Esc to return to agent suggestions.',
+  'opening.title': 'Opening reading',
+  'opening.shape': 'Shape',
+  'opening.shapeHelp': 'Exact liberties and connections after this move.',
+  'opening.territory': 'Territory potential',
+  'opening.territoryHelp': 'Calculated board geometry · potential, not secured territory.',
+  'opening.influence': 'Influence',
+  'opening.influenceHelp': 'Calculated direction and reach · potential, not ownership.',
+  'opening.joseki': 'Joseki (定式)',
+  'opening.josekiHelp': 'Authored pattern context · an established corner pattern, not a forced or guaranteed sequence.',
+  'opening.followUps': 'Next anchors',
+  'opening.reply': 'Reply to examine',
+  'opening.nothingPlaced': 'Comparison only · nothing has been placed.',
+  'opening.exact': 'Exact',
+  'opening.calculated': 'Calculated potential',
+  'opening.authored': 'Authored',
+  'opening.compareAria': '{coordinate}. {shape}. {territory}. {influence}. {joseki}. Nothing has been placed.',
+  'opening.layerAria': 'Opening teaching layers for {coordinate}: exact shape, calculated territory potential and influence, and authored joseki context.',
+  'opening.directionArrow': 'Influence direction',
+  'opening.potentialRegion': 'Potential {kind} region',
+  'opening.followUpAnchor': '{role}: {coordinate}. {reason}',
+  'opening.termNote': 'Joseki is 定式: an established local corner pattern; context matters.',
+  'opening.zone.corner': 'Corner',
+  'opening.zone.side': 'Side',
+  'opening.zone.center': 'Center',
+  'opening.anchor.extension': 'Extension',
+  'opening.anchor.approach': 'Approach',
+  'opening.anchor.reply': 'Reply',
+  'opening.anchor.direction': 'Direction',
+  'opening.region.efficient': 'Efficient corner potential',
+  'opening.region.developing': 'Developing potential',
+  'opening.region.open': 'Open potential',
+  'opening.shapeFacts': '{region} · line {line} · {liberties} liberties · {connections} connections',
+  'opening.influenceFacts': '{count} direction vectors toward open board',
+  'opening.territoryFacts': '{zone} · {potential}',
+  'opening.joseki.entryPoint': 'Entry point to joseki study',
+  'opening.joseki.context': 'Joseki context to compare',
+  'opening.joseki.notApplicable': 'No joseki claim for this move',
+  'opening.openCorners': '{count} open corners remain',
+  'opening.anchorCount': '{count} follow-up and reply anchors',
+  'opening.whyNow': 'Why now',
+  'opening.buildsToward': 'What it builds toward',
+  'opening.opponentReply': 'Opponent reply to examine',
+  'opening.libertiesCompact': '{count} liberties',
+  'opening.gain': 'Gain',
+  'opening.tradeoff': 'Tradeoff',
+  'opening.mechanism': 'How it works',
+  'opening.beforeAfter': 'Power shape',
+  'opening.before': 'Before',
+  'opening.after': 'After',
+  'opening.reconsider': 'Reconsider when',
+  'opening.nextWhy': 'Next step · why',
+  'opening.whyThisMove': 'Why this move?',
+  'opening.openDetails': 'Open the full opening explanation',
+  'opening.closeDetails': 'Close explanation',
+  'opening.dialogTitle': 'Why {coordinate}?',
+  'opening.dialogAria': 'Opening comparison for {coordinate}',
+  'opening.summary': 'Compare shape, territory potential, influence, and the next exchange.',
+  'opening.sequence': 'Sequence to examine',
+  'opening.annotation': 'Board annotation {number}',
+  'opening.provenance': 'Evidence and method',
+  'opening.modalNothingPlaced': 'This explanation is a preview. Closing it or comparing another candidate never places a stone.',
+  'opening.keyboardHelp': 'Press Escape to close. Focus stays in this explanation while it is open.',
+  'opening.anchorAria': 'Board annotation {number}: {role} at {coordinate}.',
+  'opening.shapeAnnotation': 'Exact shape at {coordinate}: {liberties} liberties and {connections} connections.',
+  'opening.arrowAria': 'Calculated influence direction {number}.',
+  'opening.zoneAria': 'Calculated {potential} in the {zone}.',
+  'opening.switchHint': 'Hover, focus, or tap another candidate to compare a different plan.',
+  'opening.localDiagram': 'Local shape · before and preview',
+  'opening.wholeBoardDiagram': 'Whole-board direction',
+  'opening.sequenceDisclaimer': 'Numbered anchors are questions to examine, not stones already played or a forced sequence.',
+  'opening.beforeDiagram': 'Current local shape before {coordinate}.',
+  'opening.afterDiagram': 'Previewed local shape after {coordinate}; the stone is not placed.',
+  'opening.wholeDiagramAria': 'Whole-board preview for {coordinate}, with calculated potential regions, influence directions, and authored follow-up anchors.',
+  'opening.cornerSequence': 'Corner sequence',
+  'opening.responseBranch': 'Response branch',
+  'opening.moveNumber': 'Move {number}',
+  'opening.illustrativeLine': 'Illustrative context · not forced',
+  'opening.currentStones': 'Current stones',
+  'opening.candidateStone': 'Candidate preview',
+  'opening.nextStep': 'Next step',
+  'opening.deepStudy': 'Ask for deeper AI study',
+  'opening.deepStudyBusy': 'Studying this move…',
+  'opening.deepStudyHelp': 'Ask the coach to compare this candidate more deeply. This does not place a stone.',
+  'opening.deepStudyFocus': 'Study focus',
+  'opening.transferablePrinciple': 'Transferable principle',
+  'opening.phase.rules': 'Rules',
+  'opening.phase.life_and_death': 'Life and death',
+  'opening.phase.tesuji': 'Tesuji',
+  'opening.phase.shape': 'Shape',
+  'opening.phase.joseki': 'Joseki',
+  'opening.phase.fuseki': 'Fuseki',
+  'opening.phase.middle_game': 'Middle game',
+  'opening.phase.endgame': 'Endgame',
+  'opening.phase.positional_judgment': 'Positional judgment',
+  'opening.phase.game_review': 'Game review',
+  'opening.study.whyNowAt': 'This is a {phase} teaching lens at move {move} for {coordinate}; the phase label is pedagogical, not an engine verdict.',
+  'opening.study.whyNow': 'This is a {phase} teaching lens at move {move}; the phase label is pedagogical, not an engine verdict.',
+  'opening.study.currentFacts': 'The current position has {black} black stones and {white} white stones; legality and liberties remain deterministic board facts.',
+  'opening.study.authoredHypothesis': 'Authored teaching hypothesis: {summary}',
+  'opening.study.noProvenGain': 'Compare only the supplied legal choices; no strategic gain is proven here.',
+  'opening.study.authoredCaution': 'Authored teaching caution: {risk}',
+  'opening.study.noProvenSafety': 'The position does not prove that territory is secured or that a group is safe.',
+  'opening.study.searchedReply': 'KataGo supplied {reply} in one searched line; this reply is not forced.',
+  'opening.study.noSearchedReply': 'No searched reply is attached; compare the opponent’s legal responses.',
+  'opening.study.nextAnchors': '1. Recount exact liberties after the opponent reply; 2. Compare authored future anchors {coordinates}; 3. Re-evaluate whole-board urgency before choosing one.',
+  'opening.study.nextCandidates': '1. Recount exact liberties; 2. Compare the supplied legal candidates; 3. Re-evaluate after the opponent’s actual move.',
+  'opening.study.transferable': 'Separate exact local consequences from authored plans, engine forecasts, and unsettled influence or territory potential.',
+  'opening.copy.upper_left_framework_seed': 'Upper-left framework seed',
+  'opening.copy.upper_right_framework_seed': 'Upper-right framework seed',
+  'opening.copy.lower_left_framework_seed': 'Lower-left framework seed',
+  'opening.copy.corner_star_point': 'Corner star-point opening',
+  'opening.copy.side_development': 'Side development',
+  'opening.copy.center_influence': 'Center-facing influence',
+  'opening.copy.claim_upper_left_with_two_open_directions': 'Claim the upper-left corner while keeping two open development directions.',
+  'opening.copy.claim_upper_right_with_two_open_directions': 'Claim the upper-right corner while keeping two open development directions.',
+  'opening.copy.claim_lower_left_with_two_open_directions': 'Claim the lower-left corner while keeping two open development directions.',
+  'opening.copy.develop_side_with_outward_connection': 'Develop along the side while linking the local shape to outward space.',
+  'opening.copy.build_center_facing_flexibility': 'Build flexible center-facing influence.',
+  'opening.copy.fourth_line_balances_corner_access_and_outward_reach': 'The fourth line balances corner access with outward reach.',
+  'opening.copy.side_point_links_local_shape_to_open_direction': 'This side point links local shape to an open direction.',
+  'opening.copy.center_point_offers_reach_but_little_immediate_ground': 'This center point reaches widely but makes little immediate ground.',
+  'opening.copy.corner_entry': 'Corner foothold',
+  'opening.copy.top_side_option': 'Top-side development option',
+  'opening.copy.right_side_option': 'Right-side development option',
+  'opening.copy.bottom_side_option': 'Bottom-side development option',
+  'opening.copy.left_side_option': 'Left-side development option',
+  'opening.copy.central_reach': 'Central reach',
+  'opening.copy.connection_option': 'Connection option',
+  'opening.copy.corner_not_secured': 'The corner is not secured.',
+  'opening.copy.opponent_keeps_approach_choice': 'The opponent keeps a choice of approaches.',
+  'opening.copy.can_become_overconcentrated': 'It can become overconcentrated if reinforced without need.',
+  'opening.copy.fourth_line_corner_projection': 'A fourth-line corner stone projects toward both the side and the center.',
+  'opening.copy.two_open_development_directions': 'Two open development directions remain.',
+  'opening.copy.geometry_spreads_toward_open_lines': 'Calculated geometry spreads toward open lines; it does not prove thickness or a moyo.',
+  'opening.copy.stone_has_exact_resulting_liberties': 'The preview stone has {count} exact resulting liberties.',
+  'opening.copy.empty_board_uncommitted': 'The empty board has no settled direction.',
+  'opening.copy.current_shape_before_candidate': 'Current stones define the starting shape.',
+  'opening.copy.upper_left_seed_projects_right_and_down': 'This seed projects rightward and downward toward open board.',
+  'opening.copy.upper_right_seed_projects_left_and_down': 'This seed projects leftward and downward toward open board.',
+  'opening.copy.lower_left_seed_projects_right_and_up': 'This seed projects rightward and upward toward open board.',
+  'opening.copy.local_shape_extends_toward_open_space': 'The local shape extends toward open space.',
+  'opening.copy.nearby_contact_makes_local_reply_urgent': 'Reconsider when nearby contact makes the local reply urgent.',
+  'opening.copy.weak_group_makes_global_plan_secondary': 'Reconsider when a weak group makes the urgent point more important than the big whole-board point.',
+  'opening.copy.opponent_stone_reduces_planned_direction': 'Reconsider when an opponent stone reduces the planned direction.',
+  'opening.copy.adds_upper_left_option': 'Adds an upper-left development option without settling the board.',
+  'opening.copy.adds_upper_right_option': 'Adds an upper-right development option without settling the board.',
+  'opening.copy.adds_lower_left_option': 'Adds a lower-left development option without settling the board.',
+  'opening.copy.adds_lower_right_option': 'Adds a lower-right development option without settling the board.',
+  'opening.copy.adds_local_option_without_settling_board': 'Adds a local option without settling the whole board.',
+  'opening.copy.extend_top': 'Extend along the top side',
+  'opening.copy.extend_right': 'Extend along the right side',
+  'opening.copy.extend_bottom': 'Extend along the bottom side',
+  'opening.copy.extend_left': 'Extend along the left side',
+  'opening.copy.opponent_approach': 'Opponent approach',
+  'opening.copy.local_reply': 'Local reply',
+  'opening.copy.extend_along_open_side': 'An extension develops along an open side before it becomes crowded.',
+  'opening.copy.approach_tests_corner_response': 'An approach tests how the corner stone will answer.',
+  'opening.copy.star_point_can_begin_joseki_context': 'A star-point move can become an entry point to joseki study.',
+  'opening.copy.joseki_depends_on_nearby_stones_and_direction': 'Joseki depends on nearby stones and whole-board direction.',
+  'opening.copy.not_a_joseki_position': 'This is not yet a joseki position.',
+  'opening.copy.potential_only_requires_boundaries': 'Potential only: territory still requires boundaries and later confirmation.',
+  'opening.copy.potential_not_secured_territory': 'Potential is not secured territory.',
+  'opening.copy.influence_not_ownership': 'Influence is not ownership.',
+  'opening.copy.authored_context_not_best_move': 'Authored context is not a best-move claim.',
+  'opening.copy.joseki_not_forced_sequence': 'Joseki is not a forced sequence.',
+  'opening.copy.toward_center': 'Toward the center',
+  'opening.copy.along_top': 'Along the top side',
+  'opening.copy.along_right': 'Along the right side',
+  'opening.copy.along_bottom': 'Along the bottom side',
+  'opening.copy.along_left': 'Along the left side',
+  'opening.copy.inward': 'Inward',
+  'opening.copy.open_board_not_forced': 'Open-board initiative only; the illustrated line proves neither sente nor gote and is not forced.',
+  'opening.copy.lower_right_framework_seed': 'Lower-right framework seed',
+  'opening.copy.corner_development': 'Corner development',
+  'opening.copy.side_development_point': 'Side-development point',
+  'opening.copy.center_influence_probe': 'Center-influence probe',
+  'opening.copy.claim_lower_right_with_two_open_directions': 'Claim the lower-right corner while keeping two open development directions.',
+  'opening.copy.develop_corner_with_two_open_directions': 'Develop a corner while keeping both adjacent sides available.',
+  'opening.copy.third_line_emphasizes_corner_ground': 'The third line emphasizes immediate corner ground.',
+  'opening.copy.high_corner_move_emphasizes_outward_reach': 'A high corner move emphasizes outward reach over immediate ground.',
+  'opening.copy.corner_move_keeps_adjacent_sides_available': 'This corner move keeps both adjacent sides available for development.',
+  'opening.copy.side_framework_option': 'Side-framework option',
+  'opening.copy.multi_direction_option': 'Multi-direction development option',
+  'opening.copy.upper_left_plan_can_be_reduced_from_two_sides': 'The upper-left plan can be reduced from two sides.',
+  'opening.copy.upper_right_plan_can_be_reduced_from_two_sides': 'The upper-right plan can be reduced from two sides.',
+  'opening.copy.lower_left_plan_can_be_reduced_from_two_sides': 'The lower-left plan can be reduced from two sides.',
+  'opening.copy.lower_right_plan_can_be_reduced_from_two_sides': 'The lower-right plan can be reduced from two sides.',
+  'opening.copy.little_immediate_edge_efficiency': 'Little immediate edge efficiency.',
+  'opening.copy.less_immediate_corner_efficiency': 'Less immediate corner efficiency.',
+  'opening.copy.local_direction_depends_on_nearby_stones': 'Local direction depends on nearby stones.',
+  'opening.copy.lower_right_seed_projects_left_and_up': 'This seed projects leftward and upward toward open board.',
+  'opening.copy.low_liberty_group_requires_immediate_reading': 'Reconsider when a low-liberty group requires immediate exact reading.',
+  'opening.copy.developing_shape_not_confirmed_thick': 'This developing shape is not confirmed thickness.',
+  'opening.copy.connected_shape_not_yet_thick': 'Connected stones are not automatically a thick position.',
+  'opening.copy.single_stone_not_thick': 'One stone is not thickness.',
+  'opening.copy.can_be_approached_from_open_side': 'The shape can still be approached from the open side.',
+  'opening.copy.low_liberties_are_urgent': 'Low liberties make the local point urgent.',
+  'opening.copy.local_tactical_reply_may_be_urgent_not_forced': 'A local tactical reply may be urgent, but this illustrated branch is not forced.',
+  'opening.copy.reply_preserves_local_options': 'A reply preserves more than one local continuation.',
+  'opening.copy.future_big_point': 'Future big point',
+  'opening.copy.opponent_reply_space': 'Space for the opponent’s reply',
+  'opening.copy.empty_board_opening': 'Empty-board opening',
+  'opening.copy.early_whole_board_opening': 'Early whole-board opening',
+  'opening.copy.developed_whole_board_position': 'Developed whole-board position',
+  'opening.copy.upper_left_corner': 'Upper-left corner',
+  'opening.copy.upper_side': 'Upper side',
+  'opening.copy.upper_right_corner': 'Upper-right corner',
+  'opening.copy.left_side': 'Left side',
+  'opening.copy.center': 'Center',
+  'opening.copy.right_side': 'Right side',
+  'opening.copy.lower_left_corner': 'Lower-left corner',
+  'opening.copy.lower_side': 'Lower side',
+  'opening.copy.lower_right_corner': 'Lower-right corner',
+  'opening.copy.geometry_not_best_move': 'Calculated geometry is not a best-move claim.',
+  'opening.copy.engine_evidence_not_attached': 'Engine evidence is not attached to this reading.',
+  'opening.copy.calculated_geometry_not_engine_reading': 'Calculated geometry is not an engine reading.',
+  'opening.copy.local_shape': 'Local shape',
+  'opening.copy.whole_board_direction': 'Whole-board direction',
+  'opening.copy.corner_sequence': 'Corner sequence',
+  'opening.copy.reply_branch': 'Reply branch',
   'evidence.exact': 'Exact',
   'evidence.tactical': 'Tactical read',
   'evidence.engine': 'Engine estimate',
@@ -464,6 +684,39 @@ const en = {
 export type MessageKey = keyof typeof en
 type Catalog = Record<MessageKey, string>
 
+export const OPENING_COPY_KEYS = Object.freeze(
+  (Object.keys(en) as MessageKey[]).filter(
+    (key): key is Extract<MessageKey, `opening.copy.${string}`> => key.startsWith('opening.copy.'),
+  ),
+)
+
+const OPENING_COPY_KEY_SET: ReadonlySet<string> = new Set(OPENING_COPY_KEYS)
+
+export function openingCopyKey(id: string): Extract<MessageKey, `opening.copy.${string}`> | null {
+  const key = `opening.copy.${id}`
+  return OPENING_COPY_KEY_SET.has(key)
+    ? key as Extract<MessageKey, `opening.copy.${string}`>
+    : null
+}
+
+const OPENING_PHASE_KEYS = {
+  rules: 'opening.phase.rules',
+  life_and_death: 'opening.phase.life_and_death',
+  tesuji: 'opening.phase.tesuji',
+  shape: 'opening.phase.shape',
+  joseki: 'opening.phase.joseki',
+  fuseki: 'opening.phase.fuseki',
+  middle_game: 'opening.phase.middle_game',
+  endgame: 'opening.phase.endgame',
+  positional_judgment: 'opening.phase.positional_judgment',
+  game_review: 'opening.phase.game_review',
+} as const satisfies Record<string, MessageKey>
+
+function localizeOpeningPhase(locale: Locale, phase: string): string | null {
+  const key = OPENING_PHASE_KEYS[phase as keyof typeof OPENING_PHASE_KEYS]
+  return key ? translate(locale, key) : null
+}
+
 // Translators intentionally cover interface and reviewed authored teaching copy.
 // Unconstrained model/engine prose is rendered verbatim and never passed here.
 const zhHans: Catalog = {
@@ -491,10 +744,32 @@ const zhHans: Catalog = {
   'play.trainingFocus': '练习重点：', 'play.sceneComplete': '本局完成', 'play.endedPasses': '对局结束 · 连续两次停一手', 'play.openReflection': '打开复盘', 'play.teachingGame': '教学局', 'play.moves': '{count} 手', 'play.move': '第 {count} 手', 'play.gameComplete': '对局完成', 'play.scoreNotSettled': '对局结束 · 胜负未定', 'play.toPlay': '轮到 {name}', 'play.currentPurpose': '当前目标', 'play.komi': '贴目 {value}', 'play.analyzingAt': '正在分析 {color} 下在 {coordinate} 后的局面…', 'play.findingFirst': '正在寻找建议的第一手…', 'play.comparing': '正在比较下一手选择…', 'play.backSuggestions': '返回建议', 'play.rewind': '悔棋', 'play.pauseTheatre': '暂停对弈', 'play.watch': '连续观看', 'play.oneTurn': '走一手并解说', 'play.cancel': '取消', 'play.previewHint': '预览中 · 右键棋盘或按 Esc 取消选择', 'play.verified': '已验证', 'play.notLegal': '不合法', 'play.checking': '检查中…', 'play.placeStone': '确认落子', 'play.chooseAnother': '选择其他点', 'play.analysisFirst': '先看分析 · 落子仍锁定', 'play.candidatePinned': '已固定候选 · 右键棋盘或按 Esc 返回智能体建议。', 'play.selectEmpty': '选择空交叉点，预览它带来的后果。', 'play.pass': '停一手', 'play.resign': '认输', 'play.timeline': '着法时间线', 'play.storySoFar': '目前的对局', 'play.firstChronicle': '第一手将开启棋谱。', 'play.areaUnsettled': '地盘与死子尚未确定，因此不宣布最终比分。', 'rules.positionalSuperko': '禁全同局', 'rules.situationalSuperko': '禁同局同方', 'rules.simpleKo': '单劫规则', 'rules.reasonOccupied': '该交叉点已有棋子', 'rules.reasonSuicide': '着法不能让自己的棋块没有气', 'rules.reasonSuperko': '这手棋会重复之前的盘面局面', 'rules.reasonFinished': '对局已经结束', 'rules.reasonOutside': '该交叉点位于 {size} 棋盘之外',
   'coach.narrator': '解说者', 'coach.lantern': '灯笼', 'coach.companion': '陪伴者', 'coach.lessonGuide': '课程向导', 'coach.compass': '罗盘', 'coach.authority': '智能体权限', 'coach.authorityTheatre': '解说只说明双方棋风；只有两个棋手智能体能落子。', 'coach.authorityCompanion': '灯笼站在你这边，但不会替你落子，除非你明确委托这一手。', 'coach.authorityHuman': '河只从教学服务已验证的合法候选中选择。', 'coach.intention': '你的意图', 'coach.optional': '可选，但很有帮助', 'coach.moveIntention': '着法意图', 'intent.unsure': '不确定', 'intent.claim': '占地', 'intent.connect': '连接', 'intent.pressure': '施压', 'intent.escape': '逃出', 'intent.settle': '安定', 'intent.sacrifice': '取舍', 'intent.cut': '切断', 'intent.invade': '打入', 'intent.reduce': '消减', 'intent.endgame': '官子', 'coach.revealHistory': '展开对话历史', 'coach.loadingEarlier': '正在加载更早消息…', 'coach.tryEarlier': '重试加载更早消息', 'coach.loadEarlier': '加载更早消息', 'coach.recentOnly': '只显示最近消息', 'coach.visibleStillHere': '当前可见对话仍在。', 'coach.learnerQuestion': '学习者提问', 'coach.you': '你', 'coach.evidence': '依据来源', 'coach.empty': '向导正安静观察。选一个点，或提一个问题。', 'coach.otherCandidates': '其他候选思路', 'coach.candidateIntentions': '候选着法意图', 'coach.notLegalNow': '这个点当前不合法。', 'coach.hint': '分级提示', 'coach.compare': '比较', 'coach.hintQuestion': '我落子前应该先注意什么？', 'coach.compareQuestion': '请解释这些候选着之间最关键的差别。', 'coach.ask': '询问教练', 'coach.askDoctrine': '询问任一方的棋风…', 'coach.askChanged': '询问改变了什么…', 'coach.invite': '邀请灯笼只代下这一手', 'coach.oneTurnOnly': '仅此一手。', 'coach.keepTurn': '保留我的回合', 'coach.chooseOnce': '只代选这一手',
   'candidate.empty': '选择一个空点来比较后果。', 'candidate.list': '候选着法比较', 'candidate.suggested': '建议的第一手', 'candidate.teacherFallback': '教师备用建议', 'candidate.intentProvenance': '教师假设 · 可能任务', 'candidate.replyEngine': '引擎主变中的回应（非必然）', 'candidate.replyExamine': '需检查的回应', 'candidate.risk': '风险：', 'candidate.noEngine': '此处不声称有引擎支持。', 'candidate.why': '为什么下这里', 'candidate.changes': '改变了什么', 'candidate.next': '下一步计算', 'candidate.teacherInterpretation': '教师解读', 'candidate.rulesFacts': '规则事实', 'candidate.exact': '确定', 'candidate.scoreComparison': '目数预测比较', 'candidate.supportsComparison': '这仅用于比较，不是地盘事实。', 'candidate.boardField': '棋盘分布', 'candidate.afterOwnership': '着后归属预测', 'candidate.deltaOwnership': '归属变化形状', 'candidate.readNext': '继续阅读', 'candidate.interaction': '悬停或聚焦以查看。点按、单击或按 Enter 保留不落子的预览；右键棋盘或按 Esc 返回智能体建议。',
+  'opening.title': '序盘解读', 'opening.shape': '棋形', 'opening.shapeHelp': '着后确切的气与连接。', 'opening.territory': '地盘潜力', 'opening.territoryHelp': '计算得到的棋盘几何 · 只是潜力，不是已确保的地盘。', 'opening.influence': '外势', 'opening.influenceHelp': '计算得到的方向与延伸 · 只是潜力，不是归属。', 'opening.joseki': '定式（joseki）', 'opening.josekiHelp': '人工编写的棋型背景 · 角部既定棋型，并非强制或保证的次序。', 'opening.followUps': '下一步锚点', 'opening.reply': '要检验的应手', 'opening.nothingPlaced': '仅供比较 · 尚未落子。', 'opening.exact': '确定事实', 'opening.calculated': '计算得到的潜力', 'opening.authored': '人工编写', 'opening.compareAria': '{coordinate}。{shape}。{territory}。{influence}。{joseki}。尚未落子。', 'opening.layerAria': '用于 {coordinate} 的序盘教学图层：确定棋形、计算得到的地盘潜力与外势，以及人工编写的定式背景。', 'opening.directionArrow': '外势方向', 'opening.potentialRegion': '{kind}区域', 'opening.followUpAnchor': '{role}：{coordinate}。{reason}', 'opening.termNote': '定式（joseki）是角部已有共识的局部棋型；是否适合取决于全局背景。', 'opening.zone.corner': '角', 'opening.zone.side': '边', 'opening.zone.center': '中腹', 'opening.anchor.extension': '拆', 'opening.anchor.approach': '挂角', 'opening.anchor.reply': '应手', 'opening.anchor.direction': '方向', 'opening.region.efficient': '高效角部潜力', 'opening.region.developing': '发展中的潜力', 'opening.region.open': '开放潜力', 'opening.shapeFacts': '{region} · 第 {line} 路 · {liberties} 口气 · {connections} 个连接', 'opening.influenceFacts': '{count} 个指向空旷盘面的方向向量', 'opening.territoryFacts': '{zone} · {potential}', 'opening.joseki.entryPoint': '定式学习入口', 'opening.joseki.context': '要比较的定式背景', 'opening.joseki.notApplicable': '此手不声称与定式有关', 'opening.openCorners': '还有 {count} 个空角', 'opening.anchorCount': '{count} 个后续与应手锚点', 'opening.whyNow': '为什么现在', 'opening.buildsToward': '它在为什么铺路', 'opening.opponentReply': '要检验的对手应手', 'opening.libertiesCompact': '{count} 口气', 'opening.gain': '收益', 'opening.tradeoff': '取舍', 'opening.mechanism': '如何起作用', 'opening.beforeAfter': '力量形状', 'opening.before': '着前', 'opening.after': '着后', 'opening.reconsider': '何时重新考虑', 'opening.nextWhy': '下一步 · 为什么', 'opening.whyThisMove': '为什么下这手？', 'opening.openDetails': '打开完整序盘讲解', 'opening.closeDetails': '关闭讲解', 'opening.dialogTitle': '为什么下在 {coordinate}？', 'opening.dialogAria': '{coordinate} 的序盘比较', 'opening.summary': '比较棋形、地盘潜力、外势和接下来的交换。', 'opening.sequence': '要检验的次序', 'opening.annotation': '棋盘标注 {number}', 'opening.provenance': '依据与方法', 'opening.modalNothingPlaced': '此讲解只是预览。关闭它或比较另一个候选都不会落子。', 'opening.keyboardHelp': '按 Escape 关闭。讲解打开时，焦点留在其中。', 'opening.anchorAria': '棋盘标注 {number}：{role}，位于 {coordinate}。', 'opening.shapeAnnotation': '{coordinate} 的确定棋形：{liberties} 口气，{connections} 个连接。', 'opening.arrowAria': '计算得到的外势方向 {number}。', 'opening.zoneAria': '{zone}的计算结果：{potential}。', 'opening.switchHint': '悬停、聚焦或点按另一个候选，以比较不同计划。', 'opening.localDiagram': '局部棋形 · 着前与预览', 'opening.wholeBoardDiagram': '全局方向', 'opening.sequenceDisclaimer': '编号锚点是要检验的问题，不是已经落下的棋子，也不是强制次序。', 'opening.beforeDiagram': '下在 {coordinate} 前的当前局部棋形。', 'opening.afterDiagram': '下在 {coordinate} 后的局部棋形预览；棋子尚未落下。', 'opening.wholeDiagramAria': '{coordinate} 的全局预览，包含计算得到的潜力区域、外势方向与人工编写的后续锚点。',
   'evidence.exact': '确定事实', 'evidence.tactical': '战术读取', 'evidence.engine': '引擎估计', 'evidence.model': '模型解释', 'evidence.teacher': '教师指导', 'evidence.metaphor': '比喻', 'energy.views': '棋盘视图', 'energy.title': '切换清晰的单个图层', 'energy.noMagic': '没有神秘总分', 'energy.overlays': '棋盘教学图层', 'energy.ifPlayed': '如果下在此处', 'energy.current': '当前局面', 'lens.cloud': '存在感示意', 'lens.cloudTerm': '距离比喻', 'lens.breath': '呼吸', 'lens.liberties': '气', 'lens.bonds': '连结', 'lens.connections': '连接', 'lens.shelter': '安定', 'lens.eyeSpace': '眼位', 'lens.forecast': '预测', 'lens.ownership': '归属倾向', 'lens.strong': '强预测', 'lens.threshold': '仅用于显示的归属阈值', 'lens.area': '盘面计数', 'lens.areaTerm': '棋子与空交叉点', 'lens.turn': '回合', 'lens.side': '轮到哪方', 'lens.pressure': '压力', 'lens.atari': '假设着法造成的叫吃',
   'power.eyebrow': '按逻辑思考这一手', 'power.title': '从选择到下一步计算', 'power.remember': '记住：', 'power.memory': '确定规则事实、引擎预测和教师解读回答的是不同问题。预测不是已属于你的地盘。', 'power.play': '下在哪里', 'power.because': '为什么', 'power.changes': '改变', 'power.opponent': '对手回应', 'power.thenCheck': '然后检查', 'power.principle': '原则', 'source.exactRules': '确定规则', 'source.engine': '引擎估计', 'source.lesson': '课程指导', 'source.teacher': '教师解读',
   'chronicle.eyebrow': '你的棋谱', 'chronicle.title': '对局会成为可重温的故事', 'chronicle.description': '历史把主线、悔棋分支、意图、解释与引擎来源放在一起。', 'chronicle.ended': '对局结束 · 胜负未定', 'chronicle.revisit': '重温', 'chronicle.unavailableTitle': '暂时无法读取历史。', 'chronicle.unavailableText': '你的对局没有被示例数据替换。重新连接本地服务后再试。', 'chronicle.emptyTitle': '第一局棋会出现在这里。', 'chronicle.emptyText': '每个完成的课程都会留下一个值得记住的时刻。', 'chronicle.loadingOlder': '正在加载更早对局…', 'chronicle.tryOlder': '重试加载更早对局', 'chronicle.loadOlder': '加载更早对局', 'chronicle.reviewHall': '复盘室', 'chronicle.inProgress': '对局进行中', 'chronicle.promise': '起意', 'chronicle.crisis': '危机', 'chronicle.resolution': '收束', 'chronicle.noSummary': '尚未记录这局棋的专属故事摘要。着法历史依然完整保留，不会虚构解读。', 'chronicle.selectGame': '选择一局棋', 'chronicle.selectText': '查看它的起意、危机、收束，以及一条值得带走的原则。', 'chronicle.recently': '最近',
   'board.black': '黑棋', 'board.white': '白棋', 'board.lastMove': '，最后一手', 'board.selected': '，已选中预览', 'board.moveLegal': '着法合法。', 'board.checkingConsequences': '正在检查后果。', 'board.openingSketch': '开局效率示意', 'board.distanceSketch': '当前棋子距离示意', 'board.analogy': '初学者比喻 · 不代表着法质量', 'board.corner': '角', 'board.cornerText': '只需关闭较少方向', 'board.side': '边', 'board.sideText': '易与附近棋子联系', 'board.center': '中腹', 'board.centerText': '延伸远，围空慢', 'board.nearby': '附近存在感', 'board.violet': '紫色', 'board.bothClose': '双方都很近', 'board.sketchDisclaimer': '这个初学示意只表示与当前棋子的距离。它不给候选着排名，也不是物理场、地盘、归属或比分。', 'board.smallBoardDisclaimer': '这是人工编写的 {size}×{size} 教学视图；已安装的 KataGo 依据仅适用于 9×9。', 'board.separateEstimate': '另一层方格渐变是 KataGo 的归属估计。', 'board.currentBoard': '当前棋盘', 'board.noTerritory': '对局进行中没有已定地盘。请用上方已标注的归属云图和目数预测比较未来可能的控制。',
+  'opening.cornerSequence': '角部次序', 'opening.responseBranch': '应手分支', 'opening.moveNumber': '第 {number} 手', 'opening.illustrativeLine': '示意背景 · 非强制', 'opening.currentStones': '当前棋子', 'opening.candidateStone': '候选预览', 'opening.nextStep': '下一步', 'opening.deepStudy': '请求更深入的 AI 研究', 'opening.deepStudyBusy': '正在深入研究这手棋…', 'opening.deepStudyHelp': '请教练更深入地比较这个候选。此操作不会落子。', 'opening.deepStudyFocus': '研究重点', 'opening.transferablePrinciple': '可迁移原则',
+  'opening.phase.rules': '规则', 'opening.phase.life_and_death': '死活', 'opening.phase.tesuji': '手筋', 'opening.phase.shape': '棋形', 'opening.phase.joseki': '定式', 'opening.phase.fuseki': '布局', 'opening.phase.middle_game': '中盘', 'opening.phase.endgame': '官子', 'opening.phase.positional_judgment': '形势判断', 'opening.phase.game_review': '复盘',
+  'opening.study.whyNowAt': '这是第 {move} 手、针对 {coordinate} 的{phase}教学视角；阶段标签用于教学，不是引擎判定。', 'opening.study.whyNow': '这是第 {move} 手的{phase}教学视角；阶段标签用于教学，不是引擎判定。', 'opening.study.currentFacts': '当前局面有 {black} 枚黑棋和 {white} 枚白棋；合法性与气仍是确定性的棋盘事实。', 'opening.study.authoredHypothesis': '人工编写的教学假设：{summary}', 'opening.study.noProvenGain': '只比较服务器提供的合法选择；此处没有证明任何战略收益。', 'opening.study.authoredCaution': '人工编写的教学警示：{risk}', 'opening.study.noProvenSafety': '当前局面不能证明地盘已确保，也不能证明棋块已经安全。', 'opening.study.searchedReply': 'KataGo 在一条搜索变化中给出 {reply}；此应手并非强制。', 'opening.study.noSearchedReply': '未附带搜索应手；请比较对手的合法回应。', 'opening.study.nextAnchors': '1. 对手应手后重新准确数气；2. 比较人工编写的未来锚点 {coordinates}；3. 选定一手前重新评估全局急缓。', 'opening.study.nextCandidates': '1. 重新准确数气；2. 比较服务器提供的合法候选；3. 对手实际落子后重新评估。', 'opening.study.transferable': '把确切的局部后果与人工编写的计划、引擎预测，以及尚未确定的外势或地盘潜力分开。',
+  'opening.copy.upper_left_framework_seed': '左上框架起点', 'opening.copy.upper_right_framework_seed': '右上框架起点', 'opening.copy.lower_left_framework_seed': '左下框架起点', 'opening.copy.corner_star_point': '角部星位开局', 'opening.copy.side_development': '边上展开', 'opening.copy.center_influence': '面向中腹的外势',
+  'opening.copy.claim_upper_left_with_two_open_directions': '抢占左上角，同时保留两个开放的发展方向。', 'opening.copy.claim_upper_right_with_two_open_directions': '抢占右上角，同时保留两个开放的发展方向。', 'opening.copy.claim_lower_left_with_two_open_directions': '抢占左下角，同时保留两个开放的发展方向。', 'opening.copy.develop_side_with_outward_connection': '沿边展开，并把局部棋形连接到外侧空间。', 'opening.copy.build_center_facing_flexibility': '建立面向中腹的灵活外势。',
+  'opening.copy.fourth_line_balances_corner_access_and_outward_reach': '四线兼顾角部效率与向外延伸。', 'opening.copy.side_point_links_local_shape_to_open_direction': '这个边上点把局部棋形连接到开放方向。', 'opening.copy.center_point_offers_reach_but_little_immediate_ground': '这个中腹点延伸很远，但眼下成地很少。',
+  'opening.copy.corner_entry': '角部立足点', 'opening.copy.top_side_option': '上边发展选择', 'opening.copy.right_side_option': '右边发展选择', 'opening.copy.bottom_side_option': '下边发展选择', 'opening.copy.left_side_option': '左边发展选择', 'opening.copy.central_reach': '向中腹延伸', 'opening.copy.connection_option': '连接选择',
+  'opening.copy.corner_not_secured': '角部尚未守住。', 'opening.copy.opponent_keeps_approach_choice': '对手仍可选择挂角方向。', 'opening.copy.can_become_overconcentrated': '若无必要地继续加固，可能形成凝形。',
+  'opening.copy.fourth_line_corner_projection': '四线角部棋子同时向边和中腹投射。', 'opening.copy.two_open_development_directions': '仍有两个开放的发展方向。', 'opening.copy.geometry_spreads_toward_open_lines': '计算几何向开放线路展开；这不证明已经形成厚势或模样（moyo）。', 'opening.copy.stone_has_exact_resulting_liberties': '预览棋子落下后确切有 {count} 口气。',
+  'opening.copy.empty_board_uncommitted': '空棋盘还没有确定方向。', 'opening.copy.current_shape_before_candidate': '当前棋子构成起始棋形。', 'opening.copy.upper_left_seed_projects_right_and_down': '这个起点向右、向下投射到开放盘面。', 'opening.copy.upper_right_seed_projects_left_and_down': '这个起点向左、向下投射到开放盘面。', 'opening.copy.lower_left_seed_projects_right_and_up': '这个起点向右、向上投射到开放盘面。', 'opening.copy.local_shape_extends_toward_open_space': '局部棋形向开放空间延伸。',
+  'opening.copy.nearby_contact_makes_local_reply_urgent': '附近发生接触、局部应手变成急场时，请重新考虑。', 'opening.copy.weak_group_makes_global_plan_secondary': '出现弱棋、急场比全局大场更重要时，请重新考虑。', 'opening.copy.opponent_stone_reduces_planned_direction': '对手棋子削弱计划方向时，请重新考虑。',
+  'opening.copy.adds_upper_left_option': '增加左上发展选择，但不宣称全盘已经安定。', 'opening.copy.adds_upper_right_option': '增加右上发展选择，但不宣称全盘已经安定。', 'opening.copy.adds_lower_left_option': '增加左下发展选择，但不宣称全盘已经安定。', 'opening.copy.adds_lower_right_option': '增加右下发展选择，但不宣称全盘已经安定。', 'opening.copy.adds_local_option_without_settling_board': '增加一个局部选择，但不宣称全盘已经安定。',
+  'opening.copy.extend_top': '沿上边拆', 'opening.copy.extend_right': '沿右边拆', 'opening.copy.extend_bottom': '沿下边拆', 'opening.copy.extend_left': '沿左边拆', 'opening.copy.opponent_approach': '对手挂角', 'opening.copy.local_reply': '局部应手',
+  'opening.copy.extend_along_open_side': '趁边上仍开阔时拆开发展。', 'opening.copy.approach_tests_corner_response': '挂角检验角部棋子将如何应对。',
+  'opening.copy.star_point_can_begin_joseki_context': '星位可以成为学习定式的入口。', 'opening.copy.joseki_depends_on_nearby_stones_and_direction': '定式取决于附近棋子与全局方向。', 'opening.copy.not_a_joseki_position': '这还不是一个定式局面。', 'opening.copy.potential_only_requires_boundaries': '这里只表示潜力：地盘仍需边界与后续确认。',
+  'opening.copy.potential_not_secured_territory': '潜力不是已确保的地盘。', 'opening.copy.influence_not_ownership': '外势不是归属。', 'opening.copy.authored_context_not_best_move': '人工编写的背景不等于“最佳着法”判断。', 'opening.copy.joseki_not_forced_sequence': '定式不是强制次序。',
+  'opening.copy.toward_center': '向中腹', 'opening.copy.along_top': '沿上边', 'opening.copy.along_right': '沿右边', 'opening.copy.along_bottom': '沿下边', 'opening.copy.along_left': '沿左边', 'opening.copy.inward': '向内', 'opening.copy.open_board_not_forced': '只表示开放棋盘上的先手机会；示意线既不能证明先手（sente）或后手（gote），也不是强制次序。',
+  'opening.copy.lower_right_framework_seed': '右下框架起点', 'opening.copy.corner_development': '角部展开', 'opening.copy.side_development_point': '边上发展点', 'opening.copy.center_influence_probe': '中腹外势试探', 'opening.copy.claim_lower_right_with_two_open_directions': '抢占右下角，同时保留两个开放的发展方向。', 'opening.copy.develop_corner_with_two_open_directions': '发展角部，同时保留相邻两边。', 'opening.copy.third_line_emphasizes_corner_ground': '三线更重视眼下的角部实地。', 'opening.copy.high_corner_move_emphasizes_outward_reach': '高位角部着法更重视向外延伸，而非眼下成地。', 'opening.copy.corner_move_keeps_adjacent_sides_available': '这手角部着法为相邻两边保留发展余地。', 'opening.copy.side_framework_option': '边上框架选择', 'opening.copy.multi_direction_option': '多方向发展选择',
+  'opening.copy.upper_left_plan_can_be_reduced_from_two_sides': '左上计划可从两边遭到消减。', 'opening.copy.upper_right_plan_can_be_reduced_from_two_sides': '右上计划可从两边遭到消减。', 'opening.copy.lower_left_plan_can_be_reduced_from_two_sides': '左下计划可从两边遭到消减。', 'opening.copy.lower_right_plan_can_be_reduced_from_two_sides': '右下计划可从两边遭到消减。', 'opening.copy.little_immediate_edge_efficiency': '眼下的边上效率很少。', 'opening.copy.less_immediate_corner_efficiency': '眼下的角部效率较低。', 'opening.copy.local_direction_depends_on_nearby_stones': '局部方向取决于附近棋子。', 'opening.copy.lower_right_seed_projects_left_and_up': '这个起点向左、向上投射到开放盘面。', 'opening.copy.low_liberty_group_requires_immediate_reading': '有一块棋气紧、需要立即准确读取时，请重新考虑。',
+  'opening.copy.developing_shape_not_confirmed_thick': '这个发展中的棋形尚未证明是厚势。', 'opening.copy.connected_shape_not_yet_thick': '棋子相连并不自动形成厚势。', 'opening.copy.single_stone_not_thick': '一颗棋子不是厚势。', 'opening.copy.can_be_approached_from_open_side': '对手仍可从开放一侧逼近这个棋形。', 'opening.copy.low_liberties_are_urgent': '气少会使局部成为急场。', 'opening.copy.local_tactical_reply_may_be_urgent_not_forced': '局部战术应手可能是急场，但这条示意分支并非强制。', 'opening.copy.reply_preserves_local_options': '应手保留不止一种局部后续。', 'opening.copy.future_big_point': '未来大场', 'opening.copy.opponent_reply_space': '对手应手空间',
+  'opening.copy.empty_board_opening': '空棋盘开局', 'opening.copy.early_whole_board_opening': '全局序盘早期', 'opening.copy.developed_whole_board_position': '已经展开的全局局面', 'opening.copy.upper_left_corner': '左上角', 'opening.copy.upper_side': '上边', 'opening.copy.upper_right_corner': '右上角', 'opening.copy.left_side': '左边', 'opening.copy.center': '中腹', 'opening.copy.right_side': '右边', 'opening.copy.lower_left_corner': '左下角', 'opening.copy.lower_side': '下边', 'opening.copy.lower_right_corner': '右下角', 'opening.copy.geometry_not_best_move': '计算几何不等于“最佳着法”判断。', 'opening.copy.engine_evidence_not_attached': '本次解读未附带引擎依据。', 'opening.copy.calculated_geometry_not_engine_reading': '计算几何不是引擎读取。', 'opening.copy.local_shape': '局部棋形', 'opening.copy.whole_board_direction': '全局方向', 'opening.copy.corner_sequence': '角部次序', 'opening.copy.reply_branch': '应手分支',
 }
 
 const ja: Catalog = {
@@ -522,12 +797,36 @@ const ja: Catalog = {
   'play.trainingFocus': '練習の焦点：', 'play.sceneComplete': '完了', 'play.endedPasses': '終局 · 2 回連続パス', 'play.openReflection': '振り返りを開く', 'play.teachingGame': '教学対局', 'play.moves': '{count} 手', 'play.move': '{count} 手目', 'play.gameComplete': '対局完了', 'play.scoreNotSettled': '終局 · 得点未確定', 'play.toPlay': '{name} の手番', 'play.currentPurpose': '現在の目的', 'play.komi': 'コミ {value}', 'play.analyzingAt': '{color} が {coordinate} に打った場合を解析中…', 'play.findingFirst': 'おすすめの第一手を検索中…', 'play.comparing': '次の候補を比較中…', 'play.backSuggestions': '候補に戻る', 'play.rewind': '巻き戻し', 'play.pauseTheatre': '観戦を一時停止', 'play.watch': '続けて観戦', 'play.oneTurn': '解説付きで1手進める', 'play.cancel': 'キャンセル', 'play.previewHint': 'プレビュー中 · 右クリックまたは Esc で解除', 'play.verified': '検証済み', 'play.notLegal': '非合法', 'play.checking': '確認中…', 'play.placeStone': '石を打つ', 'play.chooseAnother': '別の点を選ぶ', 'play.analysisFirst': '先に解析 · 着手はまだロック', 'play.candidatePinned': '候補を固定中 · 右クリックまたは Esc で候補一覧に戻ります。', 'play.selectEmpty': '空いた交点を選び、結果をプレビューします。', 'play.pass': 'パス', 'play.resign': '投了', 'play.timeline': '着手の流れ', 'play.storySoFar': 'ここまでの物語', 'play.firstChronicle': '第一手から棋譜が始まります。', 'play.areaUnsettled': '地と死石が未確定のため、最終得点は宣言しません。', 'rules.positionalSuperko': '位置的超コウ', 'rules.situationalSuperko': '状況的超コウ', 'rules.simpleKo': '単純コウ', 'rules.reasonOccupied': 'その交点には石がある', 'rules.reasonSuicide': '自分の一団をダメなしにする手は打てない', 'rules.reasonSuperko': 'この手は以前の盤面を繰り返す', 'rules.reasonFinished': '対局はすでに終了している', 'rules.reasonOutside': 'その交点は {size} の盤外にある',
   'coach.narrator': '解説者', 'coach.lantern': 'ランタン', 'coach.companion': 'コンパニオン', 'coach.lessonGuide': 'レッスンガイド', 'coach.compass': 'コンパス', 'coach.authority': 'エージェントの権限', 'coach.authorityTheatre': '解説は両方の棋風を説明します。石を打てるのは 2 人の対局エージェントだけです。', 'coach.authorityCompanion': 'ランタンはあなた側ですが、明示的に 1 手だけ委譲しない限り代打ちしません。', 'coach.authorityHuman': 'リバーは教学サービスが検証した合法候補からだけ選びます。', 'coach.intention': 'あなたの意図', 'coach.optional': '任意だが有用', 'coach.moveIntention': '着手の意図', 'intent.unsure': 'わからない', 'intent.claim': '地を取る', 'intent.connect': 'つなぐ', 'intent.pressure': '圧力', 'intent.escape': '逃げる', 'intent.settle': '安定', 'intent.sacrifice': '取引', 'intent.cut': '切る', 'intent.invade': '打ち込み', 'intent.reduce': '消し', 'intent.endgame': '寄せ', 'coach.revealHistory': '会話履歴を表示', 'coach.loadingEarlier': '過去のメッセージを読み込み中…', 'coach.tryEarlier': '過去のメッセージを再読み込み', 'coach.loadEarlier': '過去のメッセージを読み込む', 'coach.recentOnly': '最近のみ表示', 'coach.visibleStillHere': '表示中の会話は残っています。', 'coach.learnerQuestion': '学習者の質問', 'coach.you': 'あなた', 'coach.evidence': '根拠の出典', 'coach.empty': 'ガイドは静かに見守っています。点を選ぶか、質問してください。', 'coach.otherCandidates': '他の候補案', 'coach.candidateIntentions': '候補手の意図', 'coach.notLegalNow': 'この点は現在打てません。', 'coach.hint': '段階的ヒント', 'coach.compare': '比較', 'coach.hintQuestion': '打つ前に何に注目すべきですか？', 'coach.compareQuestion': 'これらの候補手の最も大きな違いを説明してください。', 'coach.ask': 'コーチに聞く', 'coach.askDoctrine': 'どちらの棋風でも質問…', 'coach.askChanged': '何が変わったか質問…', 'coach.invite': 'ランタンにこの 1 手だけ選んでもらう', 'coach.oneTurnOnly': 'この 1 手だけ。', 'coach.keepTurn': '自分で打つ', 'coach.chooseOnce': 'この 1 手だけ選ぶ',
   'candidate.empty': '空いた点を選び、結果を比較します。', 'candidate.list': '候補手の比較', 'candidate.suggested': 'おすすめの第一手', 'candidate.teacherFallback': '教材の代替候補', 'candidate.intentProvenance': '教師の仮説 · 考えられる役割', 'candidate.replyEngine': 'エンジン主変化の応手（強制ではない）', 'candidate.replyExamine': '検討する応手', 'candidate.risk': 'リスク：', 'candidate.noEngine': 'エンジンの裏付けは主張しません。', 'candidate.why': 'なぜここか', 'candidate.changes': '何が変わるか', 'candidate.next': '次に読むこと', 'candidate.teacherInterpretation': '教師の解釈', 'candidate.rulesFacts': 'ルール上の事実', 'candidate.exact': '正確', 'candidate.scoreComparison': '得点予測の比較', 'candidate.supportsComparison': 'これは比較の材料であり、地の事実ではありません。', 'candidate.boardField': '盤上の分布', 'candidate.afterOwnership': '着手後の帰属予測', 'candidate.deltaOwnership': '帰属の変化形状', 'candidate.readNext': '次に読む', 'candidate.interaction': 'ホバーまたはフォーカスで調べます。タップ、クリック、Enter で未着手プレビューを保持し、右クリックまたは Esc で候補一覧に戻ります。',
+  'opening.title': '序盤の読み', 'opening.shape': '棋形', 'opening.shapeHelp': 'この手を打った後の正確なダメと連絡。', 'opening.territory': '地の可能性', 'opening.territoryHelp': '計算した盤上の幾何 · 可能性であり、確定地ではありません。', 'opening.influence': '外勢', 'opening.influenceHelp': '計算した方向と広がり · 可能性であり、帰属ではありません。', 'opening.joseki': '定石（joseki）', 'opening.josekiHelp': '教材として作成したパターン解説 · 確立された隅の型であり、強制手順でも保証された手順でもありません。', 'opening.followUps': '次の要点', 'opening.reply': '検討する応手', 'opening.nothingPlaced': '比較のみ · まだ着手していません。', 'opening.exact': '正確な事実', 'opening.calculated': '計算した可能性', 'opening.authored': '教材作成', 'opening.compareAria': '{coordinate}。{shape}。{territory}。{influence}。{joseki}。まだ着手していません。', 'opening.layerAria': '{coordinate} の序盤教学レイヤー：正確な棋形、計算した地の可能性と外勢、教材として作成した定石の背景。', 'opening.directionArrow': '外勢の方向', 'opening.potentialRegion': '{kind}の領域', 'opening.followUpAnchor': '{role}：{coordinate}。{reason}', 'opening.termNote': '定石（joseki）は、隅で確立された局所的な型です。局面との適合が重要です。', 'opening.zone.corner': '隅', 'opening.zone.side': '辺', 'opening.zone.center': '中央', 'opening.anchor.extension': 'ヒラキ', 'opening.anchor.approach': 'カカリ', 'opening.anchor.reply': '応手', 'opening.anchor.direction': '方向', 'opening.region.efficient': '効率のよい隅の見込み', 'opening.region.developing': '発展途上の見込み', 'opening.region.open': '開かれた見込み', 'opening.shapeFacts': '{region} · {line} 線 · ダメ {liberties} · 連絡 {connections}', 'opening.influenceFacts': '開かれた盤面へ向かう方向ベクトル {count} 本', 'opening.territoryFacts': '{zone} · {potential}', 'opening.joseki.entryPoint': '定石研究の入り口', 'opening.joseki.context': '比較する定石の背景', 'opening.joseki.notApplicable': 'この手に定石との関係は主張しません', 'opening.openCorners': '空いている隅は残り {count}', 'opening.anchorCount': '後続手と応手の要点 {count}', 'opening.whyNow': 'なぜ今か', 'opening.buildsToward': '何を目指すか', 'opening.opponentReply': '検討する相手の応手', 'opening.libertiesCompact': 'ダメ {count}', 'opening.gain': '得られるもの', 'opening.tradeoff': '代償', 'opening.mechanism': '仕組み', 'opening.beforeAfter': '力の形', 'opening.before': '着手前', 'opening.after': '着手後', 'opening.reconsider': '見直す条件', 'opening.nextWhy': '次の手 · 理由', 'opening.whyThisMove': 'なぜこの手？', 'opening.openDetails': '序盤の詳しい説明を開く', 'opening.closeDetails': '説明を閉じる', 'opening.dialogTitle': 'なぜ {coordinate}？', 'opening.dialogAria': '{coordinate} の序盤比較', 'opening.summary': '棋形、地の可能性、外勢、次の交換を比べます。', 'opening.sequence': '検討する手順', 'opening.annotation': '盤上注記 {number}', 'opening.provenance': '根拠と方法', 'opening.modalNothingPlaced': 'この説明はプレビューです。閉じても別の候補を比較しても、石は打たれません。', 'opening.keyboardHelp': 'Escape で閉じます。開いている間、フォーカスはこの説明内に留まります。', 'opening.anchorAria': '盤上注記 {number}：{coordinate} の {role}。', 'opening.shapeAnnotation': '{coordinate} の正確な棋形：ダメ {liberties}、連絡 {connections}。', 'opening.arrowAria': '計算した外勢の方向 {number}。', 'opening.zoneAria': '{zone}の計算結果：{potential}。', 'opening.switchHint': '別の候補をホバー、フォーカス、またはタップして、異なる構想を比較します。', 'opening.localDiagram': '局所の棋形 · 着手前とプレビュー', 'opening.wholeBoardDiagram': '全局の方向', 'opening.sequenceDisclaimer': '番号付き要点は検討する問いであり、すでに打たれた石でも強制手順でもありません。', 'opening.beforeDiagram': '{coordinate} に打つ前の現在の局所棋形。', 'opening.afterDiagram': '{coordinate} に打った後の局所棋形プレビュー。石はまだ打たれていません。', 'opening.wholeDiagramAria': '{coordinate} の全局プレビュー。計算した可能性領域、外勢の方向、教材として作成した後続要点を表示します。',
   'evidence.exact': '正確', 'evidence.tactical': '読み', 'evidence.engine': 'エンジン推定', 'evidence.model': 'モデル説明', 'evidence.teacher': '教師ガイド', 'evidence.metaphor': 'たとえ', 'energy.views': '盤の見方', 'energy.title': '明確な層を個別に切り替える', 'energy.noMagic': '魔法の総合点はない', 'energy.overlays': '教学オーバーレイ', 'energy.ifPlayed': 'ここに打った場合', 'energy.current': '現在の局面', 'lens.cloud': '存在感の図', 'lens.cloudTerm': '距離のたとえ', 'lens.breath': '呼吸', 'lens.liberties': 'ダメ', 'lens.bonds': 'つながり', 'lens.connections': '連絡', 'lens.shelter': '安定', 'lens.eyeSpace': '眼形', 'lens.forecast': '予測', 'lens.ownership': '帰属傾向', 'lens.strong': '強い予測', 'lens.threshold': '表示用の帰属閾値', 'lens.area': '盤面の数', 'lens.areaTerm': '石と空交点', 'lens.turn': '手番', 'lens.side': '次に打つ側', 'lens.pressure': '圧力', 'lens.atari': '仮定手によるアタリ',
   'power.eyebrow': 'この一手を筋道立てて考える', 'power.title': '選択から次の読みまで', 'power.remember': '覚えておく：', 'power.memory': '正確なルール事実、エンジン予測、教師の解釈は別の問いに答えます。予測はまだ自分の地ではありません。', 'power.play': '打つ', 'power.because': '理由', 'power.changes': '変化', 'power.opponent': '相手', 'power.thenCheck': '次に確認', 'power.principle': '原則', 'source.exactRules': '正確なルール', 'source.engine': 'エンジン推定', 'source.lesson': 'レッスンガイド', 'source.teacher': '教師の解釈',
   'chronicle.eyebrow': 'あなたの棋譜', 'chronicle.title': '対局は振り返れる物語になる', 'chronicle.description': '本線、巻き戻し、意図、説明、エンジンの出典を一緒に保存します。', 'chronicle.ended': '終局 · 得点未確定', 'chronicle.revisit': '復習', 'chronicle.unavailableTitle': '現在、履歴を読み込めません。', 'chronicle.unavailableText': '対局はサンプルで置き換えられていません。ローカルサービスへ再接続してください。', 'chronicle.emptyTitle': '最初の対局がここに表示されます。', 'chronicle.emptyText': '終えたレッスンごとに覚えておきたい瞬間が残ります。', 'chronicle.loadingOlder': '過去の対局を読み込み中…', 'chronicle.tryOlder': '過去の対局を再読み込み', 'chronicle.loadOlder': '過去の対局を読み込む', 'chronicle.reviewHall': '振り返り', 'chronicle.inProgress': '対局中', 'chronicle.promise': '構想', 'chronicle.crisis': '危機', 'chronicle.resolution': '収束', 'chronicle.noSummary': 'この対局固有の物語要約はまだ記録されていません。着手履歴は、作り話を加えずに保持されます。', 'chronicle.selectGame': '対局を選ぶ', 'chronicle.selectText': '構想、危機、収束、そして次へ持ち越す原則を見ます。', 'chronicle.recently': '最近',
   'board.black': '黒', 'board.white': '白', 'board.lastMove': '、最終手', 'board.selected': '、プレビュー選択中', 'board.moveLegal': '合法手です。', 'board.checkingConsequences': '結果を確認中。', 'board.openingSketch': '序盤の効率スケッチ', 'board.distanceSketch': '現在の石からの距離スケッチ', 'board.analogy': '初心者向けのたとえ · 手の質ではない', 'board.corner': '隅', 'board.cornerText': '閉じる方向が少ない', 'board.side': '辺', 'board.sideText': '近くの石とつながる', 'board.center': '中央', 'board.centerText': '遠くまで届くが囲うのは遅い', 'board.nearby': '近くの存在感', 'board.violet': '紫', 'board.bothClose': '両方が近い', 'board.sketchDisclaimer': 'この初心者向けスケッチは、現在の石からの距離だけを表します。候補手の順位、物理、地、帰属、得点ではありません。', 'board.smallBoardDisclaimer': 'これは教材用に作成された {size}×{size} 表示です。インストール済み KataGo の根拠は 9×9 のみです。', 'board.separateEstimate': '別の四角い濃淡は KataGo の帰属予測です。', 'board.currentBoard': '現在の盤', 'board.noTerritory': '対局中に確定した地はありません。上の帰属クラウドと得点予測を使い、将来の支配を比較します。',
+  'opening.cornerSequence': '隅の手順', 'opening.responseBranch': '応手の分岐', 'opening.moveNumber': '{number} 手目', 'opening.illustrativeLine': '例示する文脈 · 強制ではない', 'opening.currentStones': '現在の石', 'opening.candidateStone': '候補のプレビュー', 'opening.nextStep': '次の手', 'opening.deepStudy': 'AI により深い検討を依頼', 'opening.deepStudyBusy': 'この手を詳しく検討中…', 'opening.deepStudyHelp': 'この候補をより深く比較するようコーチに依頼します。石は打たれません。', 'opening.deepStudyFocus': '研究の焦点', 'opening.transferablePrinciple': '応用できる原則',
+  'opening.phase.rules': 'ルール', 'opening.phase.life_and_death': '死活', 'opening.phase.tesuji': '手筋', 'opening.phase.shape': '棋形', 'opening.phase.joseki': '定石', 'opening.phase.fuseki': '布石', 'opening.phase.middle_game': '中盤', 'opening.phase.endgame': 'ヨセ', 'opening.phase.positional_judgment': '形勢判断', 'opening.phase.game_review': '対局の振り返り',
+  'opening.study.whyNowAt': '第 {move} 手の {coordinate} を{phase}の視点で学びます。この段階名は教材上の分類であり、エンジンの判定ではありません。', 'opening.study.whyNow': '第 {move} 手を{phase}の視点で学びます。この段階名は教材上の分類であり、エンジンの判定ではありません。', 'opening.study.currentFacts': '現在の局面には黒石が {black} 子、白石が {white} 子あります。合法性とダメは引き続き決定論的な盤面事実です。', 'opening.study.authoredHypothesis': '教材として作成した仮説：{summary}', 'opening.study.noProvenGain': '提示された合法な選択肢だけを比較します。ここでは戦略的な利益は証明されていません。', 'opening.study.authoredCaution': '教材として作成した注意点：{risk}', 'opening.study.noProvenSafety': 'この局面だけでは、地が確保されたとも一団が安全だとも証明できません。', 'opening.study.searchedReply': 'KataGo は探索した一手順で {reply} を示しました。この応手は強制ではありません。', 'opening.study.noSearchedReply': '探索済みの応手は添付されていません。相手の合法な応手を比較してください。', 'opening.study.nextAnchors': '1. 相手の応手後に正確なダメを数え直す。2. 教材として作成した将来の要点 {coordinates} を比較する。3. 一手を選ぶ前に全局の急場を見直す。', 'opening.study.nextCandidates': '1. 正確なダメを数え直す。2. 提示された合法候補を比較する。3. 相手が実際に打った後で見直す。', 'opening.study.transferable': '正確な局所の結果を、教材として作成した計画、エンジン予測、未確定の外勢や地の可能性と分けて考えます。',
+  'opening.copy.upper_left_framework_seed': '左上の模様の種', 'opening.copy.upper_right_framework_seed': '右上の模様の種', 'opening.copy.lower_left_framework_seed': '左下の模様の種', 'opening.copy.corner_star_point': '隅の星の布石', 'opening.copy.side_development': '辺の展開', 'opening.copy.center_influence': '中央向きの外勢',
+  'opening.copy.claim_upper_left_with_two_open_directions': '左上隅を押さえつつ、二つの開いた展開方向を残します。', 'opening.copy.claim_upper_right_with_two_open_directions': '右上隅を押さえつつ、二つの開いた展開方向を残します。', 'opening.copy.claim_lower_left_with_two_open_directions': '左下隅を押さえつつ、二つの開いた展開方向を残します。', 'opening.copy.develop_side_with_outward_connection': '辺で展開し、局所の棋形を外側の空間へつなげます。', 'opening.copy.build_center_facing_flexibility': '中央へ向く柔軟な外勢を築きます。',
+  'opening.copy.fourth_line_balances_corner_access_and_outward_reach': '四線は隅への働きと外への広がりを両立します。', 'opening.copy.side_point_links_local_shape_to_open_direction': 'この辺の点は局所の棋形を開いた方向へつなぎます。', 'opening.copy.center_point_offers_reach_but_little_immediate_ground': 'この中央の点は広く働きますが、すぐに得られる地はわずかです。',
+  'opening.copy.corner_entry': '隅の足場', 'opening.copy.top_side_option': '上辺への展開候補', 'opening.copy.right_side_option': '右辺への展開候補', 'opening.copy.bottom_side_option': '下辺への展開候補', 'opening.copy.left_side_option': '左辺への展開候補', 'opening.copy.central_reach': '中央への広がり', 'opening.copy.connection_option': '連絡の選択肢',
+  'opening.copy.corner_not_secured': '隅はまだ確保されていません。', 'opening.copy.opponent_keeps_approach_choice': '相手にはカカリ方の選択肢が残ります。', 'opening.copy.can_become_overconcentrated': '必要なく補強すると重複形になり得ます。',
+  'opening.copy.fourth_line_corner_projection': '四線の隅の石は、辺と中央の両方へ働きます。', 'opening.copy.two_open_development_directions': '二つの開いた展開方向が残ります。', 'opening.copy.geometry_spreads_toward_open_lines': '計算した幾何は開いた線へ広がりますが、厚みや模様ができた証明ではありません。', 'opening.copy.stone_has_exact_resulting_liberties': 'プレビューの石は着手後に正確に {count} ダメあります。',
+  'opening.copy.empty_board_uncommitted': '空の盤にはまだ定まった方向がありません。', 'opening.copy.current_shape_before_candidate': '現在の石が出発時の棋形を作っています。', 'opening.copy.upper_left_seed_projects_right_and_down': 'この種は開いた盤面へ右と下に働きます。', 'opening.copy.upper_right_seed_projects_left_and_down': 'この種は開いた盤面へ左と下に働きます。', 'opening.copy.lower_left_seed_projects_right_and_up': 'この種は開いた盤面へ右と上に働きます。', 'opening.copy.local_shape_extends_toward_open_space': '局所の棋形が開いた空間へ伸びます。',
+  'opening.copy.nearby_contact_makes_local_reply_urgent': '近くで接触が起き、局所の応手が急場になったら見直します。', 'opening.copy.weak_group_makes_global_plan_secondary': '弱い一団ができ、大場より急場が重要になったら見直します。', 'opening.copy.opponent_stone_reduces_planned_direction': '相手の石が予定した方向を狭めたら見直します。',
+  'opening.copy.adds_upper_left_option': '盤全体を確定せず、左上の展開候補を加えます。', 'opening.copy.adds_upper_right_option': '盤全体を確定せず、右上の展開候補を加えます。', 'opening.copy.adds_lower_left_option': '盤全体を確定せず、左下の展開候補を加えます。', 'opening.copy.adds_lower_right_option': '盤全体を確定せず、右下の展開候補を加えます。', 'opening.copy.adds_local_option_without_settling_board': '盤全体を確定せず、局所の選択肢を加えます。',
+  'opening.copy.extend_top': '上辺へヒラく', 'opening.copy.extend_right': '右辺へヒラく', 'opening.copy.extend_bottom': '下辺へヒラく', 'opening.copy.extend_left': '左辺へヒラく', 'opening.copy.opponent_approach': '相手のカカリ', 'opening.copy.local_reply': '局所の応手',
+  'opening.copy.extend_along_open_side': '辺が混み合う前に、開いた辺へヒラいて展開します。', 'opening.copy.approach_tests_corner_response': 'カカリは隅の石がどう応じるかを問いかけます。',
+  'opening.copy.star_point_can_begin_joseki_context': '星への着手は定石研究の入り口になり得ます。', 'opening.copy.joseki_depends_on_nearby_stones_and_direction': '定石は周囲の石と全局の方向に左右されます。', 'opening.copy.not_a_joseki_position': 'これはまだ定石局面ではありません。', 'opening.copy.potential_only_requires_boundaries': '可能性にすぎません。地には境界と後の確認が必要です。',
+  'opening.copy.potential_not_secured_territory': '可能性は確保済みの地ではありません。', 'opening.copy.influence_not_ownership': '外勢は帰属ではありません。', 'opening.copy.authored_context_not_best_move': '教材の文脈は最善手の主張ではありません。', 'opening.copy.joseki_not_forced_sequence': '定石は強制手順ではありません。',
+  'opening.copy.toward_center': '中央へ', 'opening.copy.along_top': '上辺に沿って', 'opening.copy.along_right': '右辺に沿って', 'opening.copy.along_bottom': '下辺に沿って', 'opening.copy.along_left': '左辺に沿って', 'opening.copy.inward': '内側へ', 'opening.copy.open_board_not_forced': '広い盤面での先行機会にすぎません。例示線は先手とも後手とも断定せず、強制手順でもありません。',
+  'opening.copy.lower_right_framework_seed': '右下の模様の種', 'opening.copy.corner_development': '隅の展開', 'opening.copy.side_development_point': '辺の展開点', 'opening.copy.center_influence_probe': '中央外勢の探り', 'opening.copy.claim_lower_right_with_two_open_directions': '右下隅を押さえつつ、二つの開いた展開方向を残します。', 'opening.copy.develop_corner_with_two_open_directions': '隅を展開しつつ、隣接する両辺を利用可能に保ちます。', 'opening.copy.third_line_emphasizes_corner_ground': '三線はすぐに得られる隅の地を重視します。', 'opening.copy.high_corner_move_emphasizes_outward_reach': '高い隅の手は、すぐの地より外への広がりを重視します。', 'opening.copy.corner_move_keeps_adjacent_sides_available': 'この隅の手は、隣接する両辺に展開の余地を残します。', 'opening.copy.side_framework_option': '辺の模様の選択肢', 'opening.copy.multi_direction_option': '複数方向への展開候補',
+  'opening.copy.upper_left_plan_can_be_reduced_from_two_sides': '左上の構想は二方向から消され得ます。', 'opening.copy.upper_right_plan_can_be_reduced_from_two_sides': '右上の構想は二方向から消され得ます。', 'opening.copy.lower_left_plan_can_be_reduced_from_two_sides': '左下の構想は二方向から消され得ます。', 'opening.copy.lower_right_plan_can_be_reduced_from_two_sides': '右下の構想は二方向から消され得ます。', 'opening.copy.little_immediate_edge_efficiency': 'すぐに得られる辺の効率はわずかです。', 'opening.copy.less_immediate_corner_efficiency': 'すぐに得られる隅の効率は低めです。', 'opening.copy.local_direction_depends_on_nearby_stones': '局所の方向は周囲の石に左右されます。', 'opening.copy.lower_right_seed_projects_left_and_up': 'この種は開いた盤面へ左と上に働きます。', 'opening.copy.low_liberty_group_requires_immediate_reading': 'ダメの少ない一団に正確な即時の読みが必要なら見直します。',
+  'opening.copy.developing_shape_not_confirmed_thick': 'この発展中の棋形は厚みと確認されていません。', 'opening.copy.connected_shape_not_yet_thick': '石がつながっていても、自動的に厚い形にはなりません。', 'opening.copy.single_stone_not_thick': '一子は厚みではありません。', 'opening.copy.can_be_approached_from_open_side': '開いた側からまだ迫られ得ます。', 'opening.copy.low_liberties_are_urgent': 'ダメが少ないため、局所が急場です。', 'opening.copy.local_tactical_reply_may_be_urgent_not_forced': '局所の戦術的応手は急場かもしれませんが、この例示分岐は強制ではありません。', 'opening.copy.reply_preserves_local_options': '応手が複数の局所的な後続を残します。', 'opening.copy.future_big_point': '将来の大場', 'opening.copy.opponent_reply_space': '相手の応手の余地',
+  'opening.copy.empty_board_opening': '空の盤の布石', 'opening.copy.early_whole_board_opening': '全局布石の序盤', 'opening.copy.developed_whole_board_position': '展開された全局局面', 'opening.copy.upper_left_corner': '左上隅', 'opening.copy.upper_side': '上辺', 'opening.copy.upper_right_corner': '右上隅', 'opening.copy.left_side': '左辺', 'opening.copy.center': '中央', 'opening.copy.right_side': '右辺', 'opening.copy.lower_left_corner': '左下隅', 'opening.copy.lower_side': '下辺', 'opening.copy.lower_right_corner': '右下隅', 'opening.copy.geometry_not_best_move': '計算した幾何は最善手の主張ではありません。', 'opening.copy.engine_evidence_not_attached': 'この解説にはエンジンの根拠が添付されていません。', 'opening.copy.calculated_geometry_not_engine_reading': '計算した幾何はエンジンの読みではありません。', 'opening.copy.local_shape': '局所の棋形', 'opening.copy.whole_board_direction': '全局の方向', 'opening.copy.corner_sequence': '隅の手順', 'opening.copy.reply_branch': '応手の分岐',
 }
 
+// Every stable interface message is explicit in every supported locale.
+// Unconstrained engine/model prose bypasses these reviewed catalogs.
 const ar: Catalog = arCatalog
 const de: Catalog = deCatalog
 const es: Catalog = esCatalog
@@ -885,6 +1184,96 @@ function localizeCandidateReply(text: string, locale: TeachingLocale): string {
   return `${color} ${move}`
 }
 
+function localizeDeterministicStudyLine(
+  line: string,
+  locale: TeachingLocale,
+): string | null {
+  const whyAt = /^Why now: This is a ([a-z_]+) teaching lens at move (\d+) for ([A-HJ-T]\d{1,2}|pass); the phase label is pedagogical, not an engine verdict\.$/i.exec(line)
+  if (whyAt) {
+    const phase = localizeOpeningPhase(locale, whyAt[1])
+    if (!phase) return null
+    return localizedLabel(locale, translate(locale, 'opening.whyNow'), translate(locale, 'opening.study.whyNowAt', {
+      phase,
+      move: whyAt[2],
+      coordinate: whyAt[3].toLowerCase() === 'pass' ? translate(locale, 'play.pass') : whyAt[3].toUpperCase(),
+    }))
+  }
+
+  const why = /^Why now: This is a ([a-z_]+) teaching lens at move (\d+); the phase label is pedagogical, not an engine verdict\.$/.exec(line)
+  if (why) {
+    const phase = localizeOpeningPhase(locale, why[1])
+    if (!phase) return null
+    return localizedLabel(locale, translate(locale, 'opening.whyNow'), translate(locale, 'opening.study.whyNow', {
+      phase,
+      move: why[2],
+    }))
+  }
+
+  const currentFacts = /^How it works: The current position has (\d+) black stones and (\d+) white stones; legality and liberties remain deterministic board facts\.$/.exec(line)
+  if (currentFacts) {
+    return localizedLabel(locale, translate(locale, 'opening.mechanism'), translate(locale, 'opening.study.currentFacts', {
+      black: currentFacts[1],
+      white: currentFacts[2],
+    }))
+  }
+
+  const mechanism = /^How it works: (.+)$/s.exec(line)
+  if (mechanism) {
+    const body = localizeCandidateChanges(mechanism[1], locale)
+    return body === mechanism[1]
+      ? null
+      : localizedLabel(locale, translate(locale, 'opening.mechanism'), body)
+  }
+
+  const authoredGain = /^Gain: Authored teaching hypothesis: (.+)$/s.exec(line)
+  if (authoredGain) {
+    return localizedLabel(locale, translate(locale, 'opening.gain'), translate(locale, 'opening.study.authoredHypothesis', {
+      summary: localizeCandidateSummary(authoredGain[1], locale),
+    }))
+  }
+  if (line === 'Gain: Compare only the supplied legal choices; no strategic gain is proven here.') {
+    return localizedLabel(locale, translate(locale, 'opening.gain'), translate(locale, 'opening.study.noProvenGain'))
+  }
+
+  const authoredCaution = /^(Tradeoff|Reconsider when): Authored teaching caution: (.+)$/s.exec(line)
+  if (authoredCaution) {
+    const heading = authoredCaution[1] === 'Tradeoff' ? 'opening.tradeoff' : 'opening.reconsider'
+    return localizedLabel(locale, translate(locale, heading), translate(locale, 'opening.study.authoredCaution', {
+      risk: localizeAuthoredText(locale, authoredCaution[2]),
+    }))
+  }
+  const noProvenSafety = /^(Tradeoff|Reconsider when): The position does not prove that territory is secured or that a group is safe\.$/.exec(line)
+  if (noProvenSafety) {
+    const heading = noProvenSafety[1] === 'Tradeoff' ? 'opening.tradeoff' : 'opening.reconsider'
+    return localizedLabel(locale, translate(locale, heading), translate(locale, 'opening.study.noProvenSafety'))
+  }
+
+  const searchedReply = /^Opponent response: KataGo supplied (.+) in one searched line; this reply is not forced\.$/.exec(line)
+  if (searchedReply) {
+    const reply = localizeCandidateReply(searchedReply[1], locale)
+    if (reply === searchedReply[1]) return null
+    return localizedLabel(locale, translate(locale, 'opening.opponentReply'), translate(locale, 'opening.study.searchedReply', { reply }))
+  }
+  if (line === "Opponent response: No searched reply is attached; compare the opponent's legal responses.") {
+    return localizedLabel(locale, translate(locale, 'opening.opponentReply'), translate(locale, 'opening.study.noSearchedReply'))
+  }
+
+  const nextAnchors = /^Next steps: 1\. Recount exact liberties after the opponent reply; 2\. Compare authored future anchors ([A-HJ-T]\d{1,2}(?:, [A-HJ-T]\d{1,2})*); 3\. Re-evaluate whole-board urgency before choosing one\.$/.exec(line)
+  if (nextAnchors) {
+    return localizedLabel(locale, translate(locale, 'opening.followUps'), translate(locale, 'opening.study.nextAnchors', {
+      coordinates: nextAnchors[1],
+    }))
+  }
+  if (line === "Next steps: 1. Recount exact liberties; 2. Compare the supplied legal candidates; 3. Re-evaluate after the opponent's actual move.") {
+    return localizedLabel(locale, translate(locale, 'opening.followUps'), translate(locale, 'opening.study.nextCandidates'))
+  }
+
+  if (line === 'Transferable principle: Separate exact local consequences from authored plans, engine forecasts, and unsettled influence or territory potential.') {
+    return localizedLabel(locale, translate(locale, 'opening.transferablePrinciple'), translate(locale, 'opening.study.transferable'))
+  }
+  return null
+}
+
 function localizeGeneratedCoachText(
   text: string,
   locale: TeachingLocale,
@@ -963,6 +1352,8 @@ function localizeGeneratedCoachText(
       if (line === 'The model companion was unavailable. This fallback separates exact board facts from authored teacher guidance.') {
         return localizeAuthoredText(locale, line)
       }
+      const studyLine = localizeDeterministicStudyLine(line, locale)
+      if (studyLine !== null) return studyLine
     }
 
     const prefixes = [
@@ -976,6 +1367,27 @@ function localizeGeneratedCoachText(
       'Remember',
       'Model uncertainty',
     ]
+    const deepStudyPrefixKeys = {
+      'Study focus': 'opening.deepStudyFocus',
+      'Why now': 'opening.whyNow',
+      'How it works': 'opening.mechanism',
+      'Gain': 'opening.gain',
+      'Tradeoff': 'opening.tradeoff',
+      'Opponent response': 'opening.opponentReply',
+      'Next steps': 'opening.followUps',
+      'Reconsider when': 'opening.reconsider',
+      'Transferable principle': 'opening.transferablePrinciple',
+    } as const satisfies Record<string, MessageKey>
+    const deepStudyPrefix = Object.keys(deepStudyPrefixKeys).find(
+      (english) => line.startsWith(`${english}: `),
+    ) as keyof typeof deepStudyPrefixKeys | undefined
+    if (deepStudyPrefix) {
+      let body = line.slice(`${deepStudyPrefix}: `.length)
+      if (deepStudyPrefix === 'Study focus') {
+        body = localizeOpeningPhase(locale, body) ?? body
+      }
+      return localizedLabel(locale, translate(locale, deepStudyPrefixKeys[deepStudyPrefix]), body)
+    }
     const prefix = prefixes.find((english) => line.startsWith(`${english}: `))
     if (!prefix) return line
     let body = line.slice(`${prefix}: `.length)

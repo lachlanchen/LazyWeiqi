@@ -774,6 +774,244 @@ def wait_for_move_count(page: Page, minimum: int) -> None:
     wait_turn_choices(page)
 
 
+def exercise_nineteen_opening(
+    page: Page,
+    context: Any,
+    checks: dict[str, Any],
+    screenshots: list[str],
+    timestamp: str,
+) -> None:
+    """Exercise the state-bound 19x19 opening book through visible controls."""
+
+    page.goto(f"{APP_URL}simple", wait_until="networkidle")
+    page.locator(
+        '[data-testid="app-root"][data-layout="simple"][data-view="journey"]'
+    ).wait_for(state="visible", timeout=30_000)
+    locale_select = page.get_by_test_id("locale-select").first
+    locale_select.select_option("en")
+    page.wait_for_function("document.documentElement.lang === 'en'")
+    page.get_by_test_id("simple-board-size-19").click()
+    page.get_by_test_id("simple-begin").click()
+    page.locator(
+        '[data-testid="play-workspace"][data-layout="simple"][data-board-size="19"]'
+    ).wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+    wait_turn_choices(page)
+    reading = page.get_by_test_id("opening-reading")
+    reading.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+    initial_suggestion_coordinate = page.get_by_test_id(
+        "suggested-first-stone"
+    ).get_attribute("data-coordinate")
+
+    checks["opening19DefaultSuggestion"] = (
+        page.get_by_test_id("app-root").get_attribute("data-engine-lane") == "19x19"
+        and page.get_by_test_id("suggested-first-stone").is_visible()
+        and page.get_by_test_id("opening-teaching-layers").count() == 1
+        and page.get_by_test_id("opening-landscape-potential").count() == 1
+        and page.get_by_test_id("opening-candidate-change-field").count() == 1
+        and page.get_by_test_id("opening-potential-cloud").count() == 0
+        and page.get_by_test_id("candidate-field-key").count() == 0
+        and page.locator(".timeline-track > span").count() == 0
+    )
+    checks["opening19EvidenceSeparated"] = (
+        page.get_by_test_id("opening-shape-exact").get_attribute("data-evidence")
+        == "exact"
+        and page.get_by_test_id("opening-territory-potential").get_attribute(
+            "data-evidence"
+        )
+        == "calculated_potential"
+        and page.get_by_test_id("opening-influence-potential").get_attribute(
+            "data-evidence"
+        )
+        == "calculated_potential"
+        and page.get_by_test_id("opening-follow-up-anchors").get_attribute(
+            "data-evidence"
+        )
+        == "authored"
+        and page.get_by_test_id("opening-landscape-potential").get_attribute(
+            "data-not-ownership"
+        )
+        == "true"
+        and page.get_by_test_id("opening-landscape-potential").get_attribute(
+            "data-not-secured-territory"
+        )
+        == "true"
+    )
+
+    trigger = page.get_by_test_id("opening-details-trigger")
+    trigger.focus()
+    trigger.click()
+    dialog = page.get_by_test_id("opening-dialog")
+    dialog.wait_for(state="visible")
+    checks["opening19DialogAccessible"] = (
+        dialog.get_attribute("role") == "dialog"
+        and dialog.get_attribute("aria-modal") == "true"
+        and page.get_by_test_id("opening-dialog-close").evaluate(
+            "element => document.activeElement === element"
+        )
+        and dialog.get_by_test_id("commit-move").count() == 0
+        and page.get_by_test_id("opening-provenance-section").is_visible()
+        and page.get_by_test_id("opening-engine-provenance").is_visible()
+    )
+    typography = dialog.evaluate(
+        """dialog => {
+          const minimum = selectors => Math.min(...selectors.flatMap(selector =>
+            [...dialog.querySelectorAll(selector)].map(element =>
+              Number.parseFloat(getComputedStyle(element).fontSize))
+          ));
+          return {
+            main: minimum(['.opening-book-section > p', '.opening-why-grid p', '.opening-decision-grid p']),
+            annotations: minimum(['.opening-evidence-cards small', '.opening-sequence-list small', '.opening-textbook-grid li small', '.opening-provenance-grid small']),
+            internalScroll: getComputedStyle(dialog.querySelector('.opening-dialog-scroll')).overflowY === 'auto',
+          };
+        }"""
+    )
+    checks["opening19Typography"] = typography
+    checks["opening19TypographyReadable"] = (
+        typography["main"] >= 14.4
+        and typography["annotations"] >= 12
+        and typography["internalScroll"]
+    )
+    screenshot(page, timestamp, "opening-19-desktop-dialog", screenshots)
+    page.keyboard.press("Escape")
+    dialog.wait_for(state="hidden")
+    checks["opening19FocusRestored"] = trigger.evaluate(
+        "element => document.activeElement === element"
+    )
+
+    cdp = context.new_cdp_session(page)
+    try:
+        for label, width, height, mobile in (
+            ("tablet", 768, 1024, False),
+            ("mobile", 390, 844, True),
+        ):
+            cdp.send(
+                "Emulation.setDeviceMetricsOverride",
+                {
+                    "width": width,
+                    "height": height,
+                    "deviceScaleFactor": 1,
+                    "mobile": mobile,
+                },
+            )
+            page.wait_for_timeout(400)
+            trigger.click()
+            dialog.wait_for(state="visible")
+            geometry = page.evaluate(
+                """() => {
+                  const root = document.documentElement;
+                  const dialog = document.querySelector('[data-testid="opening-dialog"]');
+                  if (!(dialog instanceof HTMLElement)) return { fits: false, missing: true };
+                  const box = dialog.getBoundingClientRect();
+                  return {
+                    fits: root.scrollWidth === root.clientWidth && box.left >= 0 &&
+                      box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight,
+                    scrollWidth: root.scrollWidth,
+                    clientWidth: root.clientWidth,
+                    dialogWidth: Math.round(box.width),
+                    dialogHeight: Math.round(box.height),
+                  };
+                }"""
+            )
+            checks[f"opening19{label.title()}Geometry"] = geometry
+            checks[f"opening19{label.title()}Fits"] = bool(geometry.get("fits"))
+            screenshot(page, timestamp, f"opening-19-{label}-dialog", screenshots)
+            page.keyboard.press("Escape")
+            dialog.wait_for(state="hidden")
+
+        locale_select.select_option("ar")
+        page.wait_for_function(
+            "document.documentElement.lang === 'ar' && document.documentElement.dir === 'rtl'"
+        )
+        trigger.click()
+        dialog.wait_for(state="visible")
+        arabic_text = dialog.inner_text()
+        checks["opening19ArabicRtl"] = (
+            page.locator("html").get_attribute("dir") == "rtl"
+            and not any(
+                phrase in arabic_text
+                for phrase in (
+                    "Why this move",
+                    "Calculated potential",
+                    "Illustrative context",
+                    "Evidence and method",
+                    "engine_evidence_not_attached",
+                    "empty_board_opening",
+                )
+            )
+            and "{" not in arabic_text
+            and "}" not in arabic_text
+        )
+        screenshot(page, timestamp, "opening-19-arabic-mobile-dialog", screenshots)
+        page.keyboard.press("Escape")
+        dialog.wait_for(state="hidden")
+        locale_select.select_option("en")
+        page.wait_for_function("document.documentElement.lang === 'en'")
+    finally:
+        cdp.send("Emulation.clearDeviceMetricsOverride")
+        cdp.detach()
+
+    page.wait_for_timeout(400)
+    page.locator('[data-testid="weiqi-board"] [data-coordinate="C16"]').click()
+    page.locator(
+        '[data-testid="play-workspace"][data-selection-state="move-preview"]'
+        '[data-selected-coordinate="C16"]'
+    ).wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+    wait_idle(page)
+    page.locator(".opening-reading-title span", has_text="C16").wait_for(
+        state="visible", timeout=LONG_TIMEOUT_MS
+    )
+    moves_before = page.locator(".timeline-track > span").count()
+    stones_before = page.locator('[data-testid="weiqi-board"] .stone').count()
+    move_posts_before = page.evaluate(
+        """() => performance.getEntriesByType('resource').filter(entry =>
+          new URL(entry.name).pathname.endsWith('/moves')).length"""
+    )
+    page.get_by_test_id("opening-details-trigger").click()
+    dialog.wait_for(state="visible")
+    page.get_by_test_id("opening-deep-study-button").click()
+    dialog.wait_for(state="hidden")
+    wait_idle(page)
+    answer = page.locator(".coach-exchange .coach-message.answer").last
+    answer.wait_for(state="visible", timeout=LONG_TIMEOUT_MS)
+    answer_text = answer.inner_text()
+    move_posts_after = page.evaluate(
+        """() => performance.getEntriesByType('resource').filter(entry =>
+          new URL(entry.name).pathname.endsWith('/moves')).length"""
+    )
+    checks["opening19SelectedC16Study"] = (
+        "C16" in answer_text
+        and "empty_board_opening" not in answer_text
+        and (
+            initial_suggestion_coordinate == "C16"
+            or f"Rules-verified legal candidate: {initial_suggestion_coordinate}."
+            not in answer_text
+        )
+    )
+    checks["opening19DeepStudyNoMutation"] = (
+        page.locator(".timeline-track > span").count() == moves_before
+        and page.locator('[data-testid="weiqi-board"] .stone').count() == stones_before
+        and move_posts_after == move_posts_before
+        and page.get_by_test_id("play-workspace").get_attribute(
+            "data-selected-coordinate"
+        )
+        == "C16"
+    )
+    screenshot(page, timestamp, "opening-19-c16-deep-study", screenshots)
+    page.keyboard.press("Escape")
+    page.locator(
+        '[data-testid="play-workspace"][data-selection-state="agent-suggestions"]'
+    ).wait_for(state="visible")
+    page.get_by_test_id("suggested-first-stone").wait_for(state="visible")
+    checks["opening19StudyPreservesRootSuggestion"] = (
+        initial_suggestion_coordinate is not None
+        and page.get_by_test_id("suggested-first-stone").get_attribute(
+            "data-coordinate"
+        )
+        == initial_suggestion_coordinate
+        and page.locator(".timeline-track > span").count() == moves_before
+    )
+
+
 def run() -> dict[str, Any]:
     _prepare_runtime_dir()
     EVIDENCE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -1032,11 +1270,15 @@ def run() -> dict[str, Any]:
         )
         checks["title"] = page.title()
         checks["initialView"] = root.get_attribute("data-view")
-        checks["engine"] = root.get_attribute("data-engine")
         checks["initialBoardPreference"] = page.get_by_test_id(
             "campaign"
         ).get_attribute("data-board-filter")
         page.get_by_test_id("board-size-9").click()
+        page.wait_for_function(
+            "document.querySelector('[data-testid=\"app-root\"]')?.dataset.engineLane === 'small-board'"
+        )
+        checks["engine"] = root.get_attribute("data-engine")
+        checks["engineLane"] = root.get_attribute("data-engine-lane")
         checks["normalizedBoard"] = page.get_by_test_id("campaign").get_attribute(
             "data-board-filter"
         )
@@ -1642,6 +1884,7 @@ def run() -> dict[str, Any]:
         cdp.detach()
         page.wait_for_timeout(500)
         page.get_by_test_id("play-workspace").wait_for(state="visible")
+        exercise_nineteen_opening(page, context, checks, screenshots, timestamp)
         page.bring_to_front()
         # Disconnecting Playwright does not close the shared persistent browser.
 
@@ -1662,6 +1905,7 @@ def run() -> dict[str, Any]:
         "title": "Weiqi · Path of Influence",
         "initialView": "journey",
         "engine": "ready",
+        "engineLane": "small-board",
         "simpleDefaultRoute": True,
         "localeOptions": EXPECTED_LOCALE_OPTIONS,
         "localeMetadataValid": True,
@@ -1718,6 +1962,17 @@ def run() -> dict[str, Any]:
         "theatreMode": "agent_vs_agent",
         "delegationConfirmedFirst": True,
         "delegationClosed": True,
+        "opening19DefaultSuggestion": True,
+        "opening19EvidenceSeparated": True,
+        "opening19DialogAccessible": True,
+        "opening19TypographyReadable": True,
+        "opening19FocusRestored": True,
+        "opening19TabletFits": True,
+        "opening19MobileFits": True,
+        "opening19ArabicRtl": True,
+        "opening19SelectedC16Study": True,
+        "opening19DeepStudyNoMutation": True,
+        "opening19StudyPreservesRootSuggestion": True,
     }
     for name, value in expected.items():
         if checks.get(name) != value:

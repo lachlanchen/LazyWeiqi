@@ -29,6 +29,18 @@ function cssBlock(source: string, selector: string): string {
   throw new Error(`Unclosed CSS block for: ${selector}`)
 }
 
+function relativeLuminance(hex: string): number {
+  const channels = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255)
+    .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const [lighter, darker] = [relativeLuminance(foreground), relativeLuminance(background)]
+    .sort((left, right) => right - left)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
 describe('19x19 board rendering contract', () => {
   it('exposes the exact standard star-point coordinates in static markup', () => {
     const html = renderToStaticMarkup(
@@ -128,5 +140,25 @@ describe('19x19 board rendering contract', () => {
     expect(fullBoardRadius).toBeLessThan(gridStep / 2)
     expect(fullBoardRadius).toBeCloseTo(gridStep * 0.47)
     expect(teachingBoardRadius).toBeGreaterThan(20)
+  })
+
+  it('keeps textbook modal prose readable, high-contrast, and scroll-contained', () => {
+    expect(cssBlock(styles, '.opening-dialog-scroll')).toContain('overflow-y: auto')
+    expect(cssBlock(styles, '.opening-book-section > p')).toContain('font-size: 0.96rem')
+    expect(cssBlock(styles, '.opening-decision-grid p')).toContain('font-size: 0.9rem')
+    expect(cssBlock(styles, '.opening-evidence-cards p')).toContain('font-size: 0.88rem')
+    expect(cssBlock(styles, '.opening-sequence-list p')).toContain('font-size: 0.86rem')
+    expect(cssBlock(styles, '.opening-sequence-disclaimer')).toContain('font-size: 0.9rem')
+    expect(cssBlock(styles, '.opening-textbook-grid li p')).toContain('font-size: 0.86rem')
+    expect(cssBlock(styles, '.opening-textbook-grid li small')).toContain('font-size: 0.78rem')
+    expect(cssBlock(styles, '.opening-provenance-grid small')).toContain('font-size: 0.78rem')
+    expect(cssBlock(cssBlock(styles, '@media (max-width: 430px)'), '.opening-book-section > p')).toContain('font-size: 0.9rem')
+
+    const paleBackgrounds = ['#ffffff', '#eaf7f2', '#eff9fa', '#f8f3fb', '#fff9ed', '#faf7fc']
+    for (const foreground of ['#4f686f', '#4f666e', '#4e656d', '#435f68', '#4c646c', '#536a72', '#654f72', '#1f6659']) {
+      for (const background of paleBackgrounds) {
+        expect(contrastRatio(foreground, background), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
   })
 })

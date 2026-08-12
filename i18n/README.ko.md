@@ -20,6 +20,8 @@ Path of Influence는 Go/Weiqi를 위한 로컬 우선 교육 애플리케이션�
 
 보드는 정확한 자유도, 그룹, 포획, 코, 그리고 합법적인 수를 KataGo 예측, 교사 해석, 모델 설명, 은유와 시각적으로 분리하여 유지합니다.
 
+일반적인 19×19 포석에서 후보 미리보기는 정확한 국소 모양을 계산된 집 가능성 및 세력 방향과 분리하고, 이어서 작성된 이득과 대가, 착수 전→후의 힘 모양, 재검토 조건, 후속 수, 상대 응수, 정석(定式) 맥락을 보여 줍니다. 번호가 붙은 미니 다이어그램은 검토할 질문이지 이미 놓인 돌이나 강제 수순이 아닙니다. 선택형 심층 AI 연구는 번역된 제목을 모델 원문과 분리하며 돌을 놓지 않습니다.
+
 ## 교육 계약
 
 - 결정론적 코드는 합법성, 포획, 위치적 슈퍼코, 점수, 역사 및 지속성을 소유합니다.
@@ -35,7 +37,7 @@ Path of Influence는 Go/Weiqi를 위한 로컬 우선 교육 애플리케이션�
 | --- | --- |
 | [`apps/api/`](../apps/api/) | FastAPI 권한, 결정론적 Go 도메인, SQLite 연대기 및 제한된 KataGo/LLM 어댑터 |
 | [`apps/web/`](../apps/web/) | 11개의 명시적 인터페이스 카탈로그가 있는 반응형 React/Vite 교육 클라이언트 |
-| [`config/`](../config/) | 검토된 9×9 KataGo 분석 구성 |
+| [`config/`](../config/) | 검토된 9×9 및 19×19 KataGo 분석 구성 |
 | [`scripts/`](../scripts/) | 재현 가능한 설정, 검증, 런타임 및 가시 브라우저 제어 |
 | [`references/`](../references/) | [아키텍처 및 안전성](../references/architecture-and-safety.md), [교육 원칙](../references/teaching-principles.md), 및 [모델 출처](../references/model-sources.md) |
 
@@ -58,17 +60,20 @@ scripts/run.sh start
 scripts/run.sh stop
 ```
 
-분석이 필요할 때 핀 고정된 해시 검증 KataGo 교육 엔진을 설치합니다:
+분석이 필요할 때 고정되고 해시 검증된 KataGo 교육 엔진을 설치합니다. 전용 19×19 설정에는 별도의 검토된 구성과 검증 절차가 있습니다:
 
 ```bash
 scripts/setup-katago.sh --print-plan
 scripts/setup-katago.sh
 scripts/verify-katago.sh
+scripts/setup-katago19-models.sh
+scripts/verify-katago19.sh --static-only
+scripts/verify-katago19.sh
 ```
 
 ## 11개 언어 인터페이스
 
-지속된, 허용된 선택기는 `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de` 및 `ru`를 지원합니다. 모든 로케일은 동일한 409개의 명시적 메시지 키와 동일한 보간 플레이스홀더를 가지고 있습니다. 문서 언어는 선택에 따라 달라지며, 아랍어는 페이지를 오른쪽에서 왼쪽으로 레이아웃으로 전환합니다.
+지속된, 허용된 선택기는 `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de` 및 `ru`를 지원합니다. 모든 로케일은 동일한 629개의 명시적 메시지 키와 동일한 보간 플레이스홀더를 가지고 있습니다. 문서 언어는 선택에 따라 달라지며, 아랍어는 페이지를 오른쪽에서 왼쪽으로 레이아웃으로 전환합니다.
 
 안정적인 인터페이스 복사본과 알려진 결정론적 규칙 실패는 지역화됩니다. 알려지지 않은 엔진이나 모델 문장은 그대로 유지되며 그 증거 출처를 보존합니다; 클라이언트는 검토되지 않은 번역을 정확한 Go 사실로 제시하지 않습니다.
 

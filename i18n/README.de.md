@@ -20,6 +20,8 @@ Path of Influence ist eine Local-First-Lehranwendung für Go/Weiqi. Sie führt v
 
 Das Brett hält exakte Freiheiten, Gruppen, Erfassungen, Ko und legale Züge visuell getrennt von KataGo Vorhersagen, Lehrerinterpretationen, Modellerklärungen und Metaphern.
 
+Bei regulären 19×19-Eröffnungen trennen Kandidatenvorschauen die exakte lokale Form von berechnetem Gebietspotenzial und Einflussrichtung. Danach zeigen sie redaktionelle Gewinne, Abwägungen, Kraftform vorher→nachher, Bedingungen zum Überdenken, Fortsetzungen, gegnerische Antworten und Joseki-Kontext (定式). Nummerierte Minidiagramme sind zu prüfende Fragen, keine bereits gesetzten Steine oder erzwungene Folge. Die optionale vertiefte KI-Studie hält ihre lokalisierten Überschriften vom unveränderten Modelltext getrennt und setzt keinen Stein.
+
 ## Lehrvertrag
 
 - Deterministischer Code besitzt Legalität, Erfassung, positionale Superko, Scoring, Geschichte und Persistenz.
@@ -35,7 +37,7 @@ Das Brett hält exakte Freiheiten, Gruppen, Erfassungen, Ko und legale Züge vis
 | --- | --- |
 | [`apps/api/`](../apps/api/) | FastAPI Autorität, deterministischer Go-Bereich, SQLite Chronik und begrenzte KataGo/LLM Adapter |
 | [`apps/web/`](../apps/web/) | Reaktionsfähiger React/Vite Lehrclient mit 11 expliziten Schnittstellenkatalogen |
-| [`config/`](../config/) | Überprüfte 9×9 KataGo Analysekonfiguration |
+| [`config/`](../config/) | Überprüfte KataGo-Analysekonfigurationen für 9×9 und 19×19 |
 | [`scripts/`](../scripts/) | Reproduzierbare Einrichtung, Verifizierung, Laufzeit und sichtbare Browserkontrollen |
 | [`references/`](../references/) | [Architektur und Sicherheit](../references/architecture-and-safety.md), [Lehrprinzipien](../references/teaching-principles.md) und [Modellherkunft](../references/model-sources.md) |
 
@@ -58,17 +60,20 @@ scripts/run.sh start
 scripts/run.sh stop
 ```
 
-Installiere die festgelegte, hash-verifizierte KataGo Lehrmaschine, wenn eine Analyse benötigt wird:
+Installiere die festgelegten, hash-verifizierten KataGo-Lehr-Engines, wenn eine Analyse benötigt wird. Die besondere 19×19-Einrichtung hat eine eigene geprüfte Konfiguration und Prüfung:
 
 ```bash
 scripts/setup-katago.sh --print-plan
 scripts/setup-katago.sh
 scripts/verify-katago.sh
+scripts/setup-katago19-models.sh
+scripts/verify-katago19.sh --static-only
+scripts/verify-katago19.sh
 ```
 
 ## Elfsprachige Schnittstelle
 
-Der persistente, erlaubte Selektor unterstützt `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de` und `ru`. Jede Locale hat die gleichen 409 expliziten Nachrichten-Schlüssel und die gleichen Interpolationsplatzhalter. Die Dokumentensprache folgt der Auswahl, und Arabisch wechselt die Seite zu einem von rechts nach links gerichteten Layout.
+Der persistente, erlaubte Selektor unterstützt `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de` und `ru`. Jede Locale hat die gleichen 629 expliziten Nachrichten-Schlüssel und die gleichen Interpolationsplatzhalter. Die Dokumentensprache folgt der Auswahl, und Arabisch wechselt die Seite zu einem von rechts nach links gerichteten Layout.
 
 Stabile Schnittstellenversion und bekannte deterministische Regelverletzungen sind lokalisiert. Unbekannte Motor- oder Modellprosa bleibt wörtlich und behält ihre Beweisherkunft; der Client präsentiert niemals eine nicht überprüfte Übersetzung als exakte Go-Fakt.
 

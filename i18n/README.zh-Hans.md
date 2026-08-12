@@ -20,6 +20,8 @@ Path of Influence 是一个本地优先的围棋/Weiqi 教学应用。它从简�
 
 棋盘将确切的气、棋群、提子、劫和合法走法与 KataGo 预测、教师解释、模型说明和隐喻视觉上分开。
 
+在普通 19×19 序盘中，候选预览把确切的局部棋形与计算得到的地盘潜力、外势方向分开，再展示人工编写的收益与取舍、着前→着后的力量形状、重新考虑条件、后续着、对手应手和定式（joseki／定式）背景。带编号的小图是要检验的问题，不是已经落下的棋子或强制次序。可选的深入 AI 研究把已本地化的标题与保持原文的模型正文分开，并且绝不落子。
+
 ## 教学合同
 
 - 确定性代码拥有合法性、提子、位置超劫、计分、历史和持久性。
@@ -35,7 +37,7 @@ Path of Influence 是一个本地优先的围棋/Weiqi 教学应用。它从简�
 | --- | --- |
 | [`apps/api/`](../apps/api/) | FastAPI 权威、确定性围棋领域、SQLite 编年史和有限的 KataGo/LLM 适配器 |
 | [`apps/web/`](../apps/web/) | 响应式 React/Vite 教学客户端，具有 11 个明确的接口目录 |
-| [`config/`](../config/) | 审核过的 9×9 KataGo 分析配置 |
+| [`config/`](../config/) | 审核过的 9×9 和 19×19 KataGo 分析配置 |
 | [`scripts/`](../scripts/) | 可重现的设置、验证、运行时和可见浏览器控制 |
 | [`references/`](../references/) | [架构与安全](../references/architecture-and-safety.md)、[教学原则](../references/teaching-principles.md) 和 [模型来源](../references/model-sources.md) |
 
@@ -58,17 +60,20 @@ scripts/run.sh start
 scripts/run.sh stop
 ```
 
-在需要分析时安装固定的、哈希验证的 KataGo 教学引擎：
+需要分析时，安装固定且经过哈希验证的 KataGo 教学引擎。专用 19×19 设置有单独的审核配置和验证流程：
 
 ```bash
 scripts/setup-katago.sh --print-plan
 scripts/setup-katago.sh
 scripts/verify-katago.sh
+scripts/setup-katago19-models.sh
+scripts/verify-katago19.sh --static-only
+scripts/verify-katago19.sh
 ```
 
 ## 十一种语言接口
 
-持久的、允许的选择器支持 `en`、`ar`、`es`、`fr`、`ja`、`ko`、`vi`、`zh-Hans`、`zh-Hant`、`de` 和 `ru`。每个区域都有相同的 409 个明确消息键和相同的插值占位符。文档语言遵循选择，阿拉伯语将页面切换为从右到左的布局。
+持久的、允许的选择器支持 `en`、`ar`、`es`、`fr`、`ja`、`ko`、`vi`、`zh-Hans`、`zh-Hant`、`de` 和 `ru`。每个区域都有相同的 629 个明确消息键和相同的插值占位符。文档语言遵循选择，阿拉伯语将页面切换为从右到左的布局。
 
 稳定的接口副本和已知的确定性规则失败被本地化。未知的引擎或模型文本保持逐字不变，并保留其证据来源；客户端绝不会将未经审核的翻译呈现为确切的围棋事实。
 

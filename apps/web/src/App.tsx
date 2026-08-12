@@ -61,6 +61,7 @@ import type {
   BoardSize,
   CandidateMove,
   CoachMessage,
+  CoachResponse,
   CreateGameRequest,
   CurriculumResponse,
   GameMode,
@@ -111,6 +112,10 @@ export function selectableBoardSizes(status: ServiceStatus): BoardSize[] {
     SELECTABLE_BOARD_SIZES.includes(size),
   )
   return advertised.length ? [...new Set(advertised)] : [...SELECTABLE_BOARD_SIZES]
+}
+
+export function engineAvailableForBoard(status: ServiceStatus, boardSize: BoardSize): boolean {
+  return (boardSize === 19 ? status.engine_19x19 ?? status.engine : status.engine).status === 'ready'
 }
 
 export function interfaceLayoutForPath(pathname: string): InterfaceLayout {
@@ -400,6 +405,44 @@ export function openingSuggestionForGame(game: GameState): CandidateMove | null 
   return candidates.find((candidate) => candidate.evaluation?.order === 0) ?? candidates[0] ?? null
 }
 
+export function gameAfterCoachResponse(
+  current: GameState,
+  response: CoachResponse,
+  preserveRootCandidates: boolean,
+): GameState {
+  return {
+    ...current,
+    coach_messages: [...current.coach_messages, response.message],
+    analysis: {
+      status: current.analysis?.status ?? 'fallback',
+      ...current.analysis,
+      facets: response.facets?.length ? response.facets : current.analysis?.facets,
+      candidates: preserveRootCandidates
+        ? current.analysis?.candidates
+        : response.candidates?.length
+          ? response.candidates
+          : current.analysis?.candidates,
+    },
+  }
+}
+
+export function previewAfterCoachResponse(
+  current: MovePreview | null,
+  response: CoachResponse,
+  preserveCandidates: boolean,
+): MovePreview | null {
+  if (!current) return current
+  return {
+    ...current,
+    candidates: preserveCandidates
+      ? current.candidates
+      : response.candidates?.length
+        ? response.candidates
+        : current.candidates,
+    facets: response.facets?.length ? response.facets : current.facets,
+  }
+}
+
 export function App() {
   const { locale, t } = useI18n()
   const translateRef = useRef(t)
@@ -447,7 +490,13 @@ export function App() {
   const requestedAnalysisKey = useRef<string | null>(null)
 
   const serviceLive = bootstrap === 'ready'
-  const engineAvailable = serviceStatus.engine.status === 'ready'
+  const activeBoardSize = view === 'play' && activeGame
+    ? activeGame.board_size
+    : preferences.board_size
+  const engineAvailable = engineAvailableForBoard(serviceStatus, activeBoardSize)
+  const activeEngineStatus = activeBoardSize === 19
+    ? serviceStatus.engine_19x19 ?? serviceStatus.engine
+    : serviceStatus.engine
   const isBusy = operation !== 'idle' && operation !== 'previewing'
   const displayCurriculum = useMemo(() => localizeCurriculum(curriculum, locale), [curriculum, locale])
   const displayHistory = useMemo(
@@ -933,7 +982,11 @@ export function App() {
     }
   }, [activeGame, invalidatePreview, rememberGame, t])
 
-  const askCoach = useCallback(async (question: string, kind: 'hint' | 'explain' = 'explain') => {
+  const askCoach = useCallback(async (
+    question: string,
+    kind: 'hint' | 'explain' | 'reflection' = 'explain',
+    selectedPoint?: Point,
+  ) => {
     if (!activeGame || coachLaneRef.current) return
     coachLaneRef.current = true
     if (activeGame.id.startsWith('local-')) {
@@ -955,35 +1008,21 @@ export function App() {
     }
     setOperation('coach')
     try {
+      const pointSpecificStudy = selectedPoint !== undefined
       const response = await api.coach(activeGame.id, {
         expected_revision: activeGame.revision,
         question,
-        selected_point: selected ?? undefined,
+        selected_point: selectedPoint ?? selected ?? undefined,
         intent,
         kind,
         client_request_id: newClientRequestId('coach'),
       })
       setActiveGame((current) => {
         if (!current || current.id !== activeGame.id || current.revision !== activeGame.revision) return current
-        return {
-          ...current,
-          coach_messages: [...current.coach_messages, response.message],
-          analysis: {
-            status: current.analysis?.status ?? 'fallback',
-            ...current.analysis,
-            facets: response.facets?.length ? response.facets : current.analysis?.facets,
-            candidates: response.candidates?.length ? response.candidates : current.analysis?.candidates,
-          },
-        }
+        return gameAfterCoachResponse(current, response, pointSpecificStudy)
       })
       if (response.candidates?.length || response.facets?.length) {
-        setPreview((current) => current
-          ? {
-              ...current,
-              candidates: response.candidates?.length ? response.candidates : current.candidates,
-              facets: response.facets?.length ? response.facets : current.facets,
-            }
-          : current)
+        setPreview((current) => previewAfterCoachResponse(current, response, pointSpecificStudy))
       }
     } catch (error) {
       setNotice(noticeFromError(error))
@@ -1069,7 +1108,8 @@ export function App() {
       data-status={bootstrap}
       data-view={view}
       data-layout={interfaceLayout}
-      data-engine={serviceStatus.engine.status}
+      data-engine={activeEngineStatus.status}
+      data-engine-lane={activeBoardSize === 19 ? '19x19' : 'small-board'}
       data-operation={operation}
     >
       {simpleInterface && (
@@ -1254,7 +1294,7 @@ export function App() {
               }
               void requestPreview(candidate.point, candidate.intent, candidate.id)
             }}
-            onAsk={(question, kind) => void askCoach(question, kind)}
+            onAsk={(question, kind, selectedPoint) => void askCoach(question, kind, selectedPoint)}
             onLoadOlderCoachHistory={() => void loadOlderCoachHistory()}
             onDelegate={() => void runAgentTurn(activeGame, true)}
             onAgentTurn={() => void runAgentTurn(activeGame)}
@@ -1313,7 +1353,7 @@ interface PlayWorkspaceProps {
   onIntentChange: (intent: MoveIntent) => void
   onLensToggle: (id: EnergyLensId) => void
   onCandidateSelect: (candidate: CandidateMove) => void
-  onAsk: (question: string, kind?: 'hint' | 'explain') => void
+  onAsk: (question: string, kind?: 'hint' | 'explain' | 'reflection', selectedPoint?: Point) => void
   onLoadOlderCoachHistory: () => void
   onDelegate: () => void
   onAgentTurn: () => void
@@ -1543,11 +1583,18 @@ export function PlayWorkspace({
               candidatePreviewMode={candidatePreviewMode}
               lastMove={game.moves.at(-1) ?? null}
               ownership={game.analysis?.ownership}
+              openingLandscape={game.analysis?.opening_landscape}
               activeLenses={activeLenses}
               showCoordinates={preferences.coordinates}
               disabled={boardBusy || !humanTurn || game.mode === 'agent_vs_agent' || game.phase !== 'playing'}
               reducedMotion={preferences.reduced_motion}
               operationStatus={operation}
+              onOpeningDeepStudy={(candidate) => onAsk(
+                `${t('opening.dialogTitle', { coordinate: candidate.coordinate })} ${t('opening.deepStudyHelp')}`,
+                'reflection',
+                candidate.point ?? undefined,
+              )}
+              openingDeepStudyBusy={operation === 'coach'}
             />
 
             {(operation !== 'idle' || analysisLoading) && (

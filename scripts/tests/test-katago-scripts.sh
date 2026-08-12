@@ -7,6 +7,8 @@ setup_script="$project_root/scripts/setup-katago.sh"
 verify_script="$project_root/scripts/verify-katago.sh"
 config_file="$project_root/config/katago-analysis-9x9.cfg"
 process_adapter="$project_root/apps/api/weiqi/adapters/katago/process.py"
+setup19_script="$project_root/scripts/setup-katago19-models.sh"
+verify19_script="$project_root/scripts/verify-katago19.sh"
 
 fail() {
   printf '[test-katago-scripts] FAIL: %s\n' "$*" >&2
@@ -21,7 +23,29 @@ assert_contains() {
 
 bash -n "$setup_script"
 bash -n "$verify_script"
+bash -n "$setup19_script"
+bash -n "$verify19_script"
 bash "$verify_script" --static-only >/dev/null
+bash "$verify19_script" --static-only >/dev/null
+
+plan19="$(bash "$setup19_script" --print-plan)"
+assert_contains "$plan19" "b10c384h6nbttflrs.bin.gz"
+assert_contains "$plan19" "38245488"
+assert_contains "$plan19" "0ba27eced5180b3e3d0b898b280c541112989765e789d1eb6cd0d31b2b2c1229"
+assert_contains "$plan19" "b11c768h12nbt3tflrs-fson-silu.bin.gz"
+assert_contains "$plan19" "211660960"
+assert_contains "$plan19" "1881600caab9e9d85a3dd6a019e9b8e7d2c237b5f984e13ed49a8645be3077c6"
+assert_contains "$plan19" ".local/models/katago19"
+grep -F -- '--max-filesize "$expected_size"' "$setup19_script" >/dev/null ||
+  fail "19x19 model download is missing its exact byte ceiling"
+grep -F -- "--proto-redir '=https'" "$setup19_script" >/dev/null ||
+  fail "19x19 model redirects are not restricted to HTTPS"
+if bash "$setup19_script" --not-a-real-option >/dev/null 2>&1; then
+  fail "19x19 setup accepted an unknown option"
+fi
+if bash "$verify19_script" --static-only --smoke >/dev/null 2>&1; then
+  fail "19x19 verification accepted mutually exclusive modes"
+fi
 
 plan="$(bash "$setup_script" --print-plan)"
 assert_contains "$plan" "KataGo version:    v1.17.2"

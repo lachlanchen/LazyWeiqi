@@ -20,6 +20,8 @@ Path of Influence là một ứng dụng dạy Go/Weiqi ưu tiên hoạt động
 
 Bảng giữ các tự do, nhóm, bắt, ko, và các nước đi hợp pháp chính xác tách biệt về mặt hình ảnh với các dự đoán KataGo, diễn giải của giáo viên, giải thích mô hình, và phép ẩn dụ.
 
+Trong khai cuộc 19×19 thông thường, bản xem trước ứng viên tách hình cờ cục bộ chính xác khỏi tiềm năng đất và hướng ảnh hưởng được tính toán, rồi trình bày lợi ích, đánh đổi, hình thế sức mạnh trước→sau, điều kiện cần xem xét lại, các bước tiếp theo, nước đáp của đối thủ và bối cảnh joseki (定式) do tác giả biên soạn. Sơ đồ nhỏ đánh số là những câu hỏi cần khảo sát, không phải quân đã đặt hay một chuỗi bắt buộc. Nghiên cứu AI sâu hơn tùy chọn giữ tiêu đề đã bản địa hóa tách khỏi nguyên văn của mô hình và không bao giờ đặt quân.
+
 ## Hợp đồng giảng dạy
 
 - Mã xác định sở hữu tính hợp pháp, bắt, siêu ko vị trí, tính điểm, lịch sử, và tính bền vững.
@@ -35,7 +37,7 @@ Bảng giữ các tự do, nhóm, bắt, ko, và các nước đi hợp pháp ch
 | --- | --- |
 | [`apps/api/`](../apps/api/) | Quyền hạn FastAPI, miền Go xác định, biên niên sử SQLite, và các bộ chuyển đổi KataGo/LLM giới hạn |
 | [`apps/web/`](../apps/web/) | Khách hàng giảng dạy React/Vite phản hồi với 11 danh mục giao diện rõ ràng |
-| [`config/`](../config/) | Cấu hình phân tích KataGo 9×9 đã được xem xét |
+| [`config/`](../config/) | Cấu hình phân tích KataGo 9×9 và 19×19 đã được xem xét |
 | [`scripts/`](../scripts/) | Cài đặt có thể tái tạo, xác minh, thời gian chạy, và điều khiển trình duyệt hiển thị |
 | [`references/`](../references/) | [Kiến trúc và an toàn](../references/architecture-and-safety.md), [nguyên tắc giảng dạy](../references/teaching-principles.md), và [nguồn gốc mô hình](../references/model-sources.md) |
 
@@ -58,17 +60,20 @@ Mở `http://127.0.0.1:8010/` cho bảng nhỏ gọn hoặc `http://127.0.0.1:80
 scripts/run.sh stop
 ```
 
-Cài đặt động cơ giảng dạy KataGo đã được gán nhãn, xác minh băm khi cần phân tích:
+Cài đặt các bộ máy giảng dạy KataGo đã được cố định và xác minh hàm băm khi cần phân tích. Thiết lập 19×19 chuyên dụng có cấu hình đã duyệt và quy trình xác minh riêng:
 
 ```bash
 scripts/setup-katago.sh --print-plan
 scripts/setup-katago.sh
 scripts/verify-katago.sh
+scripts/setup-katago19-models.sh
+scripts/verify-katago19.sh --static-only
+scripts/verify-katago19.sh
 ```
 
 ## Giao diện mười một ngôn ngữ
 
-Bộ chọn đã được lưu trữ, cho phép hỗ trợ `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de`, và `ru`. Mỗi ngôn ngữ địa phương có cùng 409 khóa thông điệp rõ ràng và cùng các dấu chấm lấp. Ngôn ngữ tài liệu theo lựa chọn, và tiếng Ả Rập chuyển trang sang bố cục từ phải sang trái.
+Bộ chọn đã được lưu trữ, cho phép hỗ trợ `en`, `ar`, `es`, `fr`, `ja`, `ko`, `vi`, `zh-Hans`, `zh-Hant`, `de`, và `ru`. Mỗi ngôn ngữ địa phương có cùng 629 khóa thông điệp rõ ràng và cùng các dấu chấm lấp. Ngôn ngữ tài liệu theo lựa chọn, và tiếng Ả Rập chuyển trang sang bố cục từ phải sang trái.
 
 Bản sao giao diện ổn định và các lỗi quy tắc xác định đã biết được địa phương hóa. Văn bản động cơ hoặc mô hình không xác định vẫn giữ nguyên và giữ nguyên nguồn gốc bằng chứng của nó; khách hàng không bao giờ trình bày một bản dịch chưa được xem xét như một sự thật Go chính xác.
 

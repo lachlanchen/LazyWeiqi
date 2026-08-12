@@ -21,6 +21,24 @@ def _candidate_id(item: dict[str, Any]) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _validate_study_focus(draft: CoachDraft, evidence: dict[str, Any], *, review: bool) -> None:
+    if not review:
+        if draft.study is not None:
+            raise ValueError("GPT-5.6 Sol returned deep-study prose for a standard question")
+        return
+    if draft.study is None:
+        raise ValueError("GPT-5.6 Sol omitted the requested structured deep study")
+    focus = evidence.get("teaching_focus")
+    if not isinstance(focus, dict):
+        raise ValueError("deep study requires a bounded teaching focus")
+    allowed = {focus.get("primary")}
+    supporting = focus.get("supporting")
+    if isinstance(supporting, list):
+        allowed.update(item for item in supporting if isinstance(item, str))
+    if draft.study.phase not in allowed:
+        raise ValueError("GPT-5.6 Sol changed the deterministic teaching focus")
+
+
 def _safety_identifier(data_dir: Path) -> str:
     marker = data_dir / ".provider-instance"
     if marker.exists() and marker.is_file() and not marker.is_symlink():
@@ -169,13 +187,14 @@ class OpenAIClient:
             input_text=encoded,
             schema_name="weiqi_coach",
             schema=_strict_response_schema(CoachDraft.model_json_schema()),
-            max_output_tokens=2200,
+            max_output_tokens=3600 if review else 2200,
             effort="high" if review else None,
         )
         try:
             draft = CoachDraft.model_validate(parsed)
         except ValidationError as exc:
             raise ValueError("GPT-5.6 Sol returned an invalid teaching object") from exc
+        _validate_study_focus(draft, evidence, review=review)
         allowed = {
             candidate_id
             for item in evidence.get("candidates", [])

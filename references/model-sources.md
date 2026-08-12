@@ -187,17 +187,50 @@ GPU loading and a bounded four-visit 9x9 HumanSL inference are deliberately opt-
 WEIQI_KATAGO_GPU=1 scripts/verify-katago.sh --smoke
 ```
 
-## Optional later 13x13/19x19 network
+## Pinned ordinary 19x19 networks
 
-Do not download this for the initial 9x9 course. KataGo's `v1.17.1` release calls
-`b11c768h12nbt3tflrs-fson-silu.bin.gz` its strongest released transformer and
-states that it is stronger than the large b40 Zhizi networks while normally being
-as fast or faster.
+Ordinary 19×19 games use a separate, serialized engine lane. They never reuse or
+silently replace the specialized beginner 9×9 evaluator. Both general networks
+come from KataGo's official [`v1.17.1` release](https://github.com/lightvector/KataGo/releases/tag/v1.17.1),
+whose release notes describe the small transformer as stronger per visit than the
+strongest b18 main-run network and the larger transformer as stronger than the b40
+Zhizi networks while normally being as fast or faster.
 
-- Release: <https://github.com/lightvector/KataGo/releases/tag/v1.17.1>
-- Asset: <https://github.com/lightvector/KataGo/releases/download/v1.17.1/b11c768h12nbt3tflrs-fson-silu.bin.gz>
-- Bytes: `211,660,960`
-- SHA-256: `1881600caab9e9d85a3dd6a019e9b8e7d2c237b5f984e13ed49a8645be3077c6`
+| Profile | Upstream artifact | Bytes | Repository-pinned SHA-256 | Bounded use |
+| --- | --- | ---: | --- | --- |
+| Interactive | [`b10c384h6nbttflrs.bin.gz`](https://github.com/lightvector/KataGo/releases/download/v1.17.1/b10c384h6nbttflrs.bin.gz) | `38,245,488` | `0ba27eced5180b3e3d0b898b280c541112989765e789d1eb6cd0d31b2b2c1229` | Analysis, candidate preview, and player-agent candidate intersection; default `24` visits |
+| Deep study | [`b11c768h12nbt3tflrs-fson-silu.bin.gz`](https://github.com/lightvector/KataGo/releases/download/v1.17.1/b11c768h12nbt3tflrs-fson-silu.bin.gz) | `211,660,960` | `1881600caab9e9d85a3dd6a019e9b8e7d2c237b5f984e13ed49a8645be3077c6` | Explicit 19×19 reflection only; default `64` visits |
 
-Adding it requires a separate 19x19 runtime configuration and a fresh measured GPU
-memory budget. It must not silently replace the specialized beginner 9x9 lane.
+The reviewed [`katago-analysis-19x19.cfg`](../config/katago-analysis-19x19.cfg)
+has SHA-256 `c6c4b5d9d3c1a1b572ac4eeb0a1ab1ab8a024995c8aacf03e5728d1e114b2305`.
+One manager serializes queries, admits at most eight waiters, stops the active
+process before switching profiles, and releases an idle process after 90 seconds.
+Thus the fast and quality networks are never resident simultaneously. Candidate
+moves still come from deterministic legality and engine moves are intersected with
+those current, position-bound candidates.
+
+Every accepted response records the exact engine version, profile, model name,
+model bytes and SHA-256, configuration and binary pins, requested and actual
+visits, elapsed time, Black perspective, state token, position hash, history
+digest, move number, side to move, and query digest. A malformed or mismatched
+binding is discarded rather than displayed.
+
+Install both private, ignored networks and write their exact two-entry manifest:
+
+```bash
+scripts/setup-katago19-models.sh
+scripts/verify-katago19.sh
+```
+
+GPU loading is an explicit sequential smoke check. It stops each profile before
+loading the next and checks ownership, ownership variation, policy, candidate,
+history, turn, and principal-variation shapes:
+
+```bash
+WEIQI_KATAGO19_GPU=1 scripts/verify-katago19.sh --smoke
+```
+
+The release smoke measured the fast profile at roughly 1.1 seconds for its first
+empty-board load and 0.05 seconds for a warm opening query, and the quality profile
+at roughly 3.4 seconds for its first load and 0.13 seconds warm at the reviewed
+visit bounds. These are workstation observations, not portable latency promises.

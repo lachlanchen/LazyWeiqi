@@ -48,10 +48,11 @@ The Energy Lens deliberately separates evidence classes:
 
 A metaphor may summarize verified facts but cannot be converted into a synthetic
 “energy score.” A language model receives only a bounded canonical snapshot,
-candidate IDs, labeled facets, lesson target, the current question, and at most
+candidate IDs, labeled facets, finite opening-teaching IDs and anchors, lesson target, the current question, and at most
 four clipped question/answer pairs from the active branch (at most 4,000 UTF-8
 bytes together). Rewound dialogue is excluded. Strict structured output rejects
-unknown candidate IDs and unsupported fields. Provider failure falls back to
+unknown candidate IDs and unsupported fields. Dense browser heat maps and verified
+diagram stones are deliberately omitted from the model envelope. Provider failure falls back to
 deterministic teaching rather than blocking play.
 
 On 9×9, the board shows KataGo's order-zero candidate immediately and switches its
@@ -84,6 +85,21 @@ corner/side/center efficiency; after play it shows separate Black, White, and
 overlap proximity. It is labeled **Metaphor**, does not rank candidates, and is
 never score, territory, physics, or hidden model output. The installed
 9×9-specialized network is never queried for 5×5 or 7×7 positions.
+
+Ordinary 19×19 positions use a separate one-resident-at-a-time KataGo lane with
+independently pinned interactive and deep-study networks. The initial suggestion
+and ordinary previews use the interactive profile. Only an explicit reflection
+request may switch to the quality profile; the manager stops the old process before
+loading the other model and releases it after an idle timeout. Responses are bound
+to model SHA-256, profile, state token, position hash, history digest, move number,
+side to move, and query digest before any engine badge is shown.
+
+The 19×19 opening visualization is not the distance sketch. It displays exact local
+shape separately from deterministic calculated influence and territory *potential*,
+plus finite authored joseki/fuseki context. The potential lanes are explicitly not
+KataGo ownership, secured territory, score, or a best-move claim. A textbook-style
+detail sheet renders current stones and the candidate from rules-verified data;
+numbered extensions and replies are authored questions and always marked non-forced.
 
 The adjacent teaching card uses a fixed beginner scan—play, because, changes,
 opponent, then check, principle—rather than an essay. Coordinates and exact

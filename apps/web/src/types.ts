@@ -78,6 +78,14 @@ export interface ServiceStatus {
     model?: string | null
     detail?: string | null
   }
+  engine_19x19?: {
+    status: 'ready' | 'fallback' | 'starting' | 'unavailable'
+    provider: string
+    model?: string | null
+    profiles?: Record<string, unknown>
+    active_profile?: string | null
+    detail?: string | null
+  }
   coach: {
     status: 'ready' | 'fallback' | 'starting' | 'unavailable'
     provider: string
@@ -113,6 +121,159 @@ export interface EnergyFacet {
   scope?: 'current' | 'if_played'
 }
 
+/**
+ * Position-bound opening guidance for an ordinary 19x19 game.
+ *
+ * The three evidence lanes are deliberately different: deterministic rules
+ * own shape facts, deterministic geometry describes potential, and authored
+ * principles provide strategy/joseki context. None of these fields is an
+ * engine ownership estimate or already-secured territory.
+ */
+export interface OpeningTeachingAnchor {
+  label_id: string
+  point: Point
+  coordinate: string
+  role: 'extension' | 'approach' | 'reply' | 'direction'
+  reason_id: string
+  timing_id?: 'future_big_point' | 'opponent_reply_space'
+  evidence: 'authored'
+}
+
+export interface OpeningTeachingDiagram {
+  diagram_type: 'local_shape' | 'whole_board_direction' | 'corner_sequence' | 'reply_branch'
+  crop: { min_x: number; min_y: number; max_x: number; max_y: number }
+  verified_current_stones: Array<{ point: Point; color: StoneColor }>
+  candidate: { point: Point; color: StoneColor }
+  steps: Array<{
+    order: number
+    kind: OpeningTeachingAnchor['role']
+    point: Point
+    coordinate: string
+    label_id: string
+    why_id: string
+    gain_id: string
+    loss_id: string
+    evidence: 'authored'
+  }>
+  line_kind: 'authored_context'
+  not_forced: true
+}
+
+export interface OpeningTeaching {
+  schema_version: 1
+  binding: {
+    state_token: string
+    position_hash: string
+    move_number: number
+    candidate_id: string
+    to_move: StoneColor
+  }
+  provenance: {
+    rules_facts: { evidence: 'exact'; source: 'deterministic_rules' }
+    geometry: { evidence: 'calculated_potential'; source: 'deterministic_opening_geometry_v1' }
+    strategy: { evidence: 'authored'; source: 'authored_opening_principles_v1' }
+    engine?: OpeningEngineProvenance
+  }
+  role_id: string
+  family_id: string
+  purpose_id: string
+  why_id: string
+  gain_ids: string[]
+  loss_ids: string[]
+  mechanism: {
+    fact_ids: string[]
+    exact: {
+      region_id: string
+      line_from_nearest_edge: number
+      resulting_liberties: number
+      resulting_group_size: number
+      connections: number
+    }
+    before_shape_id: string
+    after_shape_id: string
+    reconsider_condition_ids: string[]
+    shape_assessment?: {
+      evidence: 'calculated_potential'
+      thickness_id: string
+      weakness_ids: string[]
+    }
+  }
+  influence: {
+    evidence: 'calculated_potential'
+    source?: 'deterministic_opening_geometry_v1'
+    vectors: Array<{
+      from: Point
+      to: Point
+      strength: number
+      direction_id: string
+    }>
+    regions: Array<{
+      center: Point
+      radius: number
+      strength: number
+      direction_id: string
+    }>
+    change_cells: Array<{ point: Point; influence_delta: number; territory_potential_delta: number }>
+    not_ownership?: true
+  }
+  territory: {
+    evidence: 'calculated_potential'
+    zones: Array<{
+      kind: 'corner' | 'side' | 'center'
+      center: Point
+      radius: number
+      potential: 'efficient' | 'developing' | 'open'
+    }>
+    note_id: string
+    not_secured?: true
+  }
+  whole_board: {
+    evidence?: 'calculated_potential'
+    balance_effect_id: string
+    open_corners: number
+  }
+  initiative: {
+    evidence?: 'authored'
+    sente_status_id: 'open_board_not_forced' | 'local_tactical_reply_may_be_urgent_not_forced'
+    not_forced: true
+  }
+  follow_ups: OpeningTeachingAnchor[]
+  reply_anchors: OpeningTeachingAnchor[]
+  joseki: {
+    term: 'Joseki'
+    original: '定式'
+    relation: 'entry_point' | 'context' | 'not_applicable'
+    note_id: string
+    evidence: 'authored'
+    guaranteed_sequence: false
+  }
+  teaching_diagrams: OpeningTeachingDiagram[]
+  caution_ids: string[]
+  limitations_ids: string[]
+}
+
+export type OpeningEngineProvenance =
+  | { available: false; reason_id: string }
+  | {
+      available: true
+      evidence: 'engine'
+      profile: 'fast' | 'quality'
+      model_sha256: string
+      requested_visits: number
+      actual_visits: number
+      perspective: 'black'
+      candidate_analyzed?: boolean
+      binding: {
+        state_token: string
+        position_hash: string
+        history_digest: string
+        move_number: number
+        side_to_move: StoneColor
+        board_size: 19
+        query_sha256: string
+      }
+    }
+
 export interface CandidateMove {
   id: string
   kind?: 'play' | 'pass'
@@ -134,6 +295,7 @@ export interface CandidateMove {
   ownership_before?: OwnershipCell[]
   ownership_after?: OwnershipCell[]
   ownership_delta?: OwnershipCell[]
+  opening_teaching?: OpeningTeaching
   why_here?: string | null
   what_changes?: string | null
   next_calculation?: string | null
@@ -212,6 +374,58 @@ export type MoveTeachingEvidence = Omit<CandidateMove, 'summary' | 'tactics' | '
   next_calculation: string
 }
 
+export interface OpeningLandscape {
+    schema_version: 1
+    binding: {
+      state_token: string
+      position_hash: string
+      move_number: number
+      to_move: StoneColor
+    }
+    provenance: {
+      rules_facts: { evidence: 'exact'; source: 'deterministic_rules' }
+      geometry: { evidence: 'calculated_potential'; source: 'deterministic_opening_geometry_v1' }
+      strategy: { evidence: 'authored'; source: 'authored_opening_principles_v1' }
+      engine?: OpeningEngineProvenance
+    }
+    phase_id: string
+    field: {
+      evidence: 'calculated_potential'
+      source: 'deterministic_opening_geometry_v1'
+      cells: Array<{
+        point: Point
+        black_influence: number
+        white_influence: number
+        black_territory_potential: number
+        white_territory_potential: number
+        contested: number
+      }>
+      cell_limit: number
+      not_ownership: true
+      not_secured_territory: true
+    }
+    region_balance: Array<{
+      region_id: string
+      kind: 'corner' | 'side' | 'center'
+      bounds: { min_x: number; min_y: number; max_x: number; max_y: number }
+      black_stones: number
+      white_stones: number
+      black_influence: number
+      white_influence: number
+      black_territory_potential: number
+      white_territory_potential: number
+      evidence: { stone_counts: 'exact'; influence_and_territory_potential: 'calculated_potential' }
+    }>
+    corner_status: Array<{
+      corner_id: string
+      black_stones: number
+      white_stones: number
+      open: boolean
+      evidence: 'exact'
+    }>
+    limitations_ids: string[]
+}
+
 export interface GameAnalysis {
   status: 'ready' | 'fallback' | 'pending' | 'unavailable'
   engine?: string
@@ -223,6 +437,7 @@ export interface GameAnalysis {
   ownership_perspective?: 'black' | null
   facets?: EnergyFacet[]
   candidates?: CandidateMove[]
+  opening_landscape?: OpeningLandscape
 }
 
 export interface AnalysisResponse {
