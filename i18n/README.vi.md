@@ -10,9 +10,12 @@
 
 Path of Influence là một ứng dụng dạy Go/Weiqi ưu tiên hoạt động cục bộ. Ứng dụng dẫn người học từ các bài học ngắn 5×5 và 7×7, qua những ván cờ hoàn chỉnh 9×9, đến lối chơi thông thường trên bàn cờ đầy đủ 19×19, cùng một người bạn đồng hành giải thích, các tác nhân người chơi có giới hạn, sân khấu tác nhân có lời dẫn và một biên niên sử có thể phát lại. Các quy tắc chính xác vẫn là căn cứ cuối cùng ngay cả khi mọi nhà cung cấp phân tích hoặc mô hình ngôn ngữ đều ngoại tuyến.
 
-| Donate | PayPal | Stripe |
-| --- | --- | --- |
-| [![Donate](https://img.shields.io/badge/Donate-LazyingArt-0EA5E9?style=for-the-badge&logo=kofi&logoColor=white)](https://chat.lazying.art/donate) | [![PayPal](https://img.shields.io/badge/PayPal-RongzhouChen-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen) | [![Stripe](https://img.shields.io/badge/Stripe-Donate-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400) |
+<!-- support:start -->
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsors-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/lachlanchen)
+[![LazyingArt Support](https://img.shields.io/badge/LazyingArt-Support-0EA5E9?style=for-the-badge)](https://chat.lazying.art/donate)
+[![PayPal Support](https://img.shields.io/badge/PayPal-Support-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/RongzhouChen)
+[![Stripe Support](https://img.shields.io/badge/Stripe-Support-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://buy.stripe.com/aFadR8gIaflgfQV6T4fw400)
+<!-- support:end -->
 
 ## Xem trước ứng dụng
 
